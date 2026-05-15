@@ -1,0 +1,14 @@
+{
+  "overrides": [
+    {
+      "files": ["*.js", "*.ts", "*.html", "*.htm", "*.json", "*.vue"],
+      "options": {
+        "tabWidth": 2
+      }
+    }
+  ],
+  "bracketSameLine": true,
+  "printWidth": 80,
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "tailwindFunctions": ["clsx"]
+}
