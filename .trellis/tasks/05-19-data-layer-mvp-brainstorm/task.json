@@ -1,0 +1,29 @@
+{
+  "id": "data-layer-mvp-brainstorm",
+  "name": "data-layer-mvp-brainstorm",
+  "title": "Data Layer MVP Brainstorm",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hechang27-sprt",
+  "assignee": "hechang27-sprt",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-19-local-document-data-layer",
+    "05-19-remote-collection-adapters"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
