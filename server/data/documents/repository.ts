@@ -389,7 +389,10 @@ function buildFilterCondition(filter: DocumentFilter): SQL | undefined {
 
 function buildFieldExpression(field: DocumentField): SQL {
   if (field.kind === "data") {
-    return sql`${documentsTable.data} #>> ${field.path}`;
+    return sql`jsonb_extract_path_text(${documentsTable.data}, ${sql.join(
+      field.path.map((segment) => sql`${segment}`),
+      sql`, `,
+    )})`;
   }
 
   switch (field.name) {
