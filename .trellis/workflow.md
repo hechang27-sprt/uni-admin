@@ -597,13 +597,17 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
 
 1. **Inspect dirty state**:
    ```bash
-   git status --porcelain
+   test -d .jj && jj status || git status --porcelain
+   git status --short --branch
    ```
-   Snapshot every dirty path. If the working tree is clean, skip to 3.5.
+   In this repository, `.jj/` means Jujutsu owns the local working copy and Git
+   is the remote/compatibility layer. Detached Git `HEAD` is not by itself a
+   problem when `jj status` shows a valid working copy. Snapshot every dirty
+   path. If the working tree is clean, skip to 3.5.
 
 2. **Learn commit style** from recent history (so drafted messages blend in):
    ```bash
-   git log --oneline -5
+   test -d .jj && jj log --limit 5 || git log --oneline -5
    ```
    Note the prefix convention (`feat:` / `fix:` / `chore:` / `docs:` ...), language (中文/English), and length style.
 
@@ -629,12 +633,20 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
    Reply 'ok' / '行' to execute. Reply with edits, or '我自己来' / 'manual' to abort.
    ```
 
-6. **On confirmation**: run `git add <files>` + `git commit -m "<msg>"` for each batch in order. Do not amend. Do not push.
+6. **On confirmation**:
+   - If `.jj/` exists, run `jj commit -m "<msg>" <files...>` for each batch in
+     order. Always pass the planned filesets; bare `jj commit -m "<msg>"`
+     commits the whole working-copy change.
+   - If `.jj/` is absent, run `git add <files>` + `git commit -m "<msg>"` for
+     each batch in order.
+   Do not amend. Do not push.
 
 7. **On rejection** (user replies "不行" / "我自己来" / "manual" / any pushback on the plan): stop. Do not attempt a second plan. The user will commit by hand; you skip ahead to 3.5 once they confirm.
 
 **Rules**:
 - No `git commit --amend` anywhere — three-stage three-commit flow (work commits → archive commit → journal commit).
+- In Jujutsu repositories, no bare `jj commit -m "<msg>"` for partial batches;
+  use explicit filesets from the confirmed plan.
 - Never push to remote in this step.
 - If the user wants different message wording but accepts the file grouping, edit the message and re-confirm once — but if they reject the grouping, exit to manual mode.
 - The batched plan is one prompt; do not prompt per commit.

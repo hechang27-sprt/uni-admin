@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Jujutsu + Git Workflow](./jujutsu-git-workflow.md) | Work safely in this colocated Jujutsu + Git repository | When inspecting dirty state, planning commits, or creating branch-only demo work |
 
 ---
 
@@ -50,6 +51,16 @@ These guides help you **ask the right questions before coding**.
 - [ ] Multiple branches update the same derived state from `kind` / `action`
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
+### When Working With Version Control
+
+- [ ] `.jj/` exists in the repository
+- [ ] Git reports detached `HEAD`
+- [ ] You are inspecting dirty state for a task
+- [ ] You are planning commits
+- [ ] You are creating branch-only demo/example work
+
+→ Read [Jujutsu + Git Workflow](./jujutsu-git-workflow.md)
 
 ### When Verifying AI Cross-Review Results
 

@@ -1,6 +1,6 @@
 ---
 name: trellis-start
-description: "Initializes an AI development session by reading workflow guides, developer identity, git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context."
+description: "Initializes an AI development session by reading workflow guides, developer identity, Jujutsu/Git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context."
 ---
 
 # Start Session
@@ -10,11 +10,15 @@ Initialize a Trellis-managed development session. This platform has no session-s
 ---
 
 ## Step 1: Current state
-Identity, git status, current task, active tasks, journal location.
+Identity, Jujutsu/Git status, current task, active tasks, journal location.
 
 ```bash
 python3 ./.trellis/scripts/get_context.py
 ```
+
+If `.jj/` exists, treat Jujutsu as the local working-copy source of truth and
+Git as the remote/compatibility layer. Detached Git `HEAD` is expected in a
+Jujutsu-managed working copy and is not a blocker by itself.
 
 If this output includes a line beginning `Trellis update available:`, copy the full line verbatim when summarizing session context. Do not shorten operational command hints.
 

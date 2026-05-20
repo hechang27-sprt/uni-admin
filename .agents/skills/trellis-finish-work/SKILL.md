@@ -16,7 +16,7 @@ python3 ./.trellis/scripts/get_context.py --mode record
 This prints:
 
 - **My active tasks** — review whether any besides the current one are actually done (code merged, AC met) and should be archived this round.
-- **Git status** — quick visual on what's dirty.
+- **Jujutsu/Git status** — quick visual on what's dirty.
 - **Recent commits** — you'll need their hashes in Step 4 for `--commit`.
 
 If `--mode record` surfaces other completed tasks not tied to the current session, surface them to the user with a one-shot confirmation: "These N tasks look done — archive them too in this round? [y/N]". Default is no; the current active task is always archived in Step 3 regardless.
@@ -26,8 +26,13 @@ If `--mode record` surfaces other completed tasks not tied to the current sessio
 Run:
 
 ```bash
-git status --porcelain
+test -d .jj && jj status || git status --porcelain
+git status --short --branch
 ```
+
+When `.jj/` exists, Jujutsu is the local working-copy source of truth. Git
+remains the remote/compatibility layer, and detached Git `HEAD` is not a blocker
+by itself.
 
 Filter out paths under `.trellis/workspace/` and `.trellis/tasks/` — those are managed by `add_session.py` and `task.py archive` auto-commits and will appear dirty as part of this skill's own work.
 
@@ -42,7 +47,7 @@ Then route:
 - **Any remaining path looks like current-task work** — bail out with:
   > "Working tree has uncommitted code changes from this task: `<list>`. Return to workflow Phase 3.4 to commit them before running ``finish-work` (Trellis command)`."
 
-  Do NOT run `git commit` here. Do NOT prompt the user to commit. The user goes back to Phase 3.4 and the AI drives the batched commit there.
+  Do NOT create work commits here. Do NOT prompt the user to commit. The user goes back to Phase 3.4 and the AI drives the batched commit there.
 - **All remaining paths look unrelated** (other parallel-window work) — report them once and continue to Step 3:
   > "FYI, dirty files outside this task's scope — leaving them for the other window: `<list>`."
 - **Genuinely unsure** — ask the user once: "Are `<list>` this task's work I forgot to commit, or another window's? (commit / ignore)" — then route per their answer.
@@ -53,7 +58,7 @@ Then route:
 python3 ./.trellis/scripts/task.py archive <task-name>
 ```
 
-At minimum: the current active task (if any). Plus any extra tasks the user confirmed in Step 1. Each archive produces a `chore(task): archive ...` commit via the script's auto-commit.
+At minimum: the current active task (if any). Plus any extra tasks the user confirmed in Step 1. Each archive produces a `chore(task): archive ...` commit via the script's auto-commit. Existing Trellis archive scripts may still create Git-visible bookkeeping commits; keep those script-managed commits separate from Jujutsu-first work commits.
 
 If there is no active task and the user did not confirm any cleanup archives, skip this step.
 
@@ -66,6 +71,6 @@ python3 ./.trellis/scripts/add_session.py \
   --summary "Brief summary"
 ```
 
-Use the work-commit hashes produced in Phase 3.4 (visible in Step 1's `Recent commits` list, or via `git log --oneline`) for `--commit`. Do not include the archive commit hashes from Step 3. This produces a `chore: record journal` commit.
+Use the work-commit hashes produced in Phase 3.4 (visible in Step 1's `Recent commits` list, via `jj log --limit 5` when `.jj/` exists, or via `git log --oneline` as fallback) for `--commit`. Do not include the archive commit hashes from Step 3. This produces a `chore: record journal` commit.
 
-Final git log order: `<work commits from 3.4>` → `chore(task): archive ...` (one or more) → `chore: record journal`.
+Final history order: `<work commits from 3.4>` → `chore(task): archive ...` (one or more) → `chore: record journal`.

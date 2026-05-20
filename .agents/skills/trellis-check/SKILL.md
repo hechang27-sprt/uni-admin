@@ -12,9 +12,14 @@ Comprehensive quality verification for recently written code. Combines spec comp
 ## Step 1: Identify What Changed
 
 ```bash
-git diff --name-only HEAD
-git status
+test -d .jj && jj diff --name-only || git diff --name-only HEAD
+test -d .jj && jj status || git status
+git status --short --branch
 ```
+
+When `.jj/` exists, use Jujutsu as the local working-copy source of truth and
+Git as remote/compatibility context. Detached Git `HEAD` is not a problem by
+itself in a Jujutsu-managed working copy.
 
 ## Step 2: Read Task Artifacts and Applicable Specs
 

@@ -15,7 +15,11 @@ Resume work on the current task — pick up at the right phase/step in `.trellis
 python3 ./.trellis/scripts/get_context.py
 ```
 
-Confirms: current task, git state, recent commits.
+Confirms: current task, Jujutsu/Git state, recent commits.
+
+If `.jj/` exists, treat Jujutsu state as authoritative for local changes and
+Git state as compatibility/remote context. Detached Git `HEAD` is expected in a
+Jujutsu-managed working copy.
 
 ## Step 2: Load the Phase Index
 
