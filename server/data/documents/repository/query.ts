@@ -1,0 +1,219 @@
+import {
+  and,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
+
+import { documentsTable } from "#server/db/schema";
+import type {
+  DocumentField,
+  DocumentFilter,
+  DocumentSort,
+  JsonValue,
+  ListDocumentsInput,
+  NormalizedListDocumentsInput,
+  StoredDocument,
+} from "../types";
+
+export function normalizeListInput(
+  input: ListDocumentsInput = {},
+): NormalizedListDocumentsInput {
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
+  const offset = Math.max(input.offset ?? 0, 0);
+
+  return {
+    filter: input.filter,
+    sort: normalizeSort(input.sort),
+    limit,
+    offset,
+    includeDeleted: input.includeDeleted ?? false,
+  };
+}
+
+export function normalizeSort(sort: DocumentSort[] = []): DocumentSort[] {
+  const normalized = sort.map((entry) => ({
+    ...entry,
+    direction: entry.direction ?? "asc",
+  }));
+  const hasIdTieBreaker = normalized.some(
+    (entry) => entry.field.kind === "metadata" && entry.field.name === "id",
+  );
+
+  if (!hasIdTieBreaker) {
+    normalized.push({
+      field: { kind: "metadata", name: "id" },
+      direction: "asc",
+    });
+  }
+
+  return normalized;
+}
+
+export function buildFilterCondition(filter: DocumentFilter): SQL | undefined {
+  if ("and" in filter) {
+    return and(...filter.and.map(buildFilterCondition));
+  }
+
+  if ("or" in filter) {
+    return or(...filter.or.map(buildFilterCondition));
+  }
+
+  const field = buildFieldExpression(filter.field);
+
+  switch (filter.op) {
+    case "eq":
+      return filter.value === null ? isNull(field) : eq(field, filter.value);
+    case "ne":
+      return filter.value === null ? isNotNull(field) : ne(field, filter.value);
+    case "gt":
+      return gt(field, filter.value);
+    case "gte":
+      return gte(field, filter.value);
+    case "lt":
+      return lt(field, filter.value);
+    case "lte":
+      return lte(field, filter.value);
+  }
+}
+
+export function buildFieldExpression(field: DocumentField): SQL {
+  if (field.kind === "data") {
+    return sql`jsonb_extract_path_text(${documentsTable.data}, ${sql.join(
+      field.path.map((segment) => sql`${segment}`),
+      sql`, `,
+    )})`;
+  }
+
+  switch (field.name) {
+    case "id":
+      return sql`${documentsTable.id}`;
+    case "tenantId":
+      return sql`${documentsTable.tenantId}`;
+    case "collection":
+      return sql`${documentsTable.collection}`;
+    case "schemaVersion":
+      return sql`${documentsTable.schemaVersion}`;
+    case "version":
+      return sql`${documentsTable.version}`;
+    case "createdAt":
+      return sql`${documentsTable.createdAt}`;
+    case "updatedAt":
+      return sql`${documentsTable.updatedAt}`;
+    case "deletedAt":
+      return sql`${documentsTable.deletedAt}`;
+    case "remoteSource":
+      return sql`${documentsTable.remoteSource}`;
+    case "remoteId":
+      return sql`${documentsTable.remoteId}`;
+  }
+}
+
+export function matchesFilter(
+  document: StoredDocument,
+  filter: DocumentFilter,
+): boolean {
+  if ("and" in filter) {
+    return filter.and.every((child) => matchesFilter(document, child));
+  }
+
+  if ("or" in filter) {
+    return filter.or.some((child) => matchesFilter(document, child));
+  }
+
+  const actual = getFieldValue(document, filter.field);
+
+  switch (filter.op) {
+    case "eq":
+      return compareValues(actual, filter.value) === 0;
+    case "ne":
+      return compareValues(actual, filter.value) !== 0;
+    case "gt":
+      return compareValues(actual, filter.value) > 0;
+    case "gte":
+      return compareValues(actual, filter.value) >= 0;
+    case "lt":
+      return compareValues(actual, filter.value) < 0;
+    case "lte":
+      return compareValues(actual, filter.value) <= 0;
+  }
+}
+
+export function compareDocuments(
+  left: StoredDocument,
+  right: StoredDocument,
+  sort: DocumentSort[],
+): number {
+  for (const sortEntry of sort) {
+    const direction = sortEntry.direction === "desc" ? -1 : 1;
+    const comparison = compareValues(
+      getFieldValue(left, sortEntry.field),
+      getFieldValue(right, sortEntry.field),
+    );
+
+    if (comparison !== 0) {
+      return comparison * direction;
+    }
+  }
+
+  return 0;
+}
+
+function getFieldValue(
+  document: StoredDocument,
+  field: DocumentField,
+): JsonValue | Date | undefined {
+  if (field.kind === "metadata") {
+    return document[field.name];
+  }
+
+  let current: JsonValue | undefined = document.data;
+
+  for (const segment of field.path) {
+    if (
+      typeof current !== "object" ||
+      current === null ||
+      Array.isArray(current)
+    ) {
+      return undefined;
+    }
+
+    current = current[segment];
+  }
+
+  return current;
+}
+
+function compareValues(
+  left: JsonValue | Date | undefined,
+  right: JsonValue | Date | undefined,
+): number {
+  if (left === right) {
+    return 0;
+  }
+
+  if (left === undefined || left === null) {
+    return -1;
+  }
+
+  if (right === undefined || right === null) {
+    return 1;
+  }
+
+  const leftValue = left instanceof Date ? left.getTime() : left;
+  const rightValue = right instanceof Date ? right.getTime() : right;
+
+  if (typeof leftValue === "number" && typeof rightValue === "number") {
+    return leftValue - rightValue;
+  }
+
+  return String(leftValue).localeCompare(String(rightValue));
+}

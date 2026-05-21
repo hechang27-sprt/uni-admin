@@ -12,7 +12,16 @@ export default defineNuxtConfig({
       compilerOptions: {
         types: ["bun"],
       },
-      include: ["../drizzle.config.ts", "../scripts/**/*.ts"],
+      include: ["../*.config.ts", "../scripts/**/*.ts"],
+    },
+  },
+  nitro: {
+    preset: "bun",
+    typescript: {
+      tsConfig: {
+        compilerOptions: {},
+        include: ["../test/unit/server/**/*.ts"],
+      },
     },
   },
 });
