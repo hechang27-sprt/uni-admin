@@ -54,6 +54,19 @@ export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
   remoteId?: string | null;
 }
 
+export interface UpsertRemoteProjectionsRecord<
+  TData extends JsonObject = JsonObject,
+> {
+  tenantId: string;
+  collection: string;
+  schemaVersion: number;
+  remoteSource: string;
+  projections: {
+    remoteId: string;
+    data: TData;
+  }[];
+}
+
 export interface DocumentRepository {
   insert<TData extends JsonObject>(
     record: InsertDocumentRecord<TData>,
@@ -79,6 +92,9 @@ export interface DocumentRepository {
   update<TData extends JsonObject>(
     record: UpdateDocumentRecord<TData>,
   ): Promise<StoredDocument<TData> | null>;
+  upsertRemoteProjections<TData extends JsonObject>(
+    record: UpsertRemoteProjectionsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]>;
   hardDelete(input: {
     tenantId: string;
     collection: string;
@@ -238,6 +254,57 @@ export class DrizzleDocumentRepository implements DocumentRepository {
     return row ? mapDocumentRow<TData>(row) : null;
   }
 
+  async upsertRemoteProjections<TData extends JsonObject>(
+    record: UpsertRemoteProjectionsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]> {
+    if (record.projections.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const rows = await this.database
+      .insert(documentsTable)
+      .values(
+        record.projections.map((projection) => ({
+          tenantId: record.tenantId,
+          collection: record.collection,
+          schemaVersion: record.schemaVersion,
+          data: projection.data,
+          remoteSource: record.remoteSource,
+          remoteId: projection.remoteId,
+          updatedAt: now,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [
+          documentsTable.tenantId,
+          documentsTable.collection,
+          documentsTable.remoteSource,
+          documentsTable.remoteId,
+        ],
+        targetWhere: sql`${documentsTable.remoteSource} is not null and ${documentsTable.remoteId} is not null`,
+        set: {
+          schemaVersion: sql`excluded.schema_version`,
+          data: sql`excluded.data`,
+          deletedAt: null,
+          version: sql`${documentsTable.version} + 1`,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    const rowsByRemoteId = new Map(
+      rows.map((row) => [row.remoteId, mapDocumentRow<TData>(row)]),
+    );
+
+    return record.projections.map((projection) =>
+      assertUpsertedRemoteProjection(
+        rowsByRemoteId.get(projection.remoteId),
+        projection.remoteId,
+      ),
+    );
+  }
+
   async hardDelete(input: {
     tenantId: string;
     collection: string;
@@ -381,6 +448,60 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
     this.records.set(record.id, updated);
     return cloneDocument(updated);
+  }
+
+  async upsertRemoteProjections<TData extends JsonObject>(
+    record: UpsertRemoteProjectionsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]> {
+    const documents: StoredDocument<TData>[] = [];
+
+    for (const projection of record.projections) {
+      const existing = [...this.records.values()].find((document) => {
+        return (
+          document.tenantId === record.tenantId &&
+          document.collection === record.collection &&
+          document.remoteSource === record.remoteSource &&
+          document.remoteId === projection.remoteId
+        );
+      });
+      const now = new Date();
+
+      if (!existing) {
+        const document: StoredDocument<TData> = {
+          id: crypto.randomUUID(),
+          tenantId: record.tenantId,
+          collection: record.collection,
+          schemaVersion: record.schemaVersion,
+          data: cloneJsonObject(projection.data),
+          remoteSource: record.remoteSource,
+          remoteId: projection.remoteId,
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        };
+
+        this.records.set(document.id, document);
+        documents.push(cloneDocument(document));
+        continue;
+      }
+
+      const updated: StoredDocument<TData> = {
+        ...existing,
+        schemaVersion: record.schemaVersion,
+        data: cloneJsonObject(projection.data),
+        remoteSource: record.remoteSource,
+        remoteId: projection.remoteId,
+        version: existing.version + 1,
+        updatedAt: now,
+        deletedAt: null,
+      };
+
+      this.records.set(existing.id, updated);
+      documents.push(cloneDocument(updated));
+    }
+
+    return documents;
   }
 
   async hardDelete(input: {
@@ -620,6 +741,17 @@ function assertDocumentRow(row: DocumentRow | undefined): DocumentRow {
   }
 
   return row;
+}
+
+function assertUpsertedRemoteProjection<TData extends JsonObject>(
+  document: StoredDocument<TData> | undefined,
+  remoteId: string,
+): StoredDocument<TData> {
+  if (!document) {
+    throw new Error(`Remote projection upsert did not return row: ${remoteId}`);
+  }
+
+  return document;
 }
 
 function cloneDocument<TData extends JsonObject>(

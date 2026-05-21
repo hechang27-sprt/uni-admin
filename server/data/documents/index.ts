@@ -3,10 +3,14 @@ export { applyJsonPatch, type JsonPatchOperation } from "./json-patch";
 export {
   createRemoteProjectionMapper,
   type RemoteAdapterContext,
+  type RemoteAdapterOutputs,
   type RemoteAdapterProjection,
   type RemoteCollectionAdapter,
   type RemoteDeleteResult,
   type RemoteIdempotencyOptions,
+  type RemoteProjectionResult,
+  type RemoteSyncListResult,
+  type RemoteSyncOneResult,
 } from "./remote";
 export {
   CollectionRegistry,
@@ -29,10 +33,15 @@ export {
   type ListDocumentServiceInput,
   type PatchDocumentInput,
   type RemoteCreateInput,
+  type RemoteCreateResult,
+  type RemoteDeleteDocumentResult,
   type RemoteDeleteInput,
   type RemoteUpdateInput,
+  type RemoteUpdateResult,
   type SyncRemoteListInput,
+  type SyncRemoteListResult,
   type SyncRemoteOneInput,
+  type SyncRemoteOneResult,
   type UpdateDocumentInput,
   type VersionedDocumentInput,
 } from "./service";

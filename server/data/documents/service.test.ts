@@ -130,6 +130,14 @@ interface RemoteAdapterCalls {
   deleteRemote: number;
 }
 
+interface RemoteAdapterOutputs {
+  syncOne: { requestId: string };
+  syncList: { nextCursor: string | null };
+  create: { requestId: string };
+  update: { requestId: string };
+  delete: { requestId: string };
+}
+
 function createRemoteService(repository: DocumentRepository): {
   service: DocumentService;
   calls: RemoteAdapterCalls;
@@ -163,7 +171,8 @@ function createRemoteService(repository: DocumentRepository): {
     Record<string, never>,
     RemoteTask,
     Partial<RemoteTask>,
-    Record<string, never>
+    Record<string, never>,
+    RemoteAdapterOutputs
   > = {
     remoteSource: "fixture-api",
     idempotency: {
@@ -174,11 +183,17 @@ function createRemoteService(repository: DocumentRepository): {
     async syncOne(input) {
       calls.syncOne += 1;
       const row = remoteRows.get(input.remoteId);
-      return row ? mapRemoteTask(row) : null;
+      return {
+        projection: row ? mapRemoteTask(row) : null,
+        output: { requestId: `sync-one-${calls.syncOne}` },
+      };
     },
     async syncList() {
       calls.syncList += 1;
-      return [...remoteRows.values()].map(mapRemoteTask);
+      return {
+        projections: [...remoteRows.values()].map(mapRemoteTask),
+        output: { nextCursor: null },
+      };
     },
     async createRemote(input) {
       calls.createRemote += 1;
@@ -186,7 +201,10 @@ function createRemoteService(repository: DocumentRepository): {
         throw remoteFailure;
       }
       remoteRows.set(input.remote_id, input);
-      return mapRemoteTask(input);
+      return {
+        projection: mapRemoteTask(input),
+        output: { requestId: `create-${calls.createRemote}` },
+      };
     },
     async updateRemote(input, context) {
       calls.updateRemote += 1;
@@ -207,13 +225,17 @@ function createRemoteService(repository: DocumentRepository): {
         remote_id: remoteId,
       };
       remoteRows.set(remoteId, updated);
-      return mapRemoteTask(updated);
+      return {
+        projection: mapRemoteTask(updated),
+        output: { requestId: `update-${calls.updateRemote}` },
+      };
     },
     async deleteRemote() {
       calls.deleteRemote += 1;
       if (remoteFailure) {
         throw remoteFailure;
       }
+      return { output: { requestId: `delete-${calls.deleteRemote}` } };
     },
   };
 
@@ -624,14 +646,16 @@ describe.each(repositoryCases)(
         repositoryCase.createRepository(),
       );
 
-      const synced = await service.syncRemoteOne<
+      const syncedResult = await service.syncRemoteOne<
         TaskDocument,
-        { remoteId: string }
+        { remoteId: string },
+        RemoteAdapterOutputs["syncOne"]
       >({
         tenantId: tenantA,
         collection: "remoteTasks",
         input: { remoteId: "remote-1" },
       });
+      const synced = syncedResult.document;
 
       expect(synced).toMatchObject({
         remoteSource: "fixture-api",
@@ -641,8 +665,13 @@ describe.each(repositoryCases)(
           nested: { owner: "Ada", score: 10 },
         },
       });
+      expect(syncedResult.output).toEqual({ requestId: "sync-one-1" });
 
-      const syncedAgain = await service.remoteCreate<TaskDocument, RemoteTask>({
+      const syncedAgainResult = await service.remoteCreate<
+        TaskDocument,
+        RemoteTask,
+        RemoteAdapterOutputs["create"]
+      >({
         tenantId: tenantA,
         collection: "remoteTasks",
         input: {
@@ -654,6 +683,7 @@ describe.each(repositoryCases)(
           owner: { name: "Ada", score: 20 },
         },
       });
+      const syncedAgain = syncedAgainResult.document;
 
       expect(syncedAgain.id).toBe(synced?.id);
       expect(syncedAgain.version).toBe(2);
@@ -662,6 +692,20 @@ describe.each(repositoryCases)(
         status: "submitted",
         nested: { score: 20 },
       });
+      expect(syncedAgainResult.output).toEqual({ requestId: "create-1" });
+
+      const page = await service.syncRemoteList<
+        TaskDocument,
+        Record<string, never>,
+        RemoteAdapterOutputs["syncList"]
+      >({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+        input: {},
+      });
+
+      expect(page.documents).toHaveLength(1);
+      expect(page.output).toEqual({ nextCursor: null });
 
       const callsBeforeRead = { ...calls };
       await expect(
@@ -712,7 +756,7 @@ describe.each(repositoryCases)(
       const { service, calls, setRemoteFailure } = createRemoteService(
         repositoryCase.createRepository(),
       );
-      const synced = await service.syncRemoteOne<
+      const syncedResult = await service.syncRemoteOne<
         TaskDocument,
         { remoteId: string }
       >({
@@ -720,11 +764,13 @@ describe.each(repositoryCases)(
         collection: "remoteTasks",
         input: { remoteId: "remote-1" },
       });
+      const synced = syncedResult.document;
       expect(synced).not.toBeNull();
 
-      const updated = await service.remoteUpdate<
+      const updatedResult = await service.remoteUpdate<
         TaskDocument,
-        Partial<RemoteTask>
+        Partial<RemoteTask>,
+        RemoteAdapterOutputs["update"]
       >({
         tenantId: tenantA,
         collection: "remoteTasks",
@@ -737,6 +783,7 @@ describe.each(repositoryCases)(
           labels: ["closed"],
         },
       });
+      const updated = updatedResult.document;
 
       expect(calls.updateRemote).toBe(1);
       expect(updated.data).toMatchObject({
@@ -744,6 +791,7 @@ describe.each(repositoryCases)(
         status: "done",
         priority: 5,
       });
+      expect(updatedResult.output).toEqual({ requestId: "update-1" });
 
       setRemoteFailure(new Error("remote update failed"));
       await expect(

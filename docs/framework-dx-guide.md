@@ -186,22 +186,25 @@ const adapter: RemoteCollectionAdapter<
   },
   async syncOne(input) {
     const remote = await fetchRemoteTask(input.remoteId);
-    return remote ? mapRemoteTask(remote) : null;
+    return { projection: remote ? mapRemoteTask(remote) : null };
   },
   async syncList() {
-    const rows = await fetchRemoteTasks();
-    return rows.map(mapRemoteTask);
+    const page = await fetchRemoteTasks();
+    return {
+      projections: page.rows.map(mapRemoteTask),
+      output: { nextCursor: page.nextCursor },
+    };
   },
   async createRemote(input) {
     const created = await createRemoteTask(input);
-    return mapRemoteTask(created);
+    return { projection: mapRemoteTask(created) };
   },
   async updateRemote(input, context) {
     const remoteId = context.current.remoteId;
     if (!remoteId) throw new Error("Missing remote id");
 
     const updated = await updateRemoteTask(remoteId, input);
-    return mapRemoteTask(updated);
+    return { projection: mapRemoteTask(updated) };
   },
   async deleteRemote(input, context) {
     if (!context.current.remoteId) throw new Error("Missing remote id");
@@ -231,6 +234,7 @@ const synced = await service.syncRemoteOne<TaskDocument, { remoteId: string }>({
   collection: "remoteTasks",
   input: { remoteId: "remote-1" },
 });
+const syncedDocument = synced.document;
 ```
 
 Read from the local projection:
@@ -248,18 +252,19 @@ explicit today.
 Run a remote-first update:
 
 ```ts
-if (!synced) throw new Error("Document was not synced");
+if (!syncedDocument) throw new Error("Document was not synced");
 
 const updated = await service.remoteUpdate<TaskDocument, Partial<RemoteTask>>({
   tenantId,
   collection: "remoteTasks",
-  id: synced.id,
-  expectedVersion: synced.version,
+  id: syncedDocument.id,
+  expectedVersion: syncedDocument.version,
   input: {
     phase: "done",
     name: "Remote done",
   },
 });
+const updatedDocument = updated.document;
 ```
 
 The local projection is updated only after `updateRemote` succeeds.

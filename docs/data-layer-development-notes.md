@@ -119,15 +119,37 @@ interface RemoteCollectionAdapter<
   TCreateInput,
   TUpdateInput,
   TDeleteInput,
+  TOutputs,
 > {
   remoteSource: string;
-  syncOne(input, context): Promise<RemoteAdapterProjection<TData> | null>;
-  syncList(input, context): Promise<RemoteAdapterProjection<TData>[]>;
-  createRemote(input, context): Promise<RemoteAdapterProjection<TData>>;
-  updateRemote(input, context): Promise<RemoteAdapterProjection<TData>>;
-  deleteRemote(input, context): Promise<RemoteDeleteResult<TData> | void>;
+  syncOne(
+    input,
+    context,
+  ): Promise<RemoteSyncOneResult<TData, TOutputs["syncOne"]>>;
+  syncList(
+    input,
+    context,
+  ): Promise<RemoteSyncListResult<TData, TOutputs["syncList"]>>;
+  createRemote(
+    input,
+    context,
+  ): Promise<RemoteProjectionResult<TData, TOutputs["create"]>>;
+  updateRemote(
+    input,
+    context,
+  ): Promise<RemoteProjectionResult<TData, TOutputs["update"]>>;
+  deleteRemote(
+    input,
+    context,
+  ): Promise<RemoteDeleteResult<TData, TOutputs["delete"]> | void>;
 }
 ```
+
+Remote result objects include optional adapter-defined `output` metadata. The
+service passes that metadata back to callers without interpreting it, so
+adapters can expose cursors, checkpoints, request IDs, rate-limit hints, or
+provider-specific warnings without locking the framework into one pagination
+shape.
 
 The real TypeScript interface uses typed callback properties with a bivariance
 wrapper. This is deliberate: the registry stores heterogeneous adapters, so it

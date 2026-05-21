@@ -4,6 +4,7 @@ import type { DocumentRepository } from "./repository";
 import { normalizeListInput } from "./repository";
 import { DocumentServiceError } from "./errors";
 import type {
+  RemoteAdapterOutputs,
   RemoteAdapterProjection,
   RemoteCollectionAdapter,
 } from "./remote";
@@ -90,6 +91,43 @@ export interface RemoteDeleteInput<
   input: TDeleteInput;
 }
 
+export interface SyncRemoteOneResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  document: StoredDocument<TData> | null;
+  output?: TOutput;
+}
+
+export interface SyncRemoteListResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  documents: StoredDocument<TData>[];
+  output?: TOutput;
+}
+
+export interface RemoteCreateResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  document: StoredDocument<TData>;
+  output?: TOutput;
+}
+
+export interface RemoteUpdateResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  document: StoredDocument<TData>;
+  output?: TOutput;
+}
+
+export interface RemoteDeleteDocumentResult<TOutput = unknown> {
+  document: StoredDocument;
+  output?: TOutput;
+}
+
 export interface DocumentService {
   create<TData extends JsonObject>(
     input: CreateDocumentInput<TData>,
@@ -109,21 +147,37 @@ export interface DocumentService {
   softDelete(input: VersionedDocumentInput): Promise<StoredDocument>;
   restore(input: VersionedDocumentInput): Promise<StoredDocument>;
   hardDelete(input: HardDeleteDocumentInput): Promise<void>;
-  syncRemoteOne<TData extends JsonObject, TSyncInput = unknown>(
+  syncRemoteOne<
+    TData extends JsonObject,
+    TSyncInput = unknown,
+    TOutput = unknown,
+  >(
     input: SyncRemoteOneInput<TSyncInput>,
-  ): Promise<StoredDocument<TData> | null>;
-  syncRemoteList<TData extends JsonObject, TSyncInput = unknown>(
+  ): Promise<SyncRemoteOneResult<TData, TOutput>>;
+  syncRemoteList<
+    TData extends JsonObject,
+    TSyncInput = unknown,
+    TOutput = unknown,
+  >(
     input: SyncRemoteListInput<TSyncInput>,
-  ): Promise<StoredDocument<TData>[]>;
-  remoteCreate<TData extends JsonObject, TCreateInput = unknown>(
+  ): Promise<SyncRemoteListResult<TData, TOutput>>;
+  remoteCreate<
+    TData extends JsonObject,
+    TCreateInput = unknown,
+    TOutput = unknown,
+  >(
     input: RemoteCreateInput<TCreateInput>,
-  ): Promise<StoredDocument<TData>>;
-  remoteUpdate<TData extends JsonObject, TUpdateInput = unknown>(
+  ): Promise<RemoteCreateResult<TData, TOutput>>;
+  remoteUpdate<
+    TData extends JsonObject,
+    TUpdateInput = unknown,
+    TOutput = unknown,
+  >(
     input: RemoteUpdateInput<TUpdateInput>,
-  ): Promise<StoredDocument<TData>>;
-  remoteDelete<TDeleteInput = unknown>(
+  ): Promise<RemoteUpdateResult<TData, TOutput>>;
+  remoteDelete<TDeleteInput = unknown, TOutput = unknown>(
     input: RemoteDeleteInput<TDeleteInput>,
-  ): Promise<StoredDocument>;
+  ): Promise<RemoteDeleteDocumentResult<TOutput>>;
 }
 
 export interface CreateDocumentServiceOptions {
@@ -215,6 +269,19 @@ export function createDocumentService(
     input: TenantContext & { collection: string },
     projection: RemoteAdapterProjection<TData>,
   ): Promise<StoredDocument<TData>> {
+    const [document] = await upsertRemoteProjections(input, [projection]);
+
+    if (!document) {
+      throw new Error("Remote projection upsert did not return a document");
+    }
+
+    return document;
+  }
+
+  async function upsertRemoteProjections<TData extends JsonObject>(
+    input: TenantContext & { collection: string },
+    projections: RemoteAdapterProjection<TData>[],
+  ): Promise<StoredDocument<TData>[]> {
     const collection = registry.get(input.collection);
     const adapter = collection.remoteAdapter;
 
@@ -228,55 +295,22 @@ export function createDocumentService(
       );
     }
 
-    const data = parseData(
-      collection.schema,
-      projection.data,
-      input.collection,
-    );
-    const existing = await repository.findByRemoteIdentity<TData>({
-      tenantId: input.tenantId,
-      collection: input.collection,
-      remoteSource: adapter.remoteSource,
+    const parsedProjections = projections.map((projection) => ({
       remoteId: projection.remoteId,
-      includeDeleted: true,
-    });
+      data: parseData(
+        collection.schema,
+        projection.data,
+        input.collection,
+      ) as TData,
+    }));
 
-    if (!existing) {
-      return repository.insert<TData>({
-        tenantId: input.tenantId,
-        collection: input.collection,
-        schemaVersion: collection.schemaVersion,
-        data: data as TData,
-        remoteSource: adapter.remoteSource,
-        remoteId: projection.remoteId,
-      });
-    }
-
-    const updated = await repository.update<TData>({
+    return repository.upsertRemoteProjections<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      id: existing.id,
-      expectedVersion: existing.version,
       schemaVersion: collection.schemaVersion,
-      data: data as TData,
-      deletedAt: null,
       remoteSource: adapter.remoteSource,
-      remoteId: projection.remoteId,
+      projections: parsedProjections,
     });
-
-    if (!updated) {
-      throw new DocumentServiceError(
-        "CONFLICT_STALE_VERSION",
-        "Document version is stale",
-        {
-          collection: input.collection,
-          documentId: existing.id,
-          expectedVersion: existing.version,
-        },
-      );
-    }
-
-    return updated;
   }
 
   function getRemoteAdapter<
@@ -286,6 +320,7 @@ export function createDocumentService(
     TCreateInput = never,
     TUpdateInput = never,
     TDeleteInput = never,
+    TOutputs extends RemoteAdapterOutputs = RemoteAdapterOutputs,
   >(
     collectionName: string,
   ): RemoteCollectionAdapter<
@@ -294,7 +329,8 @@ export function createDocumentService(
     TSyncListInput,
     TCreateInput,
     TUpdateInput,
-    TDeleteInput
+    TDeleteInput,
+    TOutputs
   > {
     const collection = registry.get(collectionName);
     const adapter = collection.remoteAdapter;
@@ -315,8 +351,16 @@ export function createDocumentService(
       TSyncListInput,
       TCreateInput,
       TUpdateInput,
-      TDeleteInput
+      TDeleteInput,
+      TOutputs
     >;
+  }
+
+  function withRemoteOutput<TResult extends object, TOutput>(
+    result: TResult,
+    output: TOutput | undefined,
+  ): TResult & { output?: TOutput } {
+    return output === undefined ? result : { ...result, output };
   }
 
   return {
@@ -440,62 +484,104 @@ export function createDocumentService(
       }
     },
 
-    async syncRemoteOne<TData extends JsonObject, TSyncInput = unknown>(
+    async syncRemoteOne<
+      TData extends JsonObject,
+      TSyncInput = unknown,
+      TOutput = unknown,
+    >(
       input: SyncRemoteOneInput<TSyncInput>,
-    ): Promise<StoredDocument<TData> | null> {
-      const adapter = getRemoteAdapter<TData, TSyncInput>(input.collection);
-      const projection = await adapter.syncOne(input.input, {
+    ): Promise<SyncRemoteOneResult<TData, TOutput>> {
+      const adapter = getRemoteAdapter<
+        TData,
+        TSyncInput,
+        never,
+        never,
+        never,
+        never,
+        { syncOne: TOutput }
+      >(input.collection);
+      const result = await adapter.syncOne(input.input, {
         tenantId: input.tenantId,
         collection: input.collection,
       });
-
-      return projection
-        ? upsertRemoteProjection<TData>(input, projection)
+      const document = result.projection
+        ? await upsertRemoteProjection<TData>(input, result.projection)
         : null;
+
+      return withRemoteOutput({ document }, result.output);
     },
 
-    async syncRemoteList<TData extends JsonObject, TSyncInput = unknown>(
+    async syncRemoteList<
+      TData extends JsonObject,
+      TSyncInput = unknown,
+      TOutput = unknown,
+    >(
       input: SyncRemoteListInput<TSyncInput>,
-    ): Promise<StoredDocument<TData>[]> {
-      const adapter = getRemoteAdapter<TData, never, TSyncInput>(
-        input.collection,
-      );
-      const projections = await adapter.syncList(input.input, {
+    ): Promise<SyncRemoteListResult<TData, TOutput>> {
+      const adapter = getRemoteAdapter<
+        TData,
+        never,
+        TSyncInput,
+        never,
+        never,
+        never,
+        { syncList: TOutput }
+      >(input.collection);
+      const result = await adapter.syncList(input.input, {
         tenantId: input.tenantId,
         collection: input.collection,
       });
+      const documents = await upsertRemoteProjections<TData>(
+        input,
+        result.projections,
+      );
 
-      const documents: StoredDocument<TData>[] = [];
-      for (const projection of projections) {
-        documents.push(await upsertRemoteProjection<TData>(input, projection));
-      }
-
-      return documents;
+      return withRemoteOutput({ documents }, result.output);
     },
 
-    async remoteCreate<TData extends JsonObject, TCreateInput = unknown>(
+    async remoteCreate<
+      TData extends JsonObject,
+      TCreateInput = unknown,
+      TOutput = unknown,
+    >(
       input: RemoteCreateInput<TCreateInput>,
-    ): Promise<StoredDocument<TData>> {
-      const adapter = getRemoteAdapter<TData, never, never, TCreateInput>(
-        input.collection,
-      );
-      const projection = await adapter.createRemote(input.input, {
+    ): Promise<RemoteCreateResult<TData, TOutput>> {
+      const adapter = getRemoteAdapter<
+        TData,
+        never,
+        never,
+        TCreateInput,
+        never,
+        never,
+        { create: TOutput }
+      >(input.collection);
+      const result = await adapter.createRemote(input.input, {
         tenantId: input.tenantId,
         collection: input.collection,
       });
+      const document = await upsertRemoteProjection<TData>(
+        input,
+        result.projection,
+      );
 
-      return upsertRemoteProjection<TData>(input, projection);
+      return withRemoteOutput({ document }, result.output);
     },
 
-    async remoteUpdate<TData extends JsonObject, TUpdateInput = unknown>(
+    async remoteUpdate<
+      TData extends JsonObject,
+      TUpdateInput = unknown,
+      TOutput = unknown,
+    >(
       input: RemoteUpdateInput<TUpdateInput>,
-    ): Promise<StoredDocument<TData>> {
+    ): Promise<RemoteUpdateResult<TData, TOutput>> {
       const adapter = getRemoteAdapter<
         TData,
         never,
         never,
         never,
-        TUpdateInput
+        TUpdateInput,
+        never,
+        { update: TOutput }
       >(input.collection);
       const collection = registry.get(input.collection);
       const current = (await loadExisting(input)) as StoredDocument<TData>;
@@ -513,33 +599,41 @@ export function createDocumentService(
         );
       }
 
-      const projection = await adapter.updateRemote(input.input, {
+      const result = await adapter.updateRemote(input.input, {
         tenantId: input.tenantId,
         collection: input.collection,
         current,
       });
       const data = parseData(
         collection.schema,
-        projection.data,
+        result.projection.data,
         input.collection,
       );
 
-      return assertVersionAndUpdate<TData>(input, data as TData, null, {
-        remoteSource: adapter.remoteSource,
-        remoteId: projection.remoteId,
-      });
+      const document = await assertVersionAndUpdate<TData>(
+        input,
+        data as TData,
+        null,
+        {
+          remoteSource: adapter.remoteSource,
+          remoteId: result.projection.remoteId,
+        },
+      );
+
+      return withRemoteOutput({ document }, result.output);
     },
 
-    async remoteDelete<TDeleteInput = unknown>(
+    async remoteDelete<TDeleteInput = unknown, TOutput = unknown>(
       input: RemoteDeleteInput<TDeleteInput>,
-    ): Promise<StoredDocument> {
+    ): Promise<RemoteDeleteDocumentResult<TOutput>> {
       const adapter = getRemoteAdapter<
         JsonObject,
         never,
         never,
         never,
         never,
-        TDeleteInput
+        TDeleteInput,
+        { delete: TOutput }
       >(input.collection);
       const current = await loadExisting(input);
 
@@ -567,7 +661,7 @@ export function createDocumentService(
           input,
           result.projection,
         );
-        return assertVersionAndUpdate(
+        const document = await assertVersionAndUpdate(
           {
             tenantId: input.tenantId,
             collection: input.collection,
@@ -577,9 +671,16 @@ export function createDocumentService(
           undefined,
           new Date(),
         );
+        return withRemoteOutput({ document }, result.output);
       }
 
-      return assertVersionAndUpdate(input, undefined, new Date());
+      const document = await assertVersionAndUpdate(
+        input,
+        undefined,
+        new Date(),
+      );
+      const output = result ? result.output : undefined;
+      return withRemoteOutput({ document }, output);
     },
   };
 }

@@ -21,8 +21,44 @@ export interface RemoteIdempotencyOptions<TInput = unknown> {
   stableKey?: (input: TInput, context: RemoteAdapterContext) => string | null;
 }
 
-export interface RemoteDeleteResult<TData extends JsonObject = JsonObject> {
+export interface RemoteAdapterOutputs {
+  syncOne?: unknown;
+  syncList?: unknown;
+  create?: unknown;
+  update?: unknown;
+  delete?: unknown;
+}
+
+export interface RemoteSyncOneResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  projection: RemoteAdapterProjection<TData> | null;
+  output?: TOutput;
+}
+
+export interface RemoteSyncListResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  projections: RemoteAdapterProjection<TData>[];
+  output?: TOutput;
+}
+
+export interface RemoteProjectionResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
+  projection: RemoteAdapterProjection<TData>;
+  output?: TOutput;
+}
+
+export interface RemoteDeleteResult<
+  TData extends JsonObject = JsonObject,
+  TOutput = unknown,
+> {
   projection?: RemoteAdapterProjection<TData>;
+  output?: TOutput;
 }
 
 export interface RemoteCollectionAdapter<
@@ -32,6 +68,7 @@ export interface RemoteCollectionAdapter<
   TCreateInput = never,
   TUpdateInput = never,
   TDeleteInput = never,
+  TOutputs extends RemoteAdapterOutputs = RemoteAdapterOutputs,
 > {
   remoteSource: string;
   idempotency?: {
@@ -42,31 +79,31 @@ export interface RemoteCollectionAdapter<
   syncOne: RemoteAdapterCallback<
     TSyncOneInput,
     RemoteAdapterContext,
-    RemoteAdapterProjection<TData> | null
+    RemoteSyncOneResult<TData, TOutputs["syncOne"]>
   >;
   syncList: RemoteAdapterCallback<
     TSyncListInput,
     RemoteAdapterContext,
-    RemoteAdapterProjection<TData>[]
+    RemoteSyncListResult<TData, TOutputs["syncList"]>
   >;
   createRemote: RemoteAdapterCallback<
     TCreateInput,
     RemoteAdapterContext,
-    RemoteAdapterProjection<TData>
+    RemoteProjectionResult<TData, TOutputs["create"]>
   >;
   updateRemote: RemoteAdapterCallback<
     TUpdateInput,
     RemoteAdapterContext & {
       current: StoredDocument<TData>;
     },
-    RemoteAdapterProjection<TData>
+    RemoteProjectionResult<TData, TOutputs["update"]>
   >;
   deleteRemote: RemoteAdapterCallback<
     TDeleteInput,
     RemoteAdapterContext & {
       current: StoredDocument<TData>;
     },
-    RemoteDeleteResult<TData> | void
+    RemoteDeleteResult<TData, TOutputs["delete"]> | void
   >;
 }
 
