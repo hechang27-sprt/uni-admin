@@ -134,3 +134,36 @@ Implemented the first remote collection adapter slice with explicit sync, remote
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Remote adapter and batch document APIs
+
+**Date**: 2026-05-21
+**Task**: Remote adapter and batch document APIs
+
+### Summary
+
+Added adapter result metadata passthrough, internal bulk remote projection upsert, and explicit public batch create/get/update document service APIs with verified Drizzle and in-memory repository behavior.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d88f902` | (see git log) |
+| `cce9963` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
