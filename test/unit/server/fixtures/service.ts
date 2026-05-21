@@ -1,15 +1,9 @@
-import { inArray } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { z } from "zod";
 
-import { tenantsTable } from "#server/db/schema";
-import { testDb } from "#server/util/drizzle";
 import {
   createCollectionRegistry,
   createDocumentService,
   createRemoteProjectionMapper,
-  DrizzleDocumentRepository,
-  InMemoryDocumentRepository,
   type DocumentRepository,
   type DocumentService,
   type RemoteCollectionAdapter,
@@ -17,8 +11,6 @@ import {
 
 export const tenantA = "00000000-0000-4000-8000-000000000001";
 export const tenantB = "00000000-0000-4000-8000-000000000002";
-
-let testDatabaseReady = false;
 
 const taskSchema = z.object({
   title: z.string(),
@@ -63,40 +55,6 @@ const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
     },
   }),
 });
-
-const testTenantIds = [tenantA, tenantB];
-
-interface RepositoryTestCase {
-  name: string;
-  createRepository: () => DocumentRepository;
-  beforeAll?: () => Promise<void>;
-  beforeEach?: () => Promise<void>;
-  afterEach?: () => Promise<void>;
-  afterAll?: () => Promise<void>;
-}
-
-export const repositoryCases = [
-  {
-    name: "in-memory repository",
-    createRepository: () => new InMemoryDocumentRepository(),
-  },
-  {
-    name: "drizzle repository",
-    createRepository: () => new DrizzleDocumentRepository(testDb),
-    beforeAll: async () => {
-      await migrate(testDb, { migrationsFolder: "drizzle" });
-      testDatabaseReady = true;
-    },
-    beforeEach: resetTestDatabase,
-    afterEach: cleanupTestDatabase,
-    afterAll: async () => {
-      if (testDatabaseReady) {
-        await cleanupTestDatabase();
-      }
-      await testDb.$client.end();
-    },
-  },
-] satisfies RepositoryTestCase[];
 
 export function createService(repository: DocumentRepository): DocumentService {
   const registry = createCollectionRegistry([
@@ -246,18 +204,4 @@ export function createRemoteService(repository: DocumentRepository): {
       remoteFailure = failure;
     },
   };
-}
-
-async function resetTestDatabase(): Promise<void> {
-  await cleanupTestDatabase();
-  await testDb.insert(tenantsTable).values([
-    { id: tenantA, name: "Test Tenant A" },
-    { id: tenantB, name: "Test Tenant B" },
-  ]);
-}
-
-async function cleanupTestDatabase(): Promise<void> {
-  await testDb
-    .delete(tenantsTable)
-    .where(inArray(tenantsTable.id, testTenantIds));
 }

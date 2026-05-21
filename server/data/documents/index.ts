@@ -19,7 +19,6 @@ export {
 } from "./registry";
 export {
   DrizzleDocumentRepository,
-  InMemoryDocumentRepository,
   normalizeListInput,
   normalizeSort,
   type DocumentRepository,

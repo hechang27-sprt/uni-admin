@@ -7,15 +7,20 @@ import {
   expect,
   it,
 } from "vitest";
+import { sql } from "drizzle-orm";
+import { migrate } from "drizzle-orm/pglite/migrator";
 
+import { tenantsTable } from "#server/db/schema";
+import { createInMemoryDb } from "#server/util/drizzle";
 import {
   DocumentServiceError,
+  DrizzleDocumentRepository,
+  type DocumentRepository,
   type DocumentService,
 } from "#server/data/documents";
 import {
   createRemoteService,
   createService,
-  repositoryCases,
   tenantA,
   tenantB,
   type RemoteAdapterOutputs,
@@ -23,27 +28,67 @@ import {
   type TaskDocument,
 } from "./fixtures/service";
 
-describe.each(repositoryCases)(
+describe.each([{ name: "pgLite Drizzle repository" }])(
   "local document service ($name)",
-  (repositoryCase) => {
-    beforeAll(async () => {
-      await repositoryCase.beforeAll?.();
+  () => {
+    let database: ReturnType<typeof createInMemoryDb> | null = null;
+    let repository: DocumentRepository | null = null;
+
+    beforeAll(() => {
+      database = createInMemoryDb();
+      repository = new DrizzleDocumentRepository(database);
     });
 
     beforeEach(async () => {
-      await repositoryCase.beforeEach?.();
+      await prepareTestDatabase();
     });
 
     afterEach(async () => {
-      await repositoryCase.afterEach?.();
+      await dropTestDatabaseTables();
     });
 
     afterAll(async () => {
-      await repositoryCase.afterAll?.();
+      await database?.$client.close();
+      database = null;
+      repository = null;
     });
 
+    async function prepareTestDatabase(): Promise<void> {
+      const db = getTestDatabase();
+
+      await migrate(db, { migrationsFolder: "drizzle" });
+      await db.insert(tenantsTable).values([
+        { id: tenantA, name: "Test Tenant A" },
+        { id: tenantB, name: "Test Tenant B" },
+      ]);
+    }
+
+    async function dropTestDatabaseTables(): Promise<void> {
+      const db = getTestDatabase();
+
+      await db.execute(sql`drop schema if exists drizzle cascade`);
+      await db.execute(sql`drop schema if exists public cascade`);
+      await db.execute(sql`create schema public`);
+    }
+
+    function getTestDatabase(): ReturnType<typeof createInMemoryDb> {
+      if (!database) {
+        throw new Error("Test database has not been initialized");
+      }
+
+      return database;
+    }
+
+    function createTestRepository(): DocumentRepository {
+      if (!repository) {
+        throw new Error("Test repository has not been initialized");
+      }
+
+      return repository;
+    }
+
     function createTestService(): DocumentService {
-      return createService(repositoryCase.createRepository());
+      return createService(createTestRepository());
     }
 
     it("rejects unknown collections and invalid data before persistence", async () => {
@@ -515,9 +560,7 @@ describe.each(repositoryCases)(
     });
 
     it("syncs remote projections by remote identity without calling remotes during normal reads", async () => {
-      const { service, calls } = createRemoteService(
-        repositoryCase.createRepository(),
-      );
+      const { service, calls } = createRemoteService(createTestRepository());
 
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,
@@ -599,7 +642,7 @@ describe.each(repositoryCases)(
 
     it("keeps local projections unchanged when a remote create fails", async () => {
       const { service, setRemoteFailure } = createRemoteService(
-        repositoryCase.createRepository(),
+        createTestRepository(),
       );
       setRemoteFailure(new Error("remote unavailable"));
 
@@ -627,7 +670,7 @@ describe.each(repositoryCases)(
 
     it("applies remote updates only after the remote mutation succeeds", async () => {
       const { service, calls, setRemoteFailure } = createRemoteService(
-        repositoryCase.createRepository(),
+        createTestRepository(),
       );
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,

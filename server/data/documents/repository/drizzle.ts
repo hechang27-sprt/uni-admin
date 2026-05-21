@@ -6,9 +6,10 @@ import {
   inArray,
   isNull,
   sql,
+  type InferSelectModel,
   type SQL,
 } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PgDatabase } from "drizzle-orm/pg-core";
 
 import type * as dbSchema from "#server/db/schema";
 import { documentsTable } from "#server/db/schema";
@@ -26,18 +27,14 @@ import type {
   UpsertRemoteProjectionsRecord,
 } from "./types";
 import {
-  assertDocumentRow,
-  assertUpsertedRemoteProjection,
-  mapDocumentRow,
-  type BatchUpdateRow,
-} from "./mapping";
-import {
   buildFieldExpression,
   buildFilterCondition,
   normalizeSort,
 } from "./query";
 
-type DrizzleDatabase = NodePgDatabase<typeof dbSchema>;
+type DocumentRow = InferSelectModel<typeof documentsTable>;
+type BatchUpdateRow = DocumentRow & { inputOrder: number };
+type DrizzleDatabase = PgDatabase<any, typeof dbSchema>;
 
 class BatchUpdateConflict extends Error {}
 
@@ -250,7 +247,9 @@ export class DrizzleDocumentRepository implements DocumentRepository {
           throw new BatchUpdateConflict();
         }
 
-        return result.rows.map((row) => mapDocumentRow<TData>(row));
+        return result.rows.map((row: BatchUpdateRow) =>
+          mapDocumentRow<TData>(row),
+        );
       });
     } catch (error) {
       if (error instanceof BatchUpdateConflict) {
@@ -437,4 +436,39 @@ function buildBatchUpdateQuery<TData extends JsonObject>(
     from updated
     order by "inputOrder"
   `;
+}
+
+function mapDocumentRow<TData extends JsonObject>(
+  row: DocumentRow,
+): StoredDocument<TData> {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    collection: row.collection,
+    schemaVersion: row.schemaVersion,
+    data: row.data as TData,
+    remoteSource: row.remoteSource,
+    remoteId: row.remoteId,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    deletedAt: row.deletedAt,
+  };
+}
+function assertDocumentRow(row: DocumentRow | undefined): DocumentRow {
+  if (!row) {
+    throw new Error("Document insert did not return a row");
+  }
+
+  return row;
+}
+function assertUpsertedRemoteProjection<TData extends JsonObject>(
+  document: StoredDocument<TData> | undefined,
+  remoteId: string,
+): StoredDocument<TData> {
+  if (!document) {
+    throw new Error(`Remote projection upsert did not return row: ${remoteId}`);
+  }
+
+  return document;
 }
