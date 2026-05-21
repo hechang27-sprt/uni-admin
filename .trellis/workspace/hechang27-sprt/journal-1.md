@@ -69,3 +69,35 @@ Implemented the tenant-scoped PostgreSQL JSONB document data layer with collecti
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Drizzle document repository tests
+
+**Date**: 2026-05-21
+**Task**: Drizzle document repository tests
+
+### Summary
+
+Added document service coverage against the Drizzle PostgreSQL repository using testDb, seeded and cleaned test tenants for database-backed tests, and fixed JSONB path filtering/sorting SQL discovered by the new coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3d4b559` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
