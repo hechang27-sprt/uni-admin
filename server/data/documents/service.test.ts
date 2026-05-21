@@ -16,11 +16,13 @@ import { testDb } from "../../util/drizzle";
 import {
   createCollectionRegistry,
   createDocumentService,
+  createRemoteProjectionMapper,
   DocumentServiceError,
   DrizzleDocumentRepository,
   InMemoryDocumentRepository,
   type DocumentRepository,
   type DocumentService,
+  type RemoteCollectionAdapter,
 } from ".";
 
 const tenantA = "00000000-0000-4000-8000-000000000001";
@@ -41,6 +43,35 @@ const taskSchema = z.object({
 });
 
 type TaskDocument = z.infer<typeof taskSchema>;
+
+const remoteTaskSchema = z.object({
+  remote_id: z.string(),
+  name: z.string(),
+  phase: z.enum(["draft", "submitted", "done"]),
+  priority: z.number(),
+  labels: z.array(z.string()).default([]),
+  owner: z.object({
+    name: z.string(),
+    score: z.number(),
+  }),
+});
+
+type RemoteTask = z.infer<typeof remoteTaskSchema>;
+
+const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
+  schema: remoteTaskSchema,
+  getRemoteId: (remote) => remote.remote_id,
+  mapData: (remote) => ({
+    title: remote.name,
+    status: remote.phase,
+    priority: remote.priority,
+    tags: remote.labels,
+    nested: {
+      owner: remote.owner.name,
+      score: remote.owner.score,
+    },
+  }),
+});
 
 const testTenantIds = [tenantA, tenantB];
 
@@ -89,6 +120,119 @@ function createService(repository: DocumentRepository): DocumentService {
     registry,
     repository,
   });
+}
+
+interface RemoteAdapterCalls {
+  syncOne: number;
+  syncList: number;
+  createRemote: number;
+  updateRemote: number;
+  deleteRemote: number;
+}
+
+function createRemoteService(repository: DocumentRepository): {
+  service: DocumentService;
+  calls: RemoteAdapterCalls;
+  setRemoteFailure: (failure: Error | null) => void;
+} {
+  const calls: RemoteAdapterCalls = {
+    syncOne: 0,
+    syncList: 0,
+    createRemote: 0,
+    updateRemote: 0,
+    deleteRemote: 0,
+  };
+  let remoteFailure: Error | null = null;
+  const remoteRows = new Map<string, RemoteTask>([
+    [
+      "remote-1",
+      {
+        remote_id: "remote-1",
+        name: "Remote draft",
+        phase: "draft",
+        priority: 1,
+        labels: ["remote"],
+        owner: { name: "Ada", score: 10 },
+      },
+    ],
+  ]);
+
+  const adapter: RemoteCollectionAdapter<
+    TaskDocument,
+    { remoteId: string },
+    Record<string, never>,
+    RemoteTask,
+    Partial<RemoteTask>,
+    Record<string, never>
+  > = {
+    remoteSource: "fixture-api",
+    idempotency: {
+      create: {
+        stableKey: (input) => `create:${input.remote_id}`,
+      },
+    },
+    async syncOne(input) {
+      calls.syncOne += 1;
+      const row = remoteRows.get(input.remoteId);
+      return row ? mapRemoteTask(row) : null;
+    },
+    async syncList() {
+      calls.syncList += 1;
+      return [...remoteRows.values()].map(mapRemoteTask);
+    },
+    async createRemote(input) {
+      calls.createRemote += 1;
+      if (remoteFailure) {
+        throw remoteFailure;
+      }
+      remoteRows.set(input.remote_id, input);
+      return mapRemoteTask(input);
+    },
+    async updateRemote(input, context) {
+      calls.updateRemote += 1;
+      if (remoteFailure) {
+        throw remoteFailure;
+      }
+      const remoteId = context.current.remoteId ?? input.remote_id;
+      if (!remoteId) {
+        throw new Error("Missing remote id");
+      }
+      const current = remoteRows.get(remoteId);
+      if (!current) {
+        throw new Error("Remote row not found");
+      }
+      const updated = {
+        ...current,
+        ...input,
+        remote_id: remoteId,
+      };
+      remoteRows.set(remoteId, updated);
+      return mapRemoteTask(updated);
+    },
+    async deleteRemote() {
+      calls.deleteRemote += 1;
+      if (remoteFailure) {
+        throw remoteFailure;
+      }
+    },
+  };
+
+  const registry = createCollectionRegistry([
+    {
+      name: "remoteTasks",
+      schema: taskSchema,
+      schemaVersion: 1,
+      remoteAdapter: adapter,
+    },
+  ]);
+
+  return {
+    service: createDocumentService({ registry, repository }),
+    calls,
+    setRemoteFailure: (failure) => {
+      remoteFailure = failure;
+    },
+  };
 }
 
 async function resetTestDatabase(): Promise<void> {
@@ -473,6 +617,154 @@ describe.each(repositoryCases)(
           data: { title: "Draft", status: "invalid", priority: 1 },
         }),
       ).rejects.toBeInstanceOf(DocumentServiceError);
+    });
+
+    it("syncs remote projections by remote identity without calling remotes during normal reads", async () => {
+      const { service, calls } = createRemoteService(
+        repositoryCase.createRepository(),
+      );
+
+      const synced = await service.syncRemoteOne<
+        TaskDocument,
+        { remoteId: string }
+      >({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+        input: { remoteId: "remote-1" },
+      });
+
+      expect(synced).toMatchObject({
+        remoteSource: "fixture-api",
+        remoteId: "remote-1",
+        data: {
+          title: "Remote draft",
+          nested: { owner: "Ada", score: 10 },
+        },
+      });
+
+      const syncedAgain = await service.remoteCreate<TaskDocument, RemoteTask>({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+        input: {
+          remote_id: "remote-1",
+          name: "Remote submitted",
+          phase: "submitted",
+          priority: 2,
+          labels: ["remote", "updated"],
+          owner: { name: "Ada", score: 20 },
+        },
+      });
+
+      expect(syncedAgain.id).toBe(synced?.id);
+      expect(syncedAgain.version).toBe(2);
+      expect(syncedAgain.data).toMatchObject({
+        title: "Remote submitted",
+        status: "submitted",
+        nested: { score: 20 },
+      });
+
+      const callsBeforeRead = { ...calls };
+      await expect(
+        service.getById({
+          tenantId: tenantA,
+          collection: "remoteTasks",
+          id: syncedAgain.id,
+        }),
+      ).resolves.toMatchObject({ id: syncedAgain.id });
+      const listed = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+      });
+
+      expect(listed.items).toHaveLength(1);
+      expect(calls).toEqual(callsBeforeRead);
+    });
+
+    it("keeps local projections unchanged when a remote create fails", async () => {
+      const { service, setRemoteFailure } = createRemoteService(
+        repositoryCase.createRepository(),
+      );
+      setRemoteFailure(new Error("remote unavailable"));
+
+      await expect(
+        service.remoteCreate<TaskDocument, RemoteTask>({
+          tenantId: tenantA,
+          collection: "remoteTasks",
+          input: {
+            remote_id: "remote-2",
+            name: "Failed",
+            phase: "draft",
+            priority: 1,
+            labels: [],
+            owner: { name: "Grace", score: 1 },
+          },
+        }),
+      ).rejects.toThrow("remote unavailable");
+
+      const listed = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+      });
+      expect(listed.items).toHaveLength(0);
+    });
+
+    it("applies remote updates only after the remote mutation succeeds", async () => {
+      const { service, calls, setRemoteFailure } = createRemoteService(
+        repositoryCase.createRepository(),
+      );
+      const synced = await service.syncRemoteOne<
+        TaskDocument,
+        { remoteId: string }
+      >({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+        input: { remoteId: "remote-1" },
+      });
+      expect(synced).not.toBeNull();
+
+      const updated = await service.remoteUpdate<
+        TaskDocument,
+        Partial<RemoteTask>
+      >({
+        tenantId: tenantA,
+        collection: "remoteTasks",
+        id: synced!.id,
+        expectedVersion: synced!.version,
+        input: {
+          phase: "done",
+          name: "Remote done",
+          priority: 5,
+          labels: ["closed"],
+        },
+      });
+
+      expect(calls.updateRemote).toBe(1);
+      expect(updated.data).toMatchObject({
+        title: "Remote done",
+        status: "done",
+        priority: 5,
+      });
+
+      setRemoteFailure(new Error("remote update failed"));
+      await expect(
+        service.remoteUpdate<TaskDocument, Partial<RemoteTask>>({
+          tenantId: tenantA,
+          collection: "remoteTasks",
+          id: updated.id,
+          expectedVersion: updated.version,
+          input: { phase: "submitted", name: "Should not project" },
+        }),
+      ).rejects.toThrow("remote update failed");
+
+      await expect(
+        service.getById<TaskDocument>({
+          tenantId: tenantA,
+          collection: "remoteTasks",
+          id: updated.id,
+        }),
+      ).resolves.toMatchObject({
+        data: { status: "done", title: "Remote done" },
+      });
     });
   },
 );

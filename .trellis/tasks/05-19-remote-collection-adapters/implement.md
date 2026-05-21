@@ -2,16 +2,16 @@
 
 ## Checklist
 
-- [ ] Confirm the local document service API from
+- [x] Confirm the local document service API from
       `05-19-local-document-data-layer` is available.
-- [ ] Define remote adapter TypeScript types.
-- [ ] Reserve explicit remote idempotency metadata in adapter and operation
+- [x] Define remote adapter TypeScript types.
+- [x] Reserve explicit remote idempotency metadata in adapter and operation
       types, even though automatic remote retries remain deferred.
-- [ ] Extend collection registration to mark collections as local-only or
+- [x] Extend collection registration to mark collections as local-only or
       remote-backed.
-- [ ] Implement remote identity extraction and upsert-by-remote-identity.
-- [ ] Implement explicit `syncOne` and `syncList` service operations.
-- [ ] Implement remote-first create/update/delete wrappers.
+- [x] Implement remote identity extraction and upsert-by-remote-identity.
+- [x] Implement explicit `syncOne` and `syncList` service operations.
+- [x] Implement remote-first create/update/delete wrappers.
 - [ ] Implement custom action registration and dispatch.
 - [ ] Model document, collection, and workspace action scopes.
 - [ ] Model action concurrency scopes.
@@ -121,7 +121,7 @@
       persist successful run_response, retry only local projection apply on
       stale versions, and avoid retrying ambiguous remote execution without
       adapter-declared idempotency.
-- [ ] Add validation for remote responses before projection persistence.
+- [x] Add validation for remote responses before projection persistence.
 - [ ] Add tests or validation scripts for sync, remote-first write failure,
       nested mapping, remote identity uniqueness, queued custom actions,
       operation status, and scope serialization.
@@ -132,6 +132,7 @@
 ## Validation Commands
 
 - `bun run build`
+- `bun run typecheck`
 - `bun run test` after the local document child task adds Vitest and the
   project test script.
 

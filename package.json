@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "test": "vitest run",
+    "typecheck": "bunx tsc -b --noEmit",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {

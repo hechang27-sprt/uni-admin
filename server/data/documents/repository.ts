@@ -47,8 +47,11 @@ export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
   collection: string;
   id: string;
   expectedVersion: number;
+  schemaVersion?: number;
   data?: TData;
   deletedAt?: Date | null;
+  remoteSource?: string | null;
+  remoteId?: string | null;
 }
 
 export interface DocumentRepository {
@@ -59,6 +62,13 @@ export interface DocumentRepository {
     tenantId: string;
     collection: string;
     id: string;
+    includeDeleted?: boolean;
+  }): Promise<StoredDocument<TData> | null>;
+  findByRemoteIdentity<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    remoteSource: string;
+    remoteId: string;
     includeDeleted?: boolean;
   }): Promise<StoredDocument<TData> | null>;
   list<TData extends JsonObject>(input: {
@@ -121,6 +131,32 @@ export class DrizzleDocumentRepository implements DocumentRepository {
     return rows[0] ? mapDocumentRow<TData>(rows[0]) : null;
   }
 
+  async findByRemoteIdentity<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    remoteSource: string;
+    remoteId: string;
+    includeDeleted?: boolean;
+  }): Promise<StoredDocument<TData> | null> {
+    const conditions = [
+      eq(documentsTable.tenantId, input.tenantId),
+      eq(documentsTable.collection, input.collection),
+      eq(documentsTable.remoteSource, input.remoteSource),
+      eq(documentsTable.remoteId, input.remoteId),
+    ];
+
+    if (!input.includeDeleted) {
+      conditions.push(isNull(documentsTable.deletedAt));
+    }
+
+    const rows = await this.database
+      .select()
+      .from(documentsTable)
+      .where(and(...conditions))
+      .limit(1);
+    return rows[0] ? mapDocumentRow<TData>(rows[0]) : null;
+  }
+
   async list<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -166,12 +202,24 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       updatedAt: new Date(),
     };
 
-    if (record.data) {
+    if (record.schemaVersion !== undefined) {
+      nextValues.schemaVersion = record.schemaVersion;
+    }
+
+    if (record.data !== undefined) {
       nextValues.data = record.data;
     }
 
     if ("deletedAt" in record) {
       nextValues.deletedAt = record.deletedAt;
+    }
+
+    if ("remoteSource" in record) {
+      nextValues.remoteSource = record.remoteSource;
+    }
+
+    if ("remoteId" in record) {
+      nextValues.remoteId = record.remoteId;
     }
 
     const [row] = await this.database
@@ -255,6 +303,26 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return cloneDocument(document) as StoredDocument<TData>;
   }
 
+  async findByRemoteIdentity<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    remoteSource: string;
+    remoteId: string;
+    includeDeleted?: boolean;
+  }): Promise<StoredDocument<TData> | null> {
+    const document = [...this.records.values()].find((record) => {
+      return (
+        record.tenantId === input.tenantId &&
+        record.collection === input.collection &&
+        record.remoteSource === input.remoteSource &&
+        record.remoteId === input.remoteId &&
+        (input.includeDeleted || !record.deletedAt)
+      );
+    });
+
+    return document ? (cloneDocument(document) as StoredDocument<TData>) : null;
+  }
+
   async list<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -294,11 +362,19 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
     const updated: StoredDocument<TData> = {
       ...document,
-      data: record.data
-        ? cloneJsonObject(record.data)
-        : (cloneJsonObject(document.data) as TData),
+      schemaVersion: record.schemaVersion ?? document.schemaVersion,
+      data:
+        record.data !== undefined
+          ? cloneJsonObject(record.data)
+          : (cloneJsonObject(document.data) as TData),
       deletedAt:
         "deletedAt" in record ? (record.deletedAt ?? null) : document.deletedAt,
+      remoteSource:
+        "remoteSource" in record
+          ? (record.remoteSource ?? null)
+          : document.remoteSource,
+      remoteId:
+        "remoteId" in record ? (record.remoteId ?? null) : document.remoteId,
       version: document.version + 1,
       updatedAt: new Date(),
     };

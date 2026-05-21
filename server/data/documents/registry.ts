@@ -1,12 +1,14 @@
 import type { z } from "zod";
 
 import { DocumentServiceError } from "./errors";
+import type { RemoteCollectionAdapter } from "./remote";
 import type { JsonObject } from "./types";
 
 export interface CollectionRegistration<TData extends JsonObject = JsonObject> {
   name: string;
   schema: z.ZodType<TData>;
   schemaVersion: number;
+  remoteAdapter?: RemoteCollectionAdapter<TData>;
 }
 
 export class CollectionRegistry {
@@ -29,6 +31,19 @@ export class CollectionRegistry {
       throw new DocumentServiceError(
         "VALIDATION_FAILED",
         "Collection schema version must be a positive integer",
+        {
+          collection: registration.name,
+        },
+      );
+    }
+
+    if (
+      registration.remoteAdapter &&
+      !registration.remoteAdapter.remoteSource.trim()
+    ) {
+      throw new DocumentServiceError(
+        "VALIDATION_FAILED",
+        "Remote source is required for remote-backed collections",
         {
           collection: registration.name,
         },

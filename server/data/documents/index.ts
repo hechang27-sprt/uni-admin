@@ -1,6 +1,14 @@
 export { DocumentServiceError, isDocumentServiceError } from "./errors";
 export { applyJsonPatch, type JsonPatchOperation } from "./json-patch";
 export {
+  createRemoteProjectionMapper,
+  type RemoteAdapterContext,
+  type RemoteAdapterProjection,
+  type RemoteCollectionAdapter,
+  type RemoteDeleteResult,
+  type RemoteIdempotencyOptions,
+} from "./remote";
+export {
   CollectionRegistry,
   createCollectionRegistry,
   type CollectionRegistration,
@@ -20,6 +28,11 @@ export {
   type HardDeleteDocumentInput,
   type ListDocumentServiceInput,
   type PatchDocumentInput,
+  type RemoteCreateInput,
+  type RemoteDeleteInput,
+  type RemoteUpdateInput,
+  type SyncRemoteListInput,
+  type SyncRemoteOneInput,
   type UpdateDocumentInput,
   type VersionedDocumentInput,
 } from "./service";
