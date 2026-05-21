@@ -199,3 +199,35 @@ Split oversized document repository, service, and test modules into directory-ba
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: pgLite document repository test harness
+
+**Date**: 2026-05-21
+**Task**: pgLite document repository test harness
+
+### Summary
+
+Removed the InMemoryDocumentRepository wrapper, switched document service tests to DrizzleDocumentRepository on pgLite, and optimized test cleanup by reusing the in-memory database while resetting schemas between tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `507861b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
