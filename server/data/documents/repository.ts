@@ -5,6 +5,7 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -31,7 +32,10 @@ import type {
 } from "./types";
 
 type DocumentRow = InferSelectModel<typeof documentsTable>;
+type BatchUpdateRow = DocumentRow & { inputOrder: number };
 type DrizzleDatabase = NodePgDatabase<typeof dbSchema>;
+
+class BatchUpdateConflict extends Error {}
 
 export interface InsertDocumentRecord<TData extends JsonObject = JsonObject> {
   tenantId: string;
@@ -40,6 +44,19 @@ export interface InsertDocumentRecord<TData extends JsonObject = JsonObject> {
   data: TData;
   remoteSource?: string | null;
   remoteId?: string | null;
+}
+
+export interface InsertManyDocumentsRecord<
+  TData extends JsonObject = JsonObject,
+> {
+  tenantId: string;
+  collection: string;
+  schemaVersion: number;
+  items: {
+    data: TData;
+    remoteSource?: string | null;
+    remoteId?: string | null;
+  }[];
 }
 
 export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
@@ -52,6 +69,12 @@ export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
   deletedAt?: Date | null;
   remoteSource?: string | null;
   remoteId?: string | null;
+}
+
+export interface UpdateManyDocumentsRecord<
+  TData extends JsonObject = JsonObject,
+> {
+  records: UpdateDocumentRecord<TData>[];
 }
 
 export interface UpsertRemoteProjectionsRecord<
@@ -71,12 +94,21 @@ export interface DocumentRepository {
   insert<TData extends JsonObject>(
     record: InsertDocumentRecord<TData>,
   ): Promise<StoredDocument<TData>>;
+  insertMany<TData extends JsonObject>(
+    record: InsertManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]>;
   findById<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
     id: string;
     includeDeleted?: boolean;
   }): Promise<StoredDocument<TData> | null>;
+  findByIds<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    ids: string[];
+    includeDeleted?: boolean;
+  }): Promise<(StoredDocument<TData> | null)[]>;
   findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -92,6 +124,9 @@ export interface DocumentRepository {
   update<TData extends JsonObject>(
     record: UpdateDocumentRecord<TData>,
   ): Promise<StoredDocument<TData> | null>;
+  updateMany<TData extends JsonObject>(
+    record: UpdateManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[] | null>;
   upsertRemoteProjections<TData extends JsonObject>(
     record: UpsertRemoteProjectionsRecord<TData>,
   ): Promise<StoredDocument<TData>[]>;
@@ -123,6 +158,30 @@ export class DrizzleDocumentRepository implements DocumentRepository {
     return mapDocumentRow<TData>(assertDocumentRow(row));
   }
 
+  async insertMany<TData extends JsonObject>(
+    record: InsertManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]> {
+    if (record.items.length === 0) {
+      return [];
+    }
+
+    const rows = await this.database
+      .insert(documentsTable)
+      .values(
+        record.items.map((item) => ({
+          tenantId: record.tenantId,
+          collection: record.collection,
+          schemaVersion: record.schemaVersion,
+          data: item.data,
+          remoteSource: item.remoteSource ?? null,
+          remoteId: item.remoteId ?? null,
+        })),
+      )
+      .returning();
+
+    return rows.map((row) => mapDocumentRow<TData>(row));
+  }
+
   async findById<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -145,6 +204,37 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       .where(and(...conditions))
       .limit(1);
     return rows[0] ? mapDocumentRow<TData>(rows[0]) : null;
+  }
+
+  async findByIds<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    ids: string[];
+    includeDeleted?: boolean;
+  }): Promise<(StoredDocument<TData> | null)[]> {
+    if (input.ids.length === 0) {
+      return [];
+    }
+
+    const conditions = [
+      eq(documentsTable.tenantId, input.tenantId),
+      eq(documentsTable.collection, input.collection),
+      inArray(documentsTable.id, input.ids),
+    ];
+
+    if (!input.includeDeleted) {
+      conditions.push(isNull(documentsTable.deletedAt));
+    }
+
+    const rows = await this.database
+      .select()
+      .from(documentsTable)
+      .where(and(...conditions));
+    const rowsById = new Map(
+      rows.map((row) => [row.id, mapDocumentRow<TData>(row)]),
+    );
+
+    return input.ids.map((id) => rowsById.get(id) ?? null);
   }
 
   async findByRemoteIdentity<TData extends JsonObject>(input: {
@@ -254,6 +344,34 @@ export class DrizzleDocumentRepository implements DocumentRepository {
     return row ? mapDocumentRow<TData>(row) : null;
   }
 
+  async updateMany<TData extends JsonObject>(
+    record: UpdateManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[] | null> {
+    if (record.records.length === 0) {
+      return [];
+    }
+
+    try {
+      return await this.database.transaction(async (tx) => {
+        const result = await tx.execute<BatchUpdateRow>(
+          buildBatchUpdateQuery(record.records),
+        );
+
+        if (result.rows.length !== record.records.length) {
+          throw new BatchUpdateConflict();
+        }
+
+        return result.rows.map((row) => mapDocumentRow<TData>(row));
+      });
+    } catch (error) {
+      if (error instanceof BatchUpdateConflict) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   async upsertRemoteProjections<TData extends JsonObject>(
     record: UpsertRemoteProjectionsRecord<TData>,
   ): Promise<StoredDocument<TData>[]> {
@@ -350,6 +468,34 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return cloneDocument(document);
   }
 
+  async insertMany<TData extends JsonObject>(
+    record: InsertManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[]> {
+    const documents: StoredDocument<TData>[] = [];
+
+    for (const item of record.items) {
+      const now = new Date();
+      const document: StoredDocument<TData> = {
+        id: crypto.randomUUID(),
+        tenantId: record.tenantId,
+        collection: record.collection,
+        schemaVersion: record.schemaVersion,
+        data: cloneJsonObject(item.data),
+        remoteSource: item.remoteSource ?? null,
+        remoteId: item.remoteId ?? null,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+
+      this.records.set(document.id, document);
+      documents.push(cloneDocument(document));
+    }
+
+    return documents;
+  }
+
   async findById<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -368,6 +514,28 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     }
 
     return cloneDocument(document) as StoredDocument<TData>;
+  }
+
+  async findByIds<TData extends JsonObject>(input: {
+    tenantId: string;
+    collection: string;
+    ids: string[];
+    includeDeleted?: boolean;
+  }): Promise<(StoredDocument<TData> | null)[]> {
+    return input.ids.map((id) => {
+      const document = this.records.get(id);
+
+      if (
+        !document ||
+        document.tenantId !== input.tenantId ||
+        document.collection !== input.collection ||
+        (!input.includeDeleted && document.deletedAt)
+      ) {
+        return null;
+      }
+
+      return cloneDocument(document) as StoredDocument<TData>;
+    });
   }
 
   async findByRemoteIdentity<TData extends JsonObject>(input: {
@@ -448,6 +616,38 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
     this.records.set(record.id, updated);
     return cloneDocument(updated);
+  }
+
+  async updateMany<TData extends JsonObject>(
+    record: UpdateManyDocumentsRecord<TData>,
+  ): Promise<StoredDocument<TData>[] | null> {
+    const draft = new Map(this.records);
+    const documents: StoredDocument<TData>[] = [];
+
+    for (const updateRecord of record.records) {
+      const document = draft.get(updateRecord.id);
+
+      if (
+        !document ||
+        document.tenantId !== updateRecord.tenantId ||
+        document.collection !== updateRecord.collection ||
+        document.version !== updateRecord.expectedVersion
+      ) {
+        return null;
+      }
+
+      const updated = applyDocumentUpdate(document, updateRecord);
+
+      draft.set(updateRecord.id, updated);
+      documents.push(cloneDocument(updated));
+    }
+
+    this.records.clear();
+    for (const [id, document] of draft) {
+      this.records.set(id, document);
+    }
+
+    return documents;
   }
 
   async upsertRemoteProjections<TData extends JsonObject>(
@@ -715,6 +915,116 @@ function compareValues(
   }
 
   return String(leftValue).localeCompare(String(rightValue));
+}
+
+function buildBatchUpdateQuery<TData extends JsonObject>(
+  records: UpdateDocumentRecord<TData>[],
+): SQL {
+  const values = records.map((record, index) => {
+    return sql`(
+      ${record.id}::uuid,
+      ${record.tenantId}::uuid,
+      ${record.collection}::text,
+      ${record.expectedVersion}::integer,
+      ${record.schemaVersion ?? null}::integer,
+      ${record.data ?? null}::jsonb,
+      ${record.data !== undefined}::boolean,
+      ${"deletedAt" in record ? (record.deletedAt ?? null) : null}::timestamp with time zone,
+      ${"deletedAt" in record}::boolean,
+      ${"remoteSource" in record ? (record.remoteSource ?? null) : null}::text,
+      ${"remoteSource" in record}::boolean,
+      ${"remoteId" in record ? (record.remoteId ?? null) : null}::text,
+      ${"remoteId" in record}::boolean,
+      ${index}::integer
+    )`;
+  });
+
+  return sql`
+    with updates (
+      id,
+      tenant_id,
+      collection,
+      expected_version,
+      schema_version,
+      data,
+      set_data,
+      deleted_at,
+      set_deleted_at,
+      remote_source,
+      set_remote_source,
+      remote_id,
+      set_remote_id,
+      input_order
+    ) as (
+      values ${sql.join(values, sql`, `)}
+    ),
+    updated as (
+      update ${documentsTable} as document
+      set
+        schema_version = coalesce(updates.schema_version, document.schema_version),
+        data = case when updates.set_data then updates.data else document.data end,
+        deleted_at = case
+          when updates.set_deleted_at then updates.deleted_at
+          else document.deleted_at
+        end,
+        remote_source = case
+          when updates.set_remote_source then updates.remote_source
+          else document.remote_source
+        end,
+        remote_id = case
+          when updates.set_remote_id then updates.remote_id
+          else document.remote_id
+        end,
+        version = document.version + 1,
+        updated_at = now()
+      from updates
+      where
+        document.id = updates.id
+        and document.tenant_id = updates.tenant_id
+        and document.collection = updates.collection
+        and document.version = updates.expected_version
+      returning
+        document.id,
+        document.tenant_id as "tenantId",
+        document.collection,
+        document.schema_version as "schemaVersion",
+        document.data,
+        document.remote_source as "remoteSource",
+        document.remote_id as "remoteId",
+        document.version,
+        document.created_at as "createdAt",
+        document.updated_at as "updatedAt",
+        document.deleted_at as "deletedAt",
+        updates.input_order as "inputOrder"
+    )
+    select *
+    from updated
+    order by "inputOrder"
+  `;
+}
+
+function applyDocumentUpdate<TData extends JsonObject>(
+  document: StoredDocument,
+  record: UpdateDocumentRecord<TData>,
+): StoredDocument<TData> {
+  return {
+    ...document,
+    schemaVersion: record.schemaVersion ?? document.schemaVersion,
+    data:
+      record.data !== undefined
+        ? cloneJsonObject(record.data)
+        : (cloneJsonObject(document.data) as TData),
+    deletedAt:
+      "deletedAt" in record ? (record.deletedAt ?? null) : document.deletedAt,
+    remoteSource:
+      "remoteSource" in record
+        ? (record.remoteSource ?? null)
+        : document.remoteSource,
+    remoteId:
+      "remoteId" in record ? (record.remoteId ?? null) : document.remoteId,
+    version: document.version + 1,
+    updatedAt: new Date(),
+  };
 }
 
 function mapDocumentRow<TData extends JsonObject>(

@@ -105,6 +105,42 @@ const updated = await service.update<TaskDocument>({
 });
 ```
 
+Batch local writes use explicit methods instead of array-overloaded scalar
+methods:
+
+```ts
+const batch = await service.createMany<TaskDocument>({
+  tenantId: created.tenantId,
+  collection: "tasks",
+  items: [
+    { data: { title: "Import A", status: "draft", priority: 1, tags: [] } },
+    { data: { title: "Import B", status: "draft", priority: 2, tags: [] } },
+  ],
+});
+
+const fetched = await service.getByIds<TaskDocument>({
+  tenantId: created.tenantId,
+  collection: "tasks",
+  ids: batch.map((item) => item.id),
+});
+
+await service.updateMany<TaskDocument>({
+  tenantId: created.tenantId,
+  collection: "tasks",
+  items: fetched.flatMap((item) =>
+    item
+      ? [
+          {
+            id: item.id,
+            expectedVersion: item.version,
+            data: { ...item.data, status: "submitted" },
+          },
+        ]
+      : [],
+  ),
+});
+```
+
 Patch with the supported JSON Patch subset:
 
 ```ts

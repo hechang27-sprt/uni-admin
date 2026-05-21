@@ -410,6 +410,127 @@ describe.each(repositoryCases)(
       ).resolves.toBeNull();
     });
 
+    it("supports batch create, get by ids, and update without partial stale writes", async () => {
+      const service = createTestService();
+      const created = await service.createMany<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        items: [
+          {
+            data: {
+              title: "Batch A",
+              status: "draft",
+              priority: 1,
+              tags: [],
+            },
+          },
+          {
+            data: {
+              title: "Batch B",
+              status: "submitted",
+              priority: 2,
+              tags: ["bulk"],
+            },
+          },
+        ],
+      });
+
+      expect(created).toHaveLength(2);
+      expect(created.map((item) => item.data.title)).toEqual([
+        "Batch A",
+        "Batch B",
+      ]);
+
+      const fetched = await service.getByIds<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [
+          created[1]!.id,
+          "00000000-0000-4000-8000-999999999999",
+          created[0]!.id,
+        ],
+      });
+
+      expect(fetched.map((item) => item?.id ?? null)).toEqual([
+        created[1]!.id,
+        null,
+        created[0]!.id,
+      ]);
+
+      const updated = await service.updateMany<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        items: [
+          {
+            id: created[0]!.id,
+            expectedVersion: created[0]!.version,
+            data: {
+              title: "Batch A done",
+              status: "done",
+              priority: 3,
+              tags: ["bulk"],
+            },
+          },
+          {
+            id: created[1]!.id,
+            expectedVersion: created[1]!.version,
+            data: {
+              title: "Batch B done",
+              status: "done",
+              priority: 4,
+              tags: ["bulk"],
+            },
+          },
+        ],
+      });
+
+      expect(updated.map((item) => item.version)).toEqual([2, 2]);
+      expect(updated.map((item) => item.data.title)).toEqual([
+        "Batch A done",
+        "Batch B done",
+      ]);
+
+      await expect(
+        service.updateMany<TaskDocument>({
+          tenantId: tenantA,
+          collection: "tasks",
+          items: [
+            {
+              id: updated[0]!.id,
+              expectedVersion: updated[0]!.version,
+              data: {
+                title: "Should not apply",
+                status: "submitted",
+                priority: 5,
+                tags: [],
+              },
+            },
+            {
+              id: updated[1]!.id,
+              expectedVersion: created[1]!.version,
+              data: {
+                title: "Stale",
+                status: "submitted",
+                priority: 6,
+                tags: [],
+              },
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT_STALE_VERSION" });
+
+      await expect(
+        service.getById<TaskDocument>({
+          tenantId: tenantA,
+          collection: "tasks",
+          id: updated[0]!.id,
+        }),
+      ).resolves.toMatchObject({
+        data: { title: "Batch A done" },
+        version: 2,
+      });
+    });
+
     it("enforces tenant isolation on reads and mutations", async () => {
       const service = createTestService();
       const created = await service.create<TaskDocument>({

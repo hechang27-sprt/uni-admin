@@ -25,6 +25,17 @@ export interface CreateDocumentInput<
   remoteId?: string | null;
 }
 
+export interface CreateManyDocumentInput<
+  TData extends JsonObject = JsonObject,
+> extends TenantContext {
+  collection: string;
+  items: {
+    data: TData;
+    remoteSource?: string | null;
+    remoteId?: string | null;
+  }[];
+}
+
 export interface VersionedDocumentInput extends TenantContext {
   collection: string;
   id: string;
@@ -37,10 +48,27 @@ export interface GetDocumentInput extends TenantContext {
   includeDeleted?: boolean;
 }
 
+export interface GetDocumentsByIdsInput extends TenantContext {
+  collection: string;
+  ids: string[];
+  includeDeleted?: boolean;
+}
+
 export interface UpdateDocumentInput<
   TData extends JsonObject = JsonObject,
 > extends VersionedDocumentInput {
   data: TData;
+}
+
+export interface UpdateManyDocumentInput<
+  TData extends JsonObject = JsonObject,
+> extends TenantContext {
+  collection: string;
+  items: {
+    id: string;
+    expectedVersion: number;
+    data: TData;
+  }[];
 }
 
 export interface PatchDocumentInput extends VersionedDocumentInput {
@@ -132,15 +160,24 @@ export interface DocumentService {
   create<TData extends JsonObject>(
     input: CreateDocumentInput<TData>,
   ): Promise<StoredDocument<TData>>;
+  createMany<TData extends JsonObject>(
+    input: CreateManyDocumentInput<TData>,
+  ): Promise<StoredDocument<TData>[]>;
   getById<TData extends JsonObject>(
     input: GetDocumentInput,
   ): Promise<StoredDocument<TData> | null>;
+  getByIds<TData extends JsonObject>(
+    input: GetDocumentsByIdsInput,
+  ): Promise<(StoredDocument<TData> | null)[]>;
   list<TData extends JsonObject>(
     input: ListDocumentServiceInput,
   ): Promise<ListDocumentsResult<TData>>;
   update<TData extends JsonObject>(
     input: UpdateDocumentInput<TData>,
   ): Promise<StoredDocument<TData>>;
+  updateMany<TData extends JsonObject>(
+    input: UpdateManyDocumentInput<TData>,
+  ): Promise<StoredDocument<TData>[]>;
   patch<TData extends JsonObject>(
     input: PatchDocumentInput,
   ): Promise<StoredDocument<TData>>;
@@ -380,6 +417,28 @@ export function createDocumentService(
       });
     },
 
+    async createMany<TData extends JsonObject>(
+      input: CreateManyDocumentInput<TData>,
+    ): Promise<StoredDocument<TData>[]> {
+      const collection = registry.get(input.collection);
+      const items = input.items.map((item) => ({
+        data: parseData(
+          collection.schema,
+          item.data,
+          input.collection,
+        ) as TData,
+        remoteSource: item.remoteSource,
+        remoteId: item.remoteId,
+      }));
+
+      return repository.insertMany<TData>({
+        tenantId: input.tenantId,
+        collection: input.collection,
+        schemaVersion: collection.schemaVersion,
+        items,
+      });
+    },
+
     async getById<TData extends JsonObject>(
       input: GetDocumentInput,
     ): Promise<StoredDocument<TData> | null> {
@@ -389,6 +448,19 @@ export function createDocumentService(
         tenantId: input.tenantId,
         collection: input.collection,
         id: input.id,
+        includeDeleted: input.includeDeleted,
+      });
+    },
+
+    async getByIds<TData extends JsonObject>(
+      input: GetDocumentsByIdsInput,
+    ): Promise<(StoredDocument<TData> | null)[]> {
+      registry.get(input.collection);
+
+      return repository.findByIds<TData>({
+        tenantId: input.tenantId,
+        collection: input.collection,
+        ids: input.ids,
         includeDeleted: input.includeDeleted,
       });
     },
@@ -419,6 +491,72 @@ export function createDocumentService(
       const data = parseData(collection.schema, input.data, input.collection);
 
       return assertVersionAndUpdate(input, data as TData);
+    },
+
+    async updateMany<TData extends JsonObject>(
+      input: UpdateManyDocumentInput<TData>,
+    ): Promise<StoredDocument<TData>[]> {
+      const collection = registry.get(input.collection);
+      const items = input.items.map((item) => ({
+        ...item,
+        data: parseData(
+          collection.schema,
+          item.data,
+          input.collection,
+        ) as TData,
+      }));
+      const existingDocuments = await repository.findByIds<TData>({
+        tenantId: input.tenantId,
+        collection: input.collection,
+        ids: items.map((item) => item.id),
+      });
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const existing = existingDocuments[index];
+
+        if (!item || !existing) {
+          throw new DocumentServiceError("NOT_FOUND", "Document not found", {
+            collection: input.collection,
+            documentId: item?.id,
+          });
+        }
+
+        if (existing.version !== item.expectedVersion) {
+          throw new DocumentServiceError(
+            "CONFLICT_STALE_VERSION",
+            "Document version is stale",
+            {
+              collection: input.collection,
+              documentId: item.id,
+              expectedVersion: item.expectedVersion,
+              currentVersion: existing.version,
+            },
+          );
+        }
+      }
+
+      const records = items.map((item) => ({
+        tenantId: input.tenantId,
+        collection: input.collection,
+        id: item.id,
+        expectedVersion: item.expectedVersion,
+        schemaVersion: collection.schemaVersion,
+        data: item.data,
+      }));
+      const updated = await repository.updateMany<TData>({ records });
+
+      if (!updated) {
+        throw new DocumentServiceError(
+          "CONFLICT_STALE_VERSION",
+          "Document version is stale",
+          {
+            collection: input.collection,
+          },
+        );
+      }
+
+      return updated;
     },
 
     async patch<TData extends JsonObject>(

@@ -26,8 +26,10 @@ export {
 } from "./repository";
 export {
   createDocumentService,
+  type CreateManyDocumentInput,
   type CreateDocumentInput,
   type DocumentService,
+  type GetDocumentsByIdsInput,
   type GetDocumentInput,
   type HardDeleteDocumentInput,
   type ListDocumentServiceInput,
@@ -42,6 +44,7 @@ export {
   type SyncRemoteListResult,
   type SyncRemoteOneInput,
   type SyncRemoteOneResult,
+  type UpdateManyDocumentInput,
   type UpdateDocumentInput,
   type VersionedDocumentInput,
 } from "./service";
