@@ -101,3 +101,36 @@ Added document service coverage against the Drizzle PostgreSQL repository using 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Remote collection adapters
+
+**Date**: 2026-05-21
+**Task**: Remote collection adapters
+
+### Summary
+
+Implemented the first remote collection adapter slice with explicit sync, remote-first mutations, remote identity upsert, validation coverage, project typecheck script, and framework/data-layer documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ba17a9b` | (see git log) |
+| `fc50098` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
