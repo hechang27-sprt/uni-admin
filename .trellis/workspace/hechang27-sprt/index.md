@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~169 | Active |
+| `journal-1.md` | ~201 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-21 | Split document data layer modules | `1298b84` | `-` |
 | 5 | 2026-05-21 | Remote adapter and batch document APIs | `d88f902`, `cce9963` | `-` |
 | 4 | 2026-05-21 | Remote collection adapters | `ba17a9b`, `fc50098` | `-` |
 | 3 | 2026-05-21 | Drizzle document repository tests | `3d4b559` | `-` |

@@ -167,3 +167,35 @@ Added adapter result metadata passthrough, internal bulk remote projection upser
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Split document data layer modules
+
+**Date**: 2026-05-21
+**Task**: Split document data layer modules
+
+### Summary
+
+Split oversized document repository, service, and test modules into directory-based modules; preserved public exports and validated with typecheck, tests, oxlint, fallow, and GitNexus.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1298b84` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
