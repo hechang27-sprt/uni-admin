@@ -1,5 +1,14 @@
 # Nuxt Minimal Starter
 
+## Project Documentation
+
+The framework-specific docs live in [docs/](./docs/README.md).
+
+- [Framework DX Guide](./docs/framework-dx-guide.md) shows current data-layer
+  usage and the gap to the intended higher-level Nuxt admin framework API.
+- [Data Layer Development Notes](./docs/data-layer-development-notes.md)
+  records maintainer-facing contracts, design notes, and validation commands.
+
 Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
 ## Setup
