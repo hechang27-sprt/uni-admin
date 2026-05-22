@@ -2,10 +2,9 @@ import { z } from "zod";
 
 import {
   createCollectionRegistry,
-  createDocumentService,
   createRemoteProjectionMapper,
+  DocumentService,
   type DocumentRepository,
-  type DocumentService,
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
 
@@ -65,7 +64,7 @@ export function createService(repository: DocumentRepository): DocumentService {
     },
   ]);
 
-  return createDocumentService({
+  return new DocumentService({
     registry,
     repository,
   });
@@ -198,7 +197,7 @@ export function createRemoteService(repository: DocumentRepository): {
   ]);
 
   return {
-    service: createDocumentService({ registry, repository }),
+    service: new DocumentService({ registry, repository }),
     calls,
     setRemoteFailure: (failure) => {
       remoteFailure = failure;

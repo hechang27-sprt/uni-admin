@@ -11,14 +11,13 @@ import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { z } from "zod";
 
-import { DrizzleAuthRbacRepository, createAuthRbacService } from "#server/auth";
+import { DrizzleAuthRbacRepository, AuthRbacService } from "#server/auth";
 import { tenantsTable } from "#server/db/schema";
 import { createInMemoryDb } from "#server/util/drizzle";
 import {
   DrizzleDocumentRepository,
   createCollectionRegistry,
-  createDocumentService,
-  type DocumentService,
+  DocumentService,
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
 import { tenantA, tenantB } from "./fixtures/service";
@@ -308,7 +307,7 @@ describe("auth/RBAC service integration", () => {
       },
     ]);
     await auth.syncCollectionPermissions(registry);
-    const service = createDocumentService({
+    const service = new DocumentService({
       registry,
       repository: new DrizzleDocumentRepository(getTestDatabase()),
       authorizer: auth,
@@ -367,7 +366,7 @@ describe("auth/RBAC service integration", () => {
     await auth.syncCollectionPermissions(registry);
 
     return {
-      service: createDocumentService({
+      service: new DocumentService({
         registry,
         repository: new DrizzleDocumentRepository(getTestDatabase()),
         authorizer: auth,
@@ -376,7 +375,7 @@ describe("auth/RBAC service integration", () => {
   }
 
   function createTestAuthService() {
-    return createAuthRbacService({
+    return new AuthRbacService({
       repository: new DrizzleAuthRbacRepository(getTestDatabase()),
     });
   }

@@ -1,4 +1,3 @@
-import type { CollectionRegistry } from "#server/data/documents";
 import type { TenantActorContext } from "#server/data/documents";
 
 export interface AuthUser {
@@ -133,54 +132,6 @@ export interface BootstrapTenantOwnerResult {
   rootScope: AuthScope;
   ownerRole: Role;
   context: TenantActorContext;
-}
-
-export interface AuthRbacService {
-  createUser(input?: CreateUserInput): Promise<AuthUser>;
-  setUsernamePasswordCredential(
-    input: SetPasswordCredentialInput,
-  ): Promise<UsernamePasswordCredential>;
-  verifyUsernamePassword(input: VerifyPasswordInput): Promise<AuthUser | null>;
-  createTenantMembership(
-    input: CreateTenantMembershipInput,
-  ): Promise<TenantMembership>;
-  resolveActor(input: {
-    tenantId: string;
-    userId: string;
-  }): Promise<TenantActorContext>;
-  ensureTenantRootScope(tenantId: string): Promise<AuthScope>;
-  getTenantRootScopeId(tenantId: string): Promise<string>;
-  createScope(input: CreateScopeInput): Promise<AuthScope>;
-  createScopeAsActor(
-    context: TenantActorContext,
-    input: Omit<CreateScopeInput, "tenantId">,
-  ): Promise<AuthScope>;
-  createRole(input: CreateRoleInput): Promise<Role>;
-  syncPermissions(input: PermissionDefinitionInput[]): Promise<Permission[]>;
-  syncBuiltInAdminPermissions(): Promise<Permission[]>;
-  syncCollectionPermissions(
-    registry: CollectionRegistry,
-  ): Promise<Permission[]>;
-  grantPermission(input: GrantPermissionInput): Promise<void>;
-  grantPermissionAsActor(
-    context: TenantActorContext,
-    input: Omit<GrantPermissionInput, "tenantId">,
-  ): Promise<void>;
-  assignRole(input: AssignRoleInput): Promise<void>;
-  assignRoleAsActor(
-    context: TenantActorContext,
-    input: Omit<AssignRoleInput, "tenantId">,
-  ): Promise<void>;
-  checkAccess(input: CheckAccessInput): Promise<boolean>;
-  assertAccess(input: CheckAccessInput): Promise<void>;
-  listAccessibleScopeIds(input: ListAccessibleScopesInput): Promise<string[]>;
-  listCreatableDocumentScopeIds(input: {
-    context: TenantActorContext;
-    capability: string;
-  }): Promise<(string | null)[]>;
-  bootstrapTenantOwner(
-    input: BootstrapTenantOwnerInput,
-  ): Promise<BootstrapTenantOwnerResult>;
 }
 
 export interface DocumentAuthorizer {

@@ -5,10 +5,13 @@ export {
   tenantRootScopeKey,
   type AuthRbacRepository,
 } from "./repository";
-export { builtInAdminPermissions, createAuthRbacService } from "./service";
+export {
+  AuthRbacService,
+  builtInAdminPermissions,
+  type AuthRbacServiceConfig,
+} from "./service";
 export type {
   AssignRoleInput,
-  AuthRbacService,
   AuthScope,
   AuthUser,
   BootstrapTenantOwnerInput,

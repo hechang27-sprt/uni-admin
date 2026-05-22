@@ -4,7 +4,6 @@ import type { DocumentRepository } from "../repository";
 import type {
   JsonObject,
   ListDocumentsInput,
-  ListDocumentsResult,
   StoredDocument,
   TenantContext,
   TenantActorContext,
@@ -165,99 +164,7 @@ export interface RemoteDeleteDocumentResult<TOutput = unknown> {
   output?: TOutput;
 }
 
-export interface DocumentService {
-  create<TData extends JsonObject>(
-    input: CreateDocumentInput<TData>,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>>;
-  createMany<TData extends JsonObject>(
-    input: CreateManyDocumentInput<TData>,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>[]>;
-  getById<TData extends JsonObject>(
-    input: GetDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData> | null>;
-  getByIds<TData extends JsonObject>(
-    input: GetDocumentsByIdsInput,
-    options?: DocumentServiceOptions,
-  ): Promise<(StoredDocument<TData> | null)[]>;
-  list<TData extends JsonObject>(
-    input: ListDocumentServiceInput,
-    options?: DocumentServiceOptions,
-  ): Promise<ListDocumentsResult<TData>>;
-  update<TData extends JsonObject>(
-    input: UpdateDocumentInput<TData>,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>>;
-  updateMany<TData extends JsonObject>(
-    input: UpdateManyDocumentInput<TData>,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>[]>;
-  patch<TData extends JsonObject>(
-    input: PatchDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>>;
-  softDelete(
-    input: VersionedDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument>;
-  restore(
-    input: VersionedDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument>;
-  hardDelete(
-    input: HardDeleteDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<void>;
-  syncRemoteOne<
-    TData extends JsonObject,
-    TSyncInput = unknown,
-    TOutput = unknown,
-  >(
-    input: SyncRemoteOneInput<TSyncInput>,
-  ): Promise<SyncRemoteOneResult<TData, TOutput>>;
-  syncRemoteList<
-    TData extends JsonObject,
-    TSyncInput = unknown,
-    TOutput = unknown,
-  >(
-    input: SyncRemoteListInput<TSyncInput>,
-  ): Promise<SyncRemoteListResult<TData, TOutput>>;
-  remoteCreate<
-    TData extends JsonObject,
-    TCreateInput = unknown,
-    TOutput = unknown,
-  >(
-    input: RemoteCreateInput<TCreateInput>,
-    options?: DocumentServiceOptions,
-  ): Promise<RemoteCreateResult<TData, TOutput>>;
-  remoteUpdate<
-    TData extends JsonObject,
-    TUpdateInput = unknown,
-    TOutput = unknown,
-  >(
-    input: RemoteUpdateInput<TUpdateInput>,
-    options?: DocumentServiceOptions,
-  ): Promise<RemoteUpdateResult<TData, TOutput>>;
-  remoteDelete<TDeleteInput = unknown, TOutput = unknown>(
-    input: RemoteDeleteInput<TDeleteInput>,
-    options?: DocumentServiceOptions,
-  ): Promise<RemoteDeleteDocumentResult<TOutput>>;
-  setDocumentAuthScope(
-    input: SetDocumentAuthScopeInput,
-    options: DocumentServiceOptions,
-  ): Promise<StoredDocument>;
-  listCreatableScopes(
-    input: {
-      tenantId: string;
-      collection: string;
-    },
-    options: DocumentServiceOptions,
-  ): Promise<(string | null)[]>;
-}
-
-export interface CreateDocumentServiceOptions {
+export interface DocumentServiceConfig {
   registry: CollectionRegistry;
   repository: DocumentRepository;
   authorizer?: DocumentAuthorizer;

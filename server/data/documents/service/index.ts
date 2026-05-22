@@ -1,9 +1,8 @@
-export { createDocumentService } from "./create-service";
+export { DocumentService } from "./service";
 export type {
   CreateDocumentInput,
-  CreateDocumentServiceOptions,
+  DocumentServiceConfig,
   CreateManyDocumentInput,
-  DocumentService,
   DocumentServiceOptions,
   GetDocumentInput,
   GetDocumentsByIdsInput,
