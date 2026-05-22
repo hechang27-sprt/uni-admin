@@ -264,3 +264,35 @@ Synced project docs to the current Drizzle/pgLite data-layer shape, then replace
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: User Auth RBAC Planning
+
+**Date**: 2026-05-22
+**Task**: User Auth RBAC Planning
+
+### Summary
+
+Planned service-level user management, username/password auth, resource-scoped RBAC, admin governance, auth_scope_id document scoping, and implementation/research artifacts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c9a839a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
