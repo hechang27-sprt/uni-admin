@@ -1,59 +1,41 @@
 # Component Guidelines
 
-> How components are built in this project.
+The frontend component surface is intentionally minimal right now. Treat this
+file as guidance for adding the first real Nuxt admin UI without pretending it
+already exists.
 
----
+## Current Pattern
 
-## Overview
+`app/app.vue` is the only Vue component:
 
-<!--
-Document your project's component conventions here.
+- It uses a single `<template>` block.
+- It keeps Nuxt starter behavior: `NuxtRouteAnnouncer` plus `NuxtWelcome`.
+- There are no project-specific props, emitted events, layouts, or pages yet.
 
-Questions to answer:
-- What component patterns do you use?
-- How are props defined?
-- How do you handle composition?
-- What accessibility standards apply?
--->
+## Adding Components
 
-(To be filled by the team)
+When adding real UI:
 
----
-
-## Component Structure
-
-<!-- Standard structure of a component file -->
-
-(To be filled by the team)
-
----
-
-## Props Conventions
-
-<!-- How props should be defined and typed -->
-
-(To be filled by the team)
-
----
-
-## Styling Patterns
-
-<!-- How styles are applied (CSS modules, styled-components, Tailwind, etc.) -->
-
-(To be filled by the team)
-
----
+- Use Vue single-file components under Nuxt's `app/` tree.
+- Keep domain-specific page components close to their route/page area once
+  routes exist.
+- Use Tailwind classes through the configured Tailwind Vite plugin.
+- Prefer simple typed props with Vue/Nuxt conventions. Do not introduce a
+  custom component framework before there is repeated UI to abstract.
+- Keep data-layer calls out of presentational components. Route handlers or
+  composables should own service calls once those layers exist.
 
 ## Accessibility
 
-<!-- A11y requirements and patterns -->
+- Preserve `NuxtRouteAnnouncer` in the app shell unless a replacement is added
+  deliberately.
+- Use semantic controls for admin actions, forms, and tables.
+- For future generated tables/forms, keyboard navigation and visible focus
+  states are part of the implementation, not optional polish.
 
-(To be filled by the team)
+## Anti-Patterns
 
----
-
-## Common Mistakes
-
-<!-- Component-related mistakes your team has made -->
-
-(To be filled by the team)
+- Do not add marketing-style landing pages for admin workflows.
+- Do not hide framework state transitions in decorative cards or hero sections.
+- Do not create components that call remote adapters directly. The document
+  service boundary owns that interaction.

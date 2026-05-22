@@ -1,39 +1,35 @@
-# Frontend Development Guidelines
+# Frontend Guidelines
 
-> Best practices for frontend development in this project.
+These guidelines describe the frontend surface that exists today. The project is
+currently a Nuxt 4 shell around a server-side document data layer; generated
+admin routes, composables, tables, and form builders are future work.
 
----
+## Current Shape
 
-## Overview
-
-This directory contains guidelines for frontend development. Fill in each file with your project's specific conventions.
-
----
+- `app/app.vue` is still the Nuxt starter shell with `NuxtRouteAnnouncer` and
+  `NuxtWelcome`.
+- `app/assets/css/main.css` imports Tailwind CSS.
+- `nuxt.config.ts` enables Tailwind's Vite plugin, Pinia, Bun Nitro preset, and
+  Nuxt test/type config.
+- The user-facing framework API is not frontend-first yet. Current examples in
+  `docs/framework-dx-guide.md` call the TypeScript document service directly.
 
 ## Guidelines Index
 
-| Guide | Description | Status |
-|-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
-| [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
-| [State Management](./state-management.md) | Local state, global state, server state | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
+| Guide | Use For |
+|-------|---------|
+| [Directory Structure](./directory-structure.md) | Where app, server, docs, tests, and generated files live |
+| [Component Guidelines](./component-guidelines.md) | Vue component conventions for the current Nuxt shell |
+| [Hook Guidelines](./hook-guidelines.md) | Nuxt composable expectations and current absence of custom composables |
+| [State Management](./state-management.md) | Pinia status and where state should live today |
+| [Quality Guidelines](./quality-guidelines.md) | Test/type/build commands and review expectations |
+| [Type Safety](./type-safety.md) | TypeScript, Nuxt project references, Zod, and generated aliases |
 
----
+## Scope Rules
 
-## How to Fill These Guidelines
-
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
-
----
-
-**Language**: All documentation should be written in **English**.
+- Do not invent generated UI APIs yet. Keep frontend examples honest about what
+  exists.
+- Keep frontend code under `app/`; server framework code belongs under
+  `server/`.
+- If a change touches the document data layer, also read the server specs under
+  `../server/`.

@@ -21,8 +21,9 @@ the rest conversationally.
 
 ## Status (update the checkboxes as you complete each item)
 
-- [ ] Fill frontend guidelines
-- [ ] Add code examples
+- [x] Fill frontend guidelines
+- [x] Add code examples
+- [x] Add server/data-layer guidelines after the data-layer MVP took shape
 
 ---
 
@@ -39,6 +40,21 @@ the rest conversationally.
 | `.trellis/spec/frontend/state-management.md` | State library, patterns, what goes where |
 | `.trellis/spec/frontend/type-safety.md` | TypeScript conventions, type organization |
 | `.trellis/spec/frontend/quality-guidelines.md` | Linting, testing, accessibility |
+
+
+### Server/data-layer guidelines
+
+The original Trellis bootstrap detected a frontend project, but the current MVP
+is centered on the server document data layer. The bootstrap now also includes:
+
+| File | What it documents |
+|------|-------------------|
+| `.trellis/spec/server/index.md` | Server spec navigation |
+| `.trellis/spec/server/data-layer-boundaries.md` | Module ownership and public API boundaries |
+| `.trellis/spec/server/document-service.md` | Service methods, validation, versions, and errors |
+| `.trellis/spec/server/repository-and-database.md` | Drizzle repository, schema, migrations, and query rules |
+| `.trellis/spec/server/remote-adapters.md` | Remote adapter contracts and projection semantics |
+| `.trellis/spec/server/testing.md` | pgLite-backed Vitest patterns |
 
 
 ### Thinking guides (already populated)

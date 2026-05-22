@@ -1,51 +1,44 @@
-# Hook Guidelines
+# Hook And Composable Guidelines
 
-> How hooks are used in this project.
+This is a Nuxt/Vue project, so future shared stateful frontend logic should use
+Nuxt composables rather than React-style hooks. There are no custom composables
+implemented yet.
 
----
+## Current Status
 
-## Overview
+- No `app/composables/` directory exists.
+- No generated collection composables exist.
+- `docs/framework-dx-guide.md` sketches future helpers such as
+  `useAdminCollection`, `useAdminMutation`, and `useAdminAction`, but those are
+  design targets, not current APIs.
 
-<!--
-Document your project's hook conventions here.
+## Future Composable Rules
 
-Questions to answer:
-- What custom hooks do you have?
-- How do you handle data fetching?
-- What are the naming conventions?
-- How do you share stateful logic?
--->
+When composables are added:
 
-(To be filled by the team)
-
----
-
-## Custom Hook Patterns
-
-<!-- How to create and structure custom hooks -->
-
-(To be filled by the team)
-
----
+- Name them with the Nuxt `use*` convention.
+- Keep server-only database imports out of frontend composables.
+- Route document operations through stable server/API boundaries once those
+  exist; do not import `server/data/documents` directly into client code.
+- Keep optimistic concurrency visible in mutation inputs by carrying
+  `expectedVersion` from the stored document.
+- Represent queued or pending operations explicitly once the operation queue is
+  implemented.
 
 ## Data Fetching
 
-<!-- How data fetching is handled (React Query, SWR, etc.) -->
+Current data access is service-level TypeScript only. Until API routes exist:
 
-(To be filled by the team)
+- Use `createDocumentService` in server-side tests and framework code.
+- Document future composable examples as future API sketches only.
+- Do not use frontend composables as the first place to define data-layer
+  contracts; contracts belong in `server/data/documents/service/contracts.ts`.
 
----
+## Anti-Patterns
 
-## Naming Conventions
-
-<!-- Hook naming rules (use*, etc.) -->
-
-(To be filled by the team)
-
----
-
-## Common Mistakes
-
-<!-- Hook-related mistakes your team has made -->
-
-(To be filled by the team)
+- Do not add `use*` helpers that bypass validation, tenant scoping, or document
+  service errors.
+- Do not let composables invent response shapes that diverge from
+  `DocumentService`.
+- Do not cache remote-backed reads by calling remote adapters from the client.
+  Current read semantics are local projection reads.
