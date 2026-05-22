@@ -308,6 +308,73 @@ const updatedDocument = updated.document;
 
 The local projection is updated only after `updateRemote` succeeds.
 
+## Service-Level Auth/RBAC
+
+The backend now has a service-level auth/RBAC foundation. It does not add
+routes, composables, or generated management UI yet.
+
+Create the auth/RBAC service beside the document service:
+
+```ts
+import { DrizzleAuthRbacRepository, createAuthRbacService } from "#server/auth";
+import {
+  DrizzleDocumentRepository,
+  createCollectionRegistry,
+  createDocumentService,
+} from "#server/data/documents";
+
+const auth = createAuthRbacService({
+  repository: new DrizzleAuthRbacRepository(db),
+});
+
+const registry = createCollectionRegistry([
+  {
+    name: "tasks",
+    schema: taskSchema,
+    schemaVersion: 1,
+    auth: {
+      resourceScope: "document",
+    },
+  },
+]);
+
+await auth.syncBuiltInAdminPermissions();
+await auth.syncCollectionPermissions(registry);
+
+const service = createDocumentService({
+  registry,
+  repository: new DrizzleDocumentRepository(db),
+  authorizer: auth,
+});
+```
+
+Trusted setup code can create users, credentials, memberships, scopes, roles,
+permission grants, and assignments. Runtime code should resolve an actor
+context and then pass it through `DocumentServiceOptions`:
+
+```ts
+const actor = await auth.resolveActor({ tenantId, userId });
+
+await service.create(
+  {
+    tenantId: actor.tenantId,
+    collection: "tasks",
+    authScopeId: departmentScopeId,
+    data: {
+      title: "Inspect conveyor",
+      status: "draft",
+      priority: 1,
+    },
+  },
+  { actor: actor.actor },
+);
+```
+
+`authScopeId` is framework metadata, not application JSON. Omitting it stores
+`null`, which means tenant-root/global resource. Normal update and patch calls
+do not change it; use `setDocumentAuthScope` for explicit reassignment guarded
+by `admin:documents:set-scope`.
+
 ## Local Testing Setup
 
 Unit tests create a pgLite database, run the Drizzle migrations, seed tenants,
@@ -322,9 +389,9 @@ import { DrizzleDocumentRepository } from "#server/data/documents";
 
 const database = createInMemoryDb();
 await migrate(database, { migrationsFolder: "drizzle" });
-await database.insert(tenantsTable).values([
-  { id: tenantId, name: "Test Tenant" },
-]);
+await database
+  .insert(tenantsTable)
+  .values([{ id: tenantId, name: "Test Tenant" }]);
 
 const repository = new DrizzleDocumentRepository(database);
 ```
@@ -344,6 +411,9 @@ Important current codes:
 - `CONFLICT_PATCH_TEST_FAILED`
 - `UNSUPPORTED_OPERATION`
 - `HARD_DELETE_NOT_CONFIRMED`
+- `AUTHORIZER_REQUIRED`
+- `AUTHORIZATION_DENIED`
+- `INVALID_AUTH_SCOPE`
 
 Remote adapter exceptions are not yet normalized into operation error records.
 That will happen with the queue/action layer.

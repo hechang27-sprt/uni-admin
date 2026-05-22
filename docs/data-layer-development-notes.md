@@ -18,6 +18,8 @@ Implemented today:
 - Explicit remote sync operations.
 - Remote-first create, update, and delete wrappers.
 - Remote response validation and projection mapping.
+- Service-level user identity, username/password credentials, tenant
+  memberships, scope-tree RBAC, and actor-scoped document authorization.
 - Drizzle-backed repository implementation for runtime use and pgLite-backed
   unit tests.
 
@@ -25,10 +27,10 @@ Not implemented yet:
 
 - Operation records and queue worker.
 - Custom action registration and dispatch.
-- Document, collection, and workspace action scopes.
 - `queueOnConflict` write modes.
 - Nuxt API routes and composables.
 - Generated table UI or UI schema runtime.
+- Generated user, role, permission, and scope management UI.
 
 ## Storage Model
 
@@ -44,6 +46,8 @@ Document rows keep framework-owned identity separate from remote identity:
 - `collection`: collection name.
 - `schema_version`: version of the registered local document schema.
 - `data`: JSONB local projection.
+- `auth_scope_id`: nullable framework-owned authorization scope. `null`
+  represents the tenant-root/global resource scope for authorization checks.
 - `remote_source`: optional remote system name.
 - `remote_id`: optional remote record identity.
 - `version`: optimistic concurrency token.
@@ -56,6 +60,52 @@ Remote-backed rows are unique by:
 ```
 
 Local-only rows leave `remote_source` and `remote_id` empty.
+
+## Auth/RBAC Model
+
+Auth and authorization live in relational system tables beside the document
+table:
+
+- `users` and `user_password_credentials` own framework user identity and the
+  starter username/password adapter.
+- `tenant_memberships` links users to tenants before an actor context can be
+  resolved.
+- `auth_scopes` and `auth_scope_closure` model the tenant root and descendant
+  resource scopes.
+- `roles`, `permissions`, `role_permissions`, and `user_role_assignments`
+  implement resource-scoped RBAC.
+
+The service API is exported from `#server/auth`. Projects create a
+`DrizzleAuthRbacRepository`, then `createAuthRbacService`, and pass that service
+as the `authorizer` option to `createDocumentService` when they want
+actor-scoped document operations.
+
+Existing document methods remain trusted/internal entrypoints when called
+without service options containing `actor`. Runtime code passes
+`DocumentServiceOptions` to the same methods, for example
+`create(input, { actor })`, `list(input, { actor })`,
+`update(input, { actor })`, and `remoteUpdate(input, { actor })`.
+`setDocumentAuthScope` requires service options with `actor` because changing
+framework auth metadata is always a protected operation.
+
+Collection CRUD permissions are derived from registration with canonical keys:
+
+```text
+collection:<collection>:read
+collection:<collection>:create
+collection:<collection>:update
+collection:<collection>:patch
+collection:<collection>:delete
+collection:<collection>:restore
+collection:<collection>:hard-delete
+```
+
+Registrations may override capability names or use `resourceScope: "none"` for
+capability-only operations. The default resource scope is `"document"`, which
+checks the document `auth_scope_id`; `null` normalizes to tenant root.
+
+Remote write authorization runs before adapter side effects. Protected remote
+adapter contexts include the normalized actor as `context.actor`.
 
 ## Local Document Service
 

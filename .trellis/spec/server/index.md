@@ -6,13 +6,14 @@ pgLite-backed tests.
 
 ## Guidelines Index
 
-| Guide | Use For |
-|-------|---------|
-| [Data Layer Boundaries](./data-layer-boundaries.md) | Module ownership, public exports, and where logic belongs |
-| [Document Service](./document-service.md) | Service methods, validation, versions, errors, and remote write flow |
-| [Repository And Database](./repository-and-database.md) | Drizzle repository patterns, schema, query normalization, and migrations |
-| [Remote Adapters](./remote-adapters.md) | Adapter contracts, projection mapping, output metadata, and remote semantics |
-| [Testing](./testing.md) | pgLite setup, fixture style, and behavior coverage requirements |
+| Guide                                                   | Use For                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [Data Layer Boundaries](./data-layer-boundaries.md)     | Module ownership, public exports, and where logic belongs                                  |
+| [Document Service](./document-service.md)               | Service methods, validation, versions, errors, and remote write flow                       |
+| [Repository And Database](./repository-and-database.md) | Drizzle repository patterns, schema, query normalization, and migrations                   |
+| [Remote Adapters](./remote-adapters.md)                 | Adapter contracts, projection mapping, output metadata, and remote semantics               |
+| [Auth/RBAC](./auth-rbac.md)                             | User identity, tenant memberships, scope-tree RBAC, and actor-aware document authorization |
+| [Testing](./testing.md)                                 | pgLite setup, fixture style, and behavior coverage requirements                            |
 
 ## Source References
 
@@ -21,6 +22,7 @@ pgLite-backed tests.
   `createDocumentService`.
 - `server/data/documents/repository/drizzle.ts` implements
   `DrizzleDocumentRepository`.
+- `server/auth/index.ts` is the public auth/RBAC barrel.
 - `server/db/schema.ts` defines the `tenants` and `documents` tables.
 - `test/unit/server/service.test.ts` is the executable behavior reference.
 
