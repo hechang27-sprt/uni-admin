@@ -9,6 +9,7 @@ export interface InsertDocumentRecord<TData extends JsonObject = JsonObject> {
   collection: string;
   schemaVersion: number;
   data: TData;
+  authScopeId?: string | null;
   remoteSource?: string | null;
   remoteId?: string | null;
 }
@@ -21,6 +22,7 @@ export interface InsertManyDocumentsRecord<
   schemaVersion: number;
   items: {
     data: TData;
+    authScopeId?: string | null;
     remoteSource?: string | null;
     remoteId?: string | null;
   }[];
@@ -33,6 +35,7 @@ export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
   expectedVersion: number;
   schemaVersion?: number;
   data?: TData;
+  authScopeId?: string | null;
   deletedAt?: Date | null;
   remoteSource?: string | null;
   remoteId?: string | null;
@@ -54,6 +57,7 @@ export interface UpsertRemoteProjectionsRecord<
   projections: {
     remoteId: string;
     data: TData;
+    authScopeId?: string | null;
   }[];
 }
 

@@ -1,6 +1,11 @@
 import type { z } from "zod";
 
-import type { JsonObject, StoredDocument, TenantContext } from "./types";
+import type {
+  JsonObject,
+  StoredDocument,
+  TenantActorContext,
+  TenantContext,
+} from "./types";
 
 type RemoteAdapterCallback<TInput, TContext, TResult> = {
   bivarianceHack(input: TInput, context: TContext): Promise<TResult>;
@@ -8,6 +13,7 @@ type RemoteAdapterCallback<TInput, TContext, TResult> = {
 
 export interface RemoteAdapterContext extends TenantContext {
   collection: string;
+  actor?: TenantActorContext["actor"];
 }
 
 export interface RemoteAdapterProjection<
@@ -15,6 +21,7 @@ export interface RemoteAdapterProjection<
 > {
   remoteId: string;
   data: TData;
+  authScopeId?: string | null;
 }
 
 export interface RemoteIdempotencyOptions<TInput = unknown> {
@@ -114,6 +121,7 @@ export interface CreateRemoteProjectionMapperOptions<
   schema: z.ZodType<TRemote>;
   getRemoteId: (remote: TRemote) => string;
   mapData: (remote: TRemote) => TData;
+  getAuthScopeId?: (remote: TRemote) => string | null | undefined;
 }
 
 export function createRemoteProjectionMapper<TRemote, TData extends JsonObject>(
@@ -125,6 +133,7 @@ export function createRemoteProjectionMapper<TRemote, TData extends JsonObject>(
     return {
       remoteId: options.getRemoteId(remote),
       data: options.mapData(remote),
+      authScopeId: options.getAuthScopeId?.(remote),
     };
   };
 }

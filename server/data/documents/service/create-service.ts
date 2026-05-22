@@ -1,11 +1,21 @@
 import { applyJsonPatch } from "../json-patch";
 import { normalizeListInput } from "../repository";
 import { DocumentServiceError } from "../errors";
-import type { JsonObject, ListDocumentsResult, StoredDocument } from "../types";
+import {
+  resolveCollectionOperationAuth,
+  type CollectionOperation,
+} from "../registry";
+import type {
+  JsonObject,
+  ListDocumentsResult,
+  StoredDocument,
+  TenantActorContext,
+} from "../types";
 import type {
   CreateDocumentInput,
   CreateDocumentServiceOptions,
   CreateManyDocumentInput,
+  DocumentServiceOptions,
   DocumentService,
   GetDocumentInput,
   GetDocumentsByIdsInput,
@@ -25,6 +35,7 @@ import type {
   UpdateDocumentInput,
   UpdateManyDocumentInput,
   VersionedDocumentInput,
+  SetDocumentAuthScopeInput,
 } from "./contracts";
 import {
   assertVersionAndUpdate,
@@ -40,14 +51,16 @@ import {
 export function createDocumentService(
   options: CreateDocumentServiceOptions,
 ): DocumentService {
-  const { registry, repository } = options;
+  const { registry, repository, authorizer } = options;
   const dependencies: DocumentServiceDependencies = { registry, repository };
 
   return {
     async create<TData extends JsonObject>(
       input: CreateDocumentInput<TData>,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData>> {
       const collection = registry.get(input.collection);
+      await authorizeCreate(input, input.authScopeId ?? null, options);
       const data = parseData(collection.schema, input.data, input.collection);
 
       return repository.insert<TData>({
@@ -55,6 +68,7 @@ export function createDocumentService(
         collection: input.collection,
         schemaVersion: collection.schemaVersion,
         data: data as TData,
+        authScopeId: input.authScopeId,
         remoteSource: input.remoteSource,
         remoteId: input.remoteId,
       });
@@ -62,14 +76,21 @@ export function createDocumentService(
 
     async createMany<TData extends JsonObject>(
       input: CreateManyDocumentInput<TData>,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData>[]> {
       const collection = registry.get(input.collection);
+      await Promise.all(
+        input.items.map((item) =>
+          authorizeCreate(input, item.authScopeId ?? null, options),
+        ),
+      );
       const items = input.items.map((item) => ({
         data: parseData(
           collection.schema,
           item.data,
           input.collection,
         ) as TData,
+        authScopeId: item.authScopeId,
         remoteSource: item.remoteSource,
         remoteId: item.remoteId,
       }));
@@ -84,39 +105,78 @@ export function createDocumentService(
 
     async getById<TData extends JsonObject>(
       input: GetDocumentInput,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData> | null> {
       registry.get(input.collection);
 
-      return repository.findById<TData>({
+      const document = await repository.findById<TData>({
         tenantId: input.tenantId,
         collection: input.collection,
         id: input.id,
         includeDeleted: input.includeDeleted,
       });
+      if (!document) {
+        return null;
+      }
+
+      await authorizeDocument(input, options, "read", document);
+      return document;
     },
 
     async getByIds<TData extends JsonObject>(
       input: GetDocumentsByIdsInput,
+      options?: DocumentServiceOptions,
     ): Promise<(StoredDocument<TData> | null)[]> {
       registry.get(input.collection);
 
-      return repository.findByIds<TData>({
+      const documents = await repository.findByIds<TData>({
         tenantId: input.tenantId,
         collection: input.collection,
         ids: input.ids,
         includeDeleted: input.includeDeleted,
       });
+
+      return Promise.all(
+        documents.map(async (document) => {
+          if (!document) {
+            return null;
+          }
+          const allowed = await checkDocumentAccess(
+            input,
+            options,
+            "read",
+            document,
+          );
+          return allowed ? document : null;
+        }),
+      );
     },
 
     async list<TData extends JsonObject>(
       input: ListDocumentServiceInput,
+      options?: DocumentServiceOptions,
     ): Promise<ListDocumentsResult<TData>> {
-      registry.get(input.collection);
+      const collection = registry.get(input.collection);
       const query = normalizeListInput(input);
+      let scopeIds: (string | null)[] | undefined;
+
+      if (hasActorOptions(options)) {
+        const auth = resolveCollectionOperationAuth(collection, "read");
+        if (auth?.resourceScope === "none") {
+          await assertScopeAccess(input, options, auth.capability, null);
+        } else if (auth) {
+          scopeIds = await buildAccessibleDocumentScopeFilter(
+            input,
+            options,
+            auth.capability,
+          );
+        }
+      }
+
       const items = await repository.list<TData>({
         tenantId: input.tenantId,
         collection: input.collection,
-        query: { ...query, limit: query.limit + 1 },
+        query: { ...query, limit: query.limit + 1, authScopeIds: scopeIds },
       });
 
       return {
@@ -129,8 +189,11 @@ export function createDocumentService(
 
     async update<TData extends JsonObject>(
       input: UpdateDocumentInput<TData>,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData>> {
       const collection = registry.get(input.collection);
+      const existing = await loadExisting(dependencies, input);
+      await authorizeDocument(input, options, "update", existing);
       const data = parseData(collection.schema, input.data, input.collection);
 
       return assertVersionAndUpdate(dependencies, input, data as TData);
@@ -138,6 +201,7 @@ export function createDocumentService(
 
     async updateMany<TData extends JsonObject>(
       input: UpdateManyDocumentInput<TData>,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData>[]> {
       const collection = registry.get(input.collection);
       const items = input.items.map((item) => ({
@@ -177,6 +241,8 @@ export function createDocumentService(
             },
           );
         }
+
+        await authorizeDocument(input, options, "update", existing);
       }
 
       const records = items.map((item) => ({
@@ -204,9 +270,11 @@ export function createDocumentService(
 
     async patch<TData extends JsonObject>(
       input: PatchDocumentInput,
+      options?: DocumentServiceOptions,
     ): Promise<StoredDocument<TData>> {
       const collection = registry.get(input.collection);
       const existing = await loadExisting(dependencies, input);
+      await authorizeDocument(input, options, "patch", existing);
 
       if (existing.version !== input.expectedVersion) {
         throw new DocumentServiceError(
@@ -227,17 +295,28 @@ export function createDocumentService(
       return assertVersionAndUpdate<TData>(dependencies, input, data as TData);
     },
 
-    async softDelete(input: VersionedDocumentInput): Promise<StoredDocument> {
-      await loadExisting(dependencies, input);
+    async softDelete(
+      input: VersionedDocumentInput,
+      options?: DocumentServiceOptions,
+    ): Promise<StoredDocument> {
+      const existing = await loadExisting(dependencies, input);
+      await authorizeDocument(input, options, "delete", existing);
       return assertVersionAndUpdate(dependencies, input, undefined, new Date());
     },
 
-    async restore(input: VersionedDocumentInput): Promise<StoredDocument> {
-      await loadExisting(dependencies, input, true);
+    async restore(
+      input: VersionedDocumentInput,
+      options?: DocumentServiceOptions,
+    ): Promise<StoredDocument> {
+      const existing = await loadExisting(dependencies, input, true);
+      await authorizeDocument(input, options, "restore", existing);
       return assertVersionAndUpdate(dependencies, input, undefined, null);
     },
 
-    async hardDelete(input: HardDeleteDocumentInput): Promise<void> {
+    async hardDelete(
+      input: HardDeleteDocumentInput,
+      options?: DocumentServiceOptions,
+    ): Promise<void> {
       registry.get(input.collection);
 
       if (input.confirmHardDelete !== true) {
@@ -250,6 +329,20 @@ export function createDocumentService(
           },
         );
       }
+
+      const existing = await repository.findById({
+        tenantId: input.tenantId,
+        collection: input.collection,
+        id: input.id,
+        includeDeleted: true,
+      });
+      if (!existing) {
+        throw new DocumentServiceError("NOT_FOUND", "Document not found", {
+          collection: input.collection,
+          documentId: input.id,
+        });
+      }
+      await authorizeDocument(input, options, "hard-delete", existing);
 
       const deleted = await repository.hardDelete({
         tenantId: input.tenantId,
@@ -331,6 +424,7 @@ export function createDocumentService(
       TOutput = unknown,
     >(
       input: RemoteCreateInput<TCreateInput>,
+      options?: DocumentServiceOptions,
     ): Promise<RemoteCreateResult<TData, TOutput>> {
       const adapter = getRemoteAdapter<
         TData,
@@ -341,14 +435,19 @@ export function createDocumentService(
         never,
         { create: TOutput }
       >(registry, input.collection);
+      await authorizeCreate(input, input.authScopeId ?? null, options);
       const result = await adapter.createRemote(input.input, {
         tenantId: input.tenantId,
         collection: input.collection,
+        ...(hasActorOptions(options) ? { actor: options.actor } : {}),
       });
       const document = await upsertRemoteProjection<TData>(
         dependencies,
         input,
-        result.projection,
+        {
+          ...result.projection,
+          authScopeId: result.projection.authScopeId ?? input.authScopeId,
+        },
       );
 
       return withRemoteOutput({ document }, result.output);
@@ -360,6 +459,7 @@ export function createDocumentService(
       TOutput = unknown,
     >(
       input: RemoteUpdateInput<TUpdateInput>,
+      options?: DocumentServiceOptions,
     ): Promise<RemoteUpdateResult<TData, TOutput>> {
       const adapter = getRemoteAdapter<
         TData,
@@ -375,6 +475,7 @@ export function createDocumentService(
         dependencies,
         input,
       )) as StoredDocument<TData>;
+      await authorizeDocument(input, options, "update", current);
 
       if (current.version !== input.expectedVersion) {
         throw new DocumentServiceError(
@@ -393,6 +494,7 @@ export function createDocumentService(
         tenantId: input.tenantId,
         collection: input.collection,
         current,
+        ...(hasActorOptions(options) ? { actor: options.actor } : {}),
       });
       const data = parseData(
         collection.schema,
@@ -416,6 +518,7 @@ export function createDocumentService(
 
     async remoteDelete<TDeleteInput = unknown, TOutput = unknown>(
       input: RemoteDeleteInput<TDeleteInput>,
+      options?: DocumentServiceOptions,
     ): Promise<RemoteDeleteDocumentResult<TOutput>> {
       const adapter = getRemoteAdapter<
         JsonObject,
@@ -427,6 +530,7 @@ export function createDocumentService(
         { delete: TOutput }
       >(registry, input.collection);
       const current = await loadExisting(dependencies, input);
+      await authorizeDocument(input, options, "delete", current);
 
       if (current.version !== input.expectedVersion) {
         throw new DocumentServiceError(
@@ -445,6 +549,7 @@ export function createDocumentService(
         tenantId: input.tenantId,
         collection: input.collection,
         current,
+        ...(hasActorOptions(options) ? { actor: options.actor } : {}),
       });
 
       if (result?.projection) {
@@ -476,5 +581,225 @@ export function createDocumentService(
       const output = result ? result.output : undefined;
       return withRemoteOutput({ document }, output);
     },
+
+    async setDocumentAuthScope(
+      input: SetDocumentAuthScopeInput,
+      options: DocumentServiceOptions,
+    ): Promise<StoredDocument> {
+      const authenticatedOptions = requireActorOptions(input, options);
+      const existing = await loadExisting(dependencies, input, true);
+      await assertScopeAccess(
+        input,
+        authenticatedOptions,
+        "admin:documents:set-scope",
+        existing.authScopeId,
+      );
+      await assertScopeAccess(
+        input,
+        authenticatedOptions,
+        "admin:documents:set-scope",
+        input.authScopeId,
+      );
+
+      return assertVersionAndUpdate(
+        dependencies,
+        input,
+        undefined,
+        undefined,
+        undefined,
+        input.authScopeId,
+      );
+    },
+
+    async listCreatableScopes(
+      input: {
+        tenantId: string;
+        collection: string;
+      },
+      options: DocumentServiceOptions,
+    ): Promise<(string | null)[]> {
+      const authenticatedOptions = requireActorOptions(input, options);
+      const collection = registry.get(input.collection);
+      const auth = resolveCollectionOperationAuth(collection, "create");
+      if (!auth) {
+        return [];
+      }
+      if (auth.resourceScope === "none") {
+        await assertScopeAccess(
+          input,
+          authenticatedOptions,
+          auth.capability,
+          null,
+        );
+        return [null];
+      }
+
+      return buildAccessibleDocumentScopeFilter(
+        input,
+        authenticatedOptions,
+        auth.capability,
+      );
+    },
   };
+
+  async function authorizeCreate(
+    input: CreateDocumentInput | RemoteCreateInput | CreateManyDocumentInput,
+    authScopeId: string | null,
+    options?: DocumentServiceOptions,
+  ): Promise<void> {
+    if (!hasActorOptions(options)) {
+      return;
+    }
+
+    const collection = registry.get(input.collection);
+    const auth = resolveCollectionOperationAuth(collection, "create");
+    if (!auth) {
+      return;
+    }
+
+    await assertScopeAccess(
+      input,
+      options,
+      auth.capability,
+      auth.resourceScope === "none" ? null : authScopeId,
+    );
+  }
+
+  async function authorizeDocument(
+    input: { tenantId: string; collection: string },
+    options: DocumentServiceOptions | undefined,
+    operation: CollectionOperation,
+    document: StoredDocument,
+  ): Promise<void> {
+    if (!hasActorOptions(options)) {
+      return;
+    }
+
+    const collection = registry.get(input.collection);
+    const auth = resolveCollectionOperationAuth(collection, operation);
+    if (!auth) {
+      return;
+    }
+
+    await assertScopeAccess(
+      input,
+      options,
+      auth.capability,
+      auth.resourceScope === "none" ? null : document.authScopeId,
+    );
+  }
+
+  async function checkDocumentAccess(
+    input: { tenantId: string; collection: string },
+    options: DocumentServiceOptions | undefined,
+    operation: CollectionOperation,
+    document: StoredDocument,
+  ): Promise<boolean> {
+    if (!hasActorOptions(options)) {
+      return true;
+    }
+
+    const collection = registry.get(input.collection);
+    const auth = resolveCollectionOperationAuth(collection, operation);
+    if (!auth) {
+      return true;
+    }
+
+    return requireAuthorizer().checkAccess({
+      context: actorContext(input, options),
+      capability: auth.capability,
+      targetScopeId:
+        auth.resourceScope === "none" ? null : document.authScopeId,
+    });
+  }
+
+  async function assertScopeAccess(
+    input: { tenantId: string },
+    options: AuthenticatedDocumentServiceOptions,
+    capability: string,
+    authScopeId: string | null,
+  ): Promise<void> {
+    const allowed = await requireAuthorizer().checkAccess({
+      context: actorContext(input, options),
+      capability,
+      targetScopeId: authScopeId,
+    });
+
+    if (!allowed) {
+      throw new DocumentServiceError(
+        "AUTHORIZATION_DENIED",
+        "Permission denied",
+        {
+          capability,
+          authScopeId,
+          tenantId: input.tenantId,
+          userId: options.actor.userId,
+        },
+      );
+    }
+  }
+
+  async function buildAccessibleDocumentScopeFilter(
+    input: { tenantId: string },
+    options: AuthenticatedDocumentServiceOptions,
+    capability: string,
+  ): Promise<(string | null)[]> {
+    const [rootScopeId, accessibleScopeIds] = await Promise.all([
+      requireAuthorizer().getTenantRootScopeId(input.tenantId),
+      requireAuthorizer().listAccessibleScopeIds({
+        context: actorContext(input, options),
+        capability,
+      }),
+    ]);
+
+    return accessibleScopeIds.map((scopeId) =>
+      scopeId === rootScopeId ? null : scopeId,
+    );
+  }
+
+  function requireAuthorizer() {
+    if (!authorizer) {
+      throw new DocumentServiceError(
+        "AUTHORIZER_REQUIRED",
+        "Document authorizer is required for actor-scoped service operations",
+      );
+    }
+
+    return authorizer;
+  }
+
+  function requireActorOptions(
+    input: { tenantId: string },
+    options: DocumentServiceOptions,
+  ): AuthenticatedDocumentServiceOptions {
+    if (!hasActorOptions(options)) {
+      throw new DocumentServiceError(
+        "AUTHORIZATION_DENIED",
+        "Document actor is required for actor-scoped service operations",
+        { tenantId: input.tenantId },
+      );
+    }
+
+    return options;
+  }
+}
+
+type AuthenticatedDocumentServiceOptions = DocumentServiceOptions & {
+  actor: TenantActorContext["actor"];
+};
+
+function actorContext(
+  input: { tenantId: string },
+  options: AuthenticatedDocumentServiceOptions,
+): TenantActorContext {
+  return {
+    tenantId: input.tenantId,
+    actor: options.actor,
+  };
+}
+
+function hasActorOptions(
+  options: DocumentServiceOptions | undefined,
+): options is AuthenticatedDocumentServiceOptions {
+  return Boolean(options?.actor);
 }

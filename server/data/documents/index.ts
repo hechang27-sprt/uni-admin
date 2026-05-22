@@ -15,7 +15,18 @@ export {
 export {
   CollectionRegistry,
   createCollectionRegistry,
+  deriveCollectionPermissionDefinitions,
+  resolveCollectionActionAuth,
+  resolveCollectionOperationAuth,
+  type CollectionActionAuthDeclaration,
+  type CollectionAuthDeclaration,
+  type CollectionOperation,
+  type CollectionOperationAuthDeclaration,
+  type CollectionOperationAuthInput,
   type CollectionRegistration,
+  type CollectionResourceScopeMode,
+  type PermissionDefinition,
+  type ResolvedCollectionOperationAuth,
 } from "./registry";
 export {
   DrizzleDocumentRepository,
@@ -28,6 +39,7 @@ export {
   type CreateManyDocumentInput,
   type CreateDocumentInput,
   type DocumentService,
+  type DocumentServiceOptions,
   type GetDocumentsByIdsInput,
   type GetDocumentInput,
   type HardDeleteDocumentInput,
@@ -46,6 +58,7 @@ export {
   type UpdateManyDocumentInput,
   type UpdateDocumentInput,
   type VersionedDocumentInput,
+  type SetDocumentAuthScopeInput,
 } from "./service";
 export type {
   DocumentErrorCode,
@@ -61,5 +74,6 @@ export type {
   MetadataField,
   NormalizedListDocumentsInput,
   StoredDocument,
+  TenantActorContext,
   TenantContext,
 } from "./types";

@@ -45,6 +45,7 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
   data?: TData,
   deletedAt?: Date | null,
   remoteIdentity?: { remoteSource: string; remoteId: string },
+  authScopeId?: string | null,
 ): Promise<StoredDocument<TData>> {
   const { registry, repository } = dependencies;
   const existing = await loadExisting(dependencies, input, true);
@@ -69,6 +70,7 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
     expectedVersion: input.expectedVersion,
     data,
     schemaVersion: registry.get(input.collection).schemaVersion,
+    ...(authScopeId !== undefined ? { authScopeId } : {}),
     ...(deletedAt !== undefined ? { deletedAt } : {}),
     ...(remoteIdentity
       ? {
@@ -130,6 +132,7 @@ export async function upsertRemoteProjections<TData extends JsonObject>(
 
   const parsedProjections = projections.map((projection) => ({
     remoteId: projection.remoteId,
+    authScopeId: projection.authScopeId,
     data: parseData(
       collection.schema,
       projection.data,

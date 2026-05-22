@@ -36,6 +36,7 @@ export function normalizeListInput(
     limit,
     offset,
     includeDeleted: input.includeDeleted ?? false,
+    authScopeIds: input.authScopeIds,
   };
 }
 
@@ -110,6 +111,8 @@ export function buildFieldExpression(field: DocumentField): SQL {
       return sql`${documentsTable.updatedAt}`;
     case "deletedAt":
       return sql`${documentsTable.deletedAt}`;
+    case "authScopeId":
+      return sql`${documentsTable.authScopeId}`;
     case "remoteSource":
       return sql`${documentsTable.remoteSource}`;
     case "remoteId":

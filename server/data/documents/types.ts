@@ -6,12 +6,19 @@ export interface TenantContext {
   tenantId: string;
 }
 
+export interface TenantActorContext extends TenantContext {
+  actor: {
+    userId: string;
+  };
+}
+
 export interface StoredDocument<TData extends JsonObject = JsonObject> {
   id: string;
   tenantId: string;
   collection: string;
   schemaVersion: number;
   data: TData;
+  authScopeId: string | null;
   remoteSource: string | null;
   remoteId: string | null;
   version: number;
@@ -27,16 +34,23 @@ export type DocumentErrorCode =
   | "UNSUPPORTED_OPERATION"
   | "NOT_FOUND"
   | "UNKNOWN_COLLECTION"
-  | "HARD_DELETE_NOT_CONFIRMED";
+  | "HARD_DELETE_NOT_CONFIRMED"
+  | "AUTHORIZER_REQUIRED"
+  | "AUTHORIZATION_DENIED"
+  | "INVALID_AUTH_SCOPE";
 
 export interface DocumentErrorDetails {
   collection?: string;
+  tenantId?: string;
   documentId?: string;
   expectedVersion?: number;
   currentVersion?: number;
   path?: string;
   issues?: unknown;
   operation?: string;
+  capability?: string;
+  authScopeId?: string | null;
+  userId?: string;
 }
 
 export type MetadataField =
@@ -48,6 +62,7 @@ export type MetadataField =
   | "createdAt"
   | "updatedAt"
   | "deletedAt"
+  | "authScopeId"
   | "remoteSource"
   | "remoteId";
 
@@ -73,6 +88,7 @@ export interface ListDocumentsInput {
   limit?: number;
   offset?: number;
   includeDeleted?: boolean;
+  authScopeIds?: (string | null)[];
 }
 
 export interface ListDocumentsResult<TData extends JsonObject = JsonObject> {
@@ -88,4 +104,5 @@ export interface NormalizedListDocumentsInput {
   limit: number;
   offset: number;
   includeDeleted: boolean;
+  authScopeIds?: (string | null)[];
 }
