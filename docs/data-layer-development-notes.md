@@ -11,10 +11,15 @@ Implemented today:
 - Multi-tenant document storage in PostgreSQL using one `documents` table.
 - Zod-backed collection registration.
 - Local document CRUD, list, soft delete, restore, hard delete, and JSON Patch.
+- Batch create, ordered batch get-by-id, and all-or-nothing batch update.
+- JSONB-path and metadata filtering, sorting, offset pagination, and deleted-row
+  inclusion for repository-backed lists.
 - Remote-backed collection registration.
 - Explicit remote sync operations.
 - Remote-first create, update, and delete wrappers.
 - Remote response validation and projection mapping.
+- Drizzle-backed repository implementation for runtime use and pgLite-backed
+  unit tests.
 
 Not implemented yet:
 
@@ -62,8 +67,9 @@ import { z } from "zod";
 import {
   createCollectionRegistry,
   createDocumentService,
-  InMemoryDocumentRepository,
+  DrizzleDocumentRepository,
 } from "../server/data/documents";
+import { db } from "../server/util/drizzle";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -82,13 +88,27 @@ const registry = createCollectionRegistry([
 
 const service = createDocumentService({
   registry,
-  repository: new InMemoryDocumentRepository(),
+  repository: new DrizzleDocumentRepository(db),
 });
 ```
 
 The service validates document data before persistence. Mutating methods that
 change existing rows require `expectedVersion`, and stale versions fail with
 `CONFLICT_STALE_VERSION`.
+
+Batch methods are explicit:
+
+- `createMany` inserts a list of local projections.
+- `getByIds` returns results in the same order as the requested IDs and uses
+  `null` for missing documents.
+- `updateMany` validates every item before the repository write and uses one
+  Drizzle transaction for the batch update. A stale or missing item prevents
+  partial writes.
+
+List queries accept `filter`, `sort`, `limit`, `offset`, and `includeDeleted`.
+Filters can target top-level or nested JSONB data paths and framework metadata
+fields. Limits are normalized to the current 1..100 range, and repository sorts
+add an `id` tie-breaker when callers do not provide one.
 
 JSON Patch supports the current RFC 6902-compatible subset:
 
@@ -190,6 +210,29 @@ Remote writes call the adapter first:
 
 If a remote call fails, local projection data must remain unchanged.
 
+## Repository Layout
+
+The current document repository is split by responsibility:
+
+- `server/data/documents/repository/types.ts` defines the repository contract.
+- `server/data/documents/repository/query.ts` normalizes list input and builds
+  Drizzle filter/sort expressions.
+- `server/data/documents/repository/drizzle.ts` implements
+  `DrizzleDocumentRepository`, including batch update SQL and remote projection
+  upserts.
+- `server/data/documents/repository/index.ts` is the public repository barrel.
+- `server/data/documents/service/contracts.ts` defines the service input,
+  output, and interface types.
+- `server/data/documents/service/create-service.ts` implements
+  `createDocumentService`.
+- `server/data/documents/service/helpers.ts` holds shared service validation,
+  version, remote adapter, and projection helpers.
+
+There is no separate in-memory repository implementation now. Unit tests create
+a pgLite database with `createInMemoryDb()` from `server/util/drizzle.ts`, run
+the Drizzle migrations, and exercise the same `DrizzleDocumentRepository` used
+by the service.
+
 ## Type-Checking Notes
 
 The root `tsconfig.json` is a project-reference entrypoint with no files of its
@@ -240,10 +283,11 @@ Keep data-layer changes narrow:
 - Preserve tenant scoping in all repository operations.
 - Preserve schema validation before persistence.
 - Preserve optimistic concurrency for existing document mutations.
+- Preserve all-or-nothing semantics for batch updates.
 - Keep remote calls outside local database transactions.
 - Keep remote-backed read semantics local-only.
-- Add tests for both `InMemoryDocumentRepository` and
-  `DrizzleDocumentRepository`.
+- Add or update pgLite-backed unit coverage for `DrizzleDocumentRepository`
+  behavior.
 
 Future operation queue work should reuse the document service for projection
 writes rather than allowing custom action code to mutate database rows directly.

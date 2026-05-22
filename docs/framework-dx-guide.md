@@ -21,12 +21,13 @@ boundary. You write TypeScript code to:
 
 1. Define a local document schema.
 2. Register a collection.
-3. Create a repository.
+3. Create a Drizzle-backed repository.
 4. Create a document service.
 5. Call service methods directly.
 
 There are no generated routes, table views, form builders, or client
-composables yet.
+composables yet. Unit tests use pgLite to run the same repository contract
+in-memory, but the public document repository is `DrizzleDocumentRepository`.
 
 ## Tutorial: Register a Local Collection
 
@@ -51,8 +52,9 @@ Create a registry and service:
 import {
   createCollectionRegistry,
   createDocumentService,
-  InMemoryDocumentRepository,
+  DrizzleDocumentRepository,
 } from "../server/data/documents";
+import { db } from "../server/util/drizzle";
 
 const registry = createCollectionRegistry([
   {
@@ -64,7 +66,7 @@ const registry = createCollectionRegistry([
 
 const service = createDocumentService({
   registry,
-  repository: new InMemoryDocumentRepository(),
+  repository: new DrizzleDocumentRepository(db),
 });
 ```
 
@@ -106,7 +108,8 @@ const updated = await service.update<TaskDocument>({
 ```
 
 Batch local writes use explicit methods instead of array-overloaded scalar
-methods:
+methods. `getByIds` preserves input order and returns `null` for missing IDs;
+`updateMany` rejects the whole batch when any item is missing or stale:
 
 ```ts
 const batch = await service.createMany<TaskDocument>({
@@ -305,6 +308,29 @@ const updatedDocument = updated.document;
 
 The local projection is updated only after `updateRemote` succeeds.
 
+## Local Testing Setup
+
+Unit tests create a pgLite database, run the Drizzle migrations, seed tenants,
+and then construct the same repository class used by application code:
+
+```ts
+import { migrate } from "drizzle-orm/pglite/migrator";
+
+import { tenantsTable } from "#server/db/schema";
+import { createInMemoryDb } from "#server/util/drizzle";
+import { DrizzleDocumentRepository } from "#server/data/documents";
+
+const database = createInMemoryDb();
+await migrate(database, { migrationsFolder: "drizzle" });
+await database.insert(tenantsTable).values([
+  { id: tenantId, name: "Test Tenant" },
+]);
+
+const repository = new DrizzleDocumentRepository(database);
+```
+
+Close the pgLite client after the test suite with `database.$client.close()`.
+
 ## Current Error Handling
 
 The data layer normalizes framework errors with `DocumentServiceError`.
@@ -435,8 +461,8 @@ required to check the referenced Nuxt projects.
 
 - Read [Data Layer Development Notes](./data-layer-development-notes.md) for
   maintainer-level contracts and implementation boundaries.
-- Read `server/data/documents/service.test.ts` for executable examples of the
+- Read `test/unit/server/service.test.ts` for executable examples of the
   current data-layer behavior.
 - Read Trellis task artifacts under
-  `.trellis/tasks/05-19-remote-collection-adapters/` for MVP queue and custom
-  action requirements.
+  `.trellis/tasks/archive/2026-05/05-19-remote-collection-adapters/` for the
+  archived remote adapter planning context.
