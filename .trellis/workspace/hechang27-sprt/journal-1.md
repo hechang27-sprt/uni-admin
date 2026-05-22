@@ -296,3 +296,35 @@ Planned service-level user management, username/password auth, resource-scoped R
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: Implement user auth and RBAC layer
+
+**Date**: 2026-05-22
+**Task**: Implement user auth and RBAC layer
+
+### Summary
+
+Implemented service-level username/password auth, tenant membership, scope-tree RBAC, actor-aware document authorization, auth scope persistence, tests, docs, and server spec guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bdf45bd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

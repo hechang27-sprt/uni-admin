@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
+- **Total Sessions**: 10
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~298 | Active |
+| `journal-1.md` | ~330 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-05-22 | Implement user auth and RBAC layer | `bdf45bd` | `-` |
 | 9 | 2026-05-22 | User Auth RBAC Planning | `c9a839a` | `-` |
 | 8 | 2026-05-22 | Sync docs and bootstrap specs | `5182cbe`, `d7bf915` | `-` |
 | 7 | 2026-05-21 | pgLite document repository test harness | `507861b` | `-` |
