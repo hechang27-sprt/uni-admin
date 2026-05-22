@@ -6,20 +6,19 @@ pgLite-backed tests.
 
 ## Guidelines Index
 
-| Guide                                                   | Use For                                                                                    |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [Data Layer Boundaries](./data-layer-boundaries.md)     | Module ownership, public exports, and where logic belongs                                  |
-| [Document Service](./document-service.md)               | Service methods, validation, versions, errors, and remote write flow                       |
-| [Repository And Database](./repository-and-database.md) | Drizzle repository patterns, schema, query normalization, and migrations                   |
-| [Remote Adapters](./remote-adapters.md)                 | Adapter contracts, projection mapping, output metadata, and remote semantics               |
-| [Auth/RBAC](./auth-rbac.md)                             | User identity, tenant memberships, scope-tree RBAC, and actor-aware document authorization |
-| [Testing](./testing.md)                                 | pgLite setup, fixture style, and behavior coverage requirements                            |
+| Guide                                                   | Use For                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [Data Layer Boundaries](./data-layer-boundaries.md)     | Module ownership, public exports, and where logic belongs                                   |
+| [Document Service](./document-service.md)               | Service methods, validation, versions, errors, and remote write flow                        |
+| [Repository And Database](./repository-and-database.md) | Drizzle repository patterns, schema, query normalization, and migrations                    |
+| [Remote Adapters](./remote-adapters.md)                 | Adapter contracts, projection mapping, output metadata, and remote semantics                |
+| [Auth/RBAC](./auth-rbac.md)                             | User identity, tenant memberships, scope-tree RBAC, and actor-scoped document authorization |
+| [Testing](./testing.md)                                 | pgLite setup, fixture style, and behavior coverage requirements                             |
 
 ## Source References
 
 - `server/data/documents/index.ts` is the public document data-layer barrel.
-- `server/data/documents/service/create-service.ts` implements
-  `createDocumentService`.
+- `server/data/documents/service/service.ts` implements `DocumentService`.
 - `server/data/documents/repository/drizzle.ts` implements
   `DrizzleDocumentRepository`.
 - `server/auth/index.ts` is the public auth/RBAC barrel.

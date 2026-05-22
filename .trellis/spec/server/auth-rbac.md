@@ -14,11 +14,11 @@
 
 - Public auth surface: `server/auth/index.ts`.
 - Repository: `new DrizzleAuthRbacRepository(db)`.
-- Service: `createAuthRbacService({ repository })`.
+- Service class: `new AuthRbacService({ repository })`.
 - Document integration:
 
 ```ts
-createDocumentService({
+new DocumentService({
   registry,
   repository: new DrizzleDocumentRepository(db),
   authorizer: authRbacService,

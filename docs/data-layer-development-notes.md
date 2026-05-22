@@ -76,9 +76,8 @@ table:
   implement resource-scoped RBAC.
 
 The service API is exported from `#server/auth`. Projects create a
-`DrizzleAuthRbacRepository`, then `createAuthRbacService`, and pass that service
-as the `authorizer` option to `createDocumentService` when they want
-actor-scoped document operations.
+`DrizzleAuthRbacRepository`, then `AuthRbacService`, and pass that service as the
+`authorizer` option to `DocumentService` when they want actor-scoped document operations.
 
 Existing document methods remain trusted/internal entrypoints when called
 without service options containing `actor`. Runtime code passes
@@ -116,7 +115,7 @@ version:
 import { z } from "zod";
 import {
   createCollectionRegistry,
-  createDocumentService,
+  DocumentService,
   DrizzleDocumentRepository,
 } from "../server/data/documents";
 import { db } from "../server/util/drizzle";
@@ -136,7 +135,7 @@ const registry = createCollectionRegistry([
   },
 ]);
 
-const service = createDocumentService({
+const service = new DocumentService({
   registry,
   repository: new DrizzleDocumentRepository(db),
 });
@@ -273,8 +272,7 @@ The current document repository is split by responsibility:
 - `server/data/documents/repository/index.ts` is the public repository barrel.
 - `server/data/documents/service/contracts.ts` defines the service input,
   output, and interface types.
-- `server/data/documents/service/create-service.ts` implements
-  `createDocumentService`.
+- `server/data/documents/service/service.ts` implements `DocumentService`.
 - `server/data/documents/service/helpers.ts` holds shared service validation,
   version, remote adapter, and projection helpers.
 

@@ -29,7 +29,7 @@ When composables are added:
 
 Current data access is service-level TypeScript only. Until API routes exist:
 
-- Use `createDocumentService` in server-side tests and framework code.
+- Use `new DocumentService(...)` in server-side tests and framework code.
 - Document future composable examples as future API sketches only.
 - Do not use frontend composables as the first place to define data-layer
   contracts; contracts belong in `server/data/documents/service/contracts.ts`.

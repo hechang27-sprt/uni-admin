@@ -51,7 +51,7 @@ Create a registry and service:
 ```ts
 import {
   createCollectionRegistry,
-  createDocumentService,
+  DocumentService,
   DrizzleDocumentRepository,
 } from "../server/data/documents";
 import { db } from "../server/util/drizzle";
@@ -64,7 +64,7 @@ const registry = createCollectionRegistry([
   },
 ]);
 
-const service = createDocumentService({
+const service = new DocumentService({
   registry,
   repository: new DrizzleDocumentRepository(db),
 });
@@ -316,14 +316,14 @@ routes, composables, or generated management UI yet.
 Create the auth/RBAC service beside the document service:
 
 ```ts
-import { DrizzleAuthRbacRepository, createAuthRbacService } from "#server/auth";
+import { AuthRbacService, DrizzleAuthRbacRepository } from "#server/auth";
 import {
   DrizzleDocumentRepository,
+  DocumentService,
   createCollectionRegistry,
-  createDocumentService,
 } from "#server/data/documents";
 
-const auth = createAuthRbacService({
+const auth = new AuthRbacService({
   repository: new DrizzleAuthRbacRepository(db),
 });
 
@@ -341,7 +341,7 @@ const registry = createCollectionRegistry([
 await auth.syncBuiltInAdminPermissions();
 await auth.syncCollectionPermissions(registry);
 
-const service = createDocumentService({
+const service = new DocumentService({
   registry,
   repository: new DrizzleDocumentRepository(db),
   authorizer: auth,

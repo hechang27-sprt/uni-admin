@@ -19,7 +19,7 @@ Target module boundaries:
   cleanly.
 - `repository/mapping.ts`: row/document cloning and row assertion helpers.
 - `service/index.ts`: service public facade and compatibility re-exports.
-- `service/create-service.ts`: `createDocumentService` implementation.
+- `service/service.ts`: `DocumentService` implementation.
 - `service/contracts.ts`: service input/result interfaces.
 - `service/helpers.ts`: remote adapter lookup, projection parsing/upsert
   helpers, and reusable service internals.

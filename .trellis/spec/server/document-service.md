@@ -1,7 +1,7 @@
 # Document Service
 
-`createDocumentService` in `server/data/documents/service/create-service.ts` is
-the main server API for the current framework.
+`DocumentService` in `server/data/documents/service/service.ts` is
+the main server implementation for the current framework.
 
 ## Local Operations
 

@@ -12,7 +12,7 @@ document rows in PostgreSQL/pgLite and service-level optimistic concurrency.
   `createdAt`, `updatedAt`, and `deletedAt` metadata.
 - Remote-backed collections store local JSONB projections and read locally.
 - Tests construct state through `DrizzleDocumentRepository` and
-  `createDocumentService`.
+  `DocumentService`.
 
 ## When To Use Pinia
 
