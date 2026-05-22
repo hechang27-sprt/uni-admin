@@ -231,3 +231,36 @@ Removed the InMemoryDocumentRepository wrapper, switched document service tests 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Sync docs and bootstrap specs
+
+**Date**: 2026-05-22
+**Task**: Sync docs and bootstrap specs
+
+### Summary
+
+Synced project docs to the current Drizzle/pgLite data-layer shape, then replaced Trellis frontend placeholders and added source-backed server/data-layer specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5182cbe` | (see git log) |
+| `d7bf915` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

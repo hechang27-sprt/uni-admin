@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
-- **Last Active**: 2026-05-21
+- **Total Sessions**: 8
+- **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~233 | Active |
+| `journal-1.md` | ~266 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-05-22 | Sync docs and bootstrap specs | `5182cbe`, `d7bf915` | `-` |
 | 7 | 2026-05-21 | pgLite document repository test harness | `507861b` | `-` |
 | 6 | 2026-05-21 | Split document data layer modules | `1298b84` | `-` |
 | 5 | 2026-05-21 | Remote adapter and batch document APIs | `d88f902`, `cce9963` | `-` |
