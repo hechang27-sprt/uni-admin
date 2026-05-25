@@ -40,6 +40,11 @@ Add or update tests when changing:
 - JSON Patch behavior;
 - list filters, sorting, pagination, or soft-delete inclusion;
 - batch create/get/update behavior;
+- actor-protected batch create/get/update allow and deny behavior, including
+  one deduplicated `checkAccessMany` call per logical service operation;
+- bulk owner bootstrap grants and delegated multi-capability assignment denial;
+- cross-tenant auth-scope rejection when a batch contains mixed valid and
+  invalid target scopes;
 - remote adapter projection mapping and output passthrough;
 - remote failure ordering.
 

@@ -22,10 +22,10 @@ export async function loadExisting(
   const { registry, repository } = dependencies;
   registry.get(input.collection);
 
-  const existing = await repository.findById({
+  const [existing] = await repository.findByIds({
     tenantId: input.tenantId,
     collection: input.collection,
-    id: input.id,
+    ids: [input.id],
     includeDeleted,
   });
 
@@ -42,13 +42,13 @@ export async function loadExisting(
 export async function assertVersionAndUpdate<TData extends JsonObject>(
   dependencies: DocumentServiceDependencies,
   input: VersionedDocumentInput,
+  existing: StoredDocument,
   data?: TData,
   deletedAt?: Date | null,
   remoteIdentity?: { remoteSource: string; remoteId: string },
   authScopeId?: string | null,
 ): Promise<StoredDocument<TData>> {
   const { registry, repository } = dependencies;
-  const existing = await loadExisting(dependencies, input, true);
 
   if (existing.version !== input.expectedVersion) {
     throw new DocumentServiceError(
@@ -63,22 +63,27 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
     );
   }
 
-  const updated = await repository.update<TData>({
-    tenantId: input.tenantId,
-    collection: input.collection,
-    id: input.id,
-    expectedVersion: input.expectedVersion,
-    data,
-    schemaVersion: registry.get(input.collection).schemaVersion,
-    ...(authScopeId !== undefined ? { authScopeId } : {}),
-    ...(deletedAt !== undefined ? { deletedAt } : {}),
-    ...(remoteIdentity
-      ? {
-          remoteSource: remoteIdentity.remoteSource,
-          remoteId: remoteIdentity.remoteId,
-        }
-      : {}),
+  const updatedRows = await repository.updateMany<TData>({
+    records: [
+      {
+        tenantId: input.tenantId,
+        collection: input.collection,
+        id: input.id,
+        expectedVersion: input.expectedVersion,
+        data,
+        schemaVersion: registry.get(input.collection).schemaVersion,
+        ...(authScopeId !== undefined ? { authScopeId } : {}),
+        ...(deletedAt !== undefined ? { deletedAt } : {}),
+        ...(remoteIdentity
+          ? {
+              remoteSource: remoteIdentity.remoteSource,
+              remoteId: remoteIdentity.remoteId,
+            }
+          : {}),
+      },
+    ],
   });
+  const updated = updatedRows?.[0];
 
   if (!updated) {
     throw new DocumentServiceError(

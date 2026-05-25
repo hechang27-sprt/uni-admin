@@ -68,18 +68,27 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get(input.collection);
-    await this.authorizeCreate(input, input.authScopeId ?? null, options);
+    await this.authorizeCreate(input, [input.authScopeId ?? null], options);
     const data = parseData(collection.schema, input.data, input.collection);
 
-    return this.repository.insert<TData>({
+    const [created] = await this.repository.insertMany<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
       schemaVersion: collection.schemaVersion,
-      data: data as TData,
-      authScopeId: input.authScopeId,
-      remoteSource: input.remoteSource,
-      remoteId: input.remoteId,
+      items: [
+        {
+          data: data as TData,
+          authScopeId: input.authScopeId,
+          remoteSource: input.remoteSource,
+          remoteId: input.remoteId,
+        },
+      ],
     });
+
+    return assertServiceDocument(
+      created,
+      "Document insert did not return a row",
+    );
   }
 
   async createMany<TData extends JsonObject>(
@@ -87,10 +96,10 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
     const collection = this.registry.get(input.collection);
-    await Promise.all(
-      input.items.map((item) =>
-        this.authorizeCreate(input, item.authScopeId ?? null, options),
-      ),
+    await this.authorizeCreate(
+      input,
+      input.items.map((item) => item.authScopeId ?? null),
+      options,
     );
     const items = input.items.map((item) => ({
       data: parseData(collection.schema, item.data, input.collection) as TData,
@@ -113,17 +122,17 @@ export class DocumentService {
   ): Promise<StoredDocument<TData> | null> {
     this.registry.get(input.collection);
 
-    const document = await this.repository.findById<TData>({
+    const [document] = await this.repository.findByIds<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      id: input.id,
+      ids: [input.id],
       includeDeleted: input.includeDeleted,
     });
     if (!document) {
       return null;
     }
 
-    await this.authorizeDocument(input, options, "read", document);
+    await this.authorizeDocuments(input, options, "read", [document]);
     return document;
   }
 
@@ -140,20 +149,25 @@ export class DocumentService {
       includeDeleted: input.includeDeleted,
     });
 
-    return Promise.all(
-      documents.map(async (document) => {
-        if (!document) {
-          return null;
-        }
-        const allowed = await this.checkDocumentAccess(
-          input,
-          options,
-          "read",
-          document,
-        );
-        return allowed ? document : null;
-      }),
+    const existingDocuments = documents.filter(
+      (document): document is StoredDocument<TData> => document !== null,
     );
+    const accessResults = await this.checkDocumentAccesses(
+      input,
+      options,
+      "read",
+      existingDocuments,
+    );
+    let existingIndex = 0;
+
+    return documents.map((document) => {
+      if (!document) {
+        return null;
+      }
+      const allowed = accessResults[existingIndex];
+      existingIndex += 1;
+      return allowed ? document : null;
+    });
   }
 
   async list<TData extends JsonObject>(
@@ -197,10 +211,15 @@ export class DocumentService {
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get(input.collection);
     const existing = await loadExisting(this.dependencies, input);
-    await this.authorizeDocument(input, options, "update", existing);
+    await this.authorizeDocuments(input, options, "update", [existing]);
     const data = parseData(collection.schema, input.data, input.collection);
 
-    return assertVersionAndUpdate(this.dependencies, input, data as TData);
+    return assertVersionAndUpdate(
+      this.dependencies,
+      input,
+      existing,
+      data as TData,
+    );
   }
 
   async updateMany<TData extends JsonObject>(
@@ -241,9 +260,13 @@ export class DocumentService {
           },
         );
       }
-
-      await this.authorizeDocument(input, options, "update", existing);
     }
+    await this.authorizeDocuments(
+      input,
+      options,
+      "update",
+      existingDocuments as StoredDocument<TData>[],
+    );
 
     const records = items.map((item) => ({
       tenantId: input.tenantId,
@@ -274,7 +297,7 @@ export class DocumentService {
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get(input.collection);
     const existing = await loadExisting(this.dependencies, input);
-    await this.authorizeDocument(input, options, "patch", existing);
+    await this.authorizeDocuments(input, options, "patch", [existing]);
 
     if (existing.version !== input.expectedVersion) {
       throw new DocumentServiceError(
@@ -295,6 +318,7 @@ export class DocumentService {
     return assertVersionAndUpdate<TData>(
       this.dependencies,
       input,
+      existing,
       data as TData,
     );
   }
@@ -304,10 +328,11 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument> {
     const existing = await loadExisting(this.dependencies, input);
-    await this.authorizeDocument(input, options, "delete", existing);
+    await this.authorizeDocuments(input, options, "delete", [existing]);
     return assertVersionAndUpdate(
       this.dependencies,
       input,
+      existing,
       undefined,
       new Date(),
     );
@@ -318,8 +343,14 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument> {
     const existing = await loadExisting(this.dependencies, input, true);
-    await this.authorizeDocument(input, options, "restore", existing);
-    return assertVersionAndUpdate(this.dependencies, input, undefined, null);
+    await this.authorizeDocuments(input, options, "restore", [existing]);
+    return assertVersionAndUpdate(
+      this.dependencies,
+      input,
+      existing,
+      undefined,
+      null,
+    );
   }
 
   async hardDelete(
@@ -339,10 +370,10 @@ export class DocumentService {
       );
     }
 
-    const existing = await this.repository.findById({
+    const [existing] = await this.repository.findByIds({
       tenantId: input.tenantId,
       collection: input.collection,
-      id: input.id,
+      ids: [input.id],
       includeDeleted: true,
     });
     if (!existing) {
@@ -351,15 +382,15 @@ export class DocumentService {
         documentId: input.id,
       });
     }
-    await this.authorizeDocument(input, options, "hard-delete", existing);
+    await this.authorizeDocuments(input, options, "hard-delete", [existing]);
 
-    const deleted = await this.repository.hardDelete({
+    const deletedIds = await this.repository.hardDeleteMany({
       tenantId: input.tenantId,
       collection: input.collection,
-      id: input.id,
+      ids: [input.id],
     });
 
-    if (!deleted) {
+    if (!deletedIds.includes(input.id)) {
       throw new DocumentServiceError("NOT_FOUND", "Document not found", {
         collection: input.collection,
         documentId: input.id,
@@ -444,7 +475,7 @@ export class DocumentService {
       never,
       { create: TOutput }
     >(this.registry, input.collection);
-    await this.authorizeCreate(input, input.authScopeId ?? null, options);
+    await this.authorizeCreate(input, [input.authScopeId ?? null], options);
     const result = await adapter.createRemote(input.input, {
       tenantId: input.tenantId,
       collection: input.collection,
@@ -484,7 +515,7 @@ export class DocumentService {
       this.dependencies,
       input,
     )) as StoredDocument<TData>;
-    await this.authorizeDocument(input, options, "update", current);
+    await this.authorizeDocuments(input, options, "update", [current]);
 
     if (current.version !== input.expectedVersion) {
       throw new DocumentServiceError(
@@ -514,6 +545,7 @@ export class DocumentService {
     const document = await assertVersionAndUpdate<TData>(
       this.dependencies,
       input,
+      current,
       data as TData,
       null,
       {
@@ -539,7 +571,7 @@ export class DocumentService {
       { delete: TOutput }
     >(this.registry, input.collection);
     const current = await loadExisting(this.dependencies, input);
-    await this.authorizeDocument(input, options, "delete", current);
+    await this.authorizeDocuments(input, options, "delete", [current]);
 
     if (current.version !== input.expectedVersion) {
       throw new DocumentServiceError(
@@ -575,6 +607,7 @@ export class DocumentService {
           id: projected.id,
           expectedVersion: projected.version,
         },
+        projected,
         undefined,
         new Date(),
       );
@@ -584,6 +617,7 @@ export class DocumentService {
     const document = await assertVersionAndUpdate(
       this.dependencies,
       input,
+      current,
       undefined,
       new Date(),
     );
@@ -597,22 +631,17 @@ export class DocumentService {
   ): Promise<StoredDocument> {
     const authenticatedOptions = this.requireActorOptions(input, options);
     const existing = await loadExisting(this.dependencies, input, true);
-    await this.assertScopeAccess(
+    await this.assertScopeAccesses(
       input,
       authenticatedOptions,
       "admin:documents:set-scope",
-      existing.authScopeId,
-    );
-    await this.assertScopeAccess(
-      input,
-      authenticatedOptions,
-      "admin:documents:set-scope",
-      input.authScopeId,
+      [existing.authScopeId, input.authScopeId],
     );
 
     return assertVersionAndUpdate(
       this.dependencies,
       input,
+      existing,
       undefined,
       undefined,
       undefined,
@@ -652,7 +681,7 @@ export class DocumentService {
 
   private async authorizeCreate(
     input: CreateDocumentInput | RemoteCreateInput | CreateManyDocumentInput,
-    authScopeId: string | null,
+    authScopeIds: (string | null)[],
     options?: DocumentServiceOptions,
   ): Promise<void> {
     if (!hasActorOptions(options)) {
@@ -665,19 +694,19 @@ export class DocumentService {
       return;
     }
 
-    await this.assertScopeAccess(
+    await this.assertScopeAccesses(
       input,
       options,
       auth.capability,
-      auth.resourceScope === "none" ? null : authScopeId,
+      auth.resourceScope === "none" ? [null] : authScopeIds,
     );
   }
 
-  private async authorizeDocument(
+  private async authorizeDocuments(
     input: { tenantId: string; collection: string },
     options: DocumentServiceOptions | undefined,
     operation: CollectionOperation,
-    document: StoredDocument,
+    documents: StoredDocument[],
   ): Promise<void> {
     if (!hasActorOptions(options)) {
       return;
@@ -689,36 +718,40 @@ export class DocumentService {
       return;
     }
 
-    await this.assertScopeAccess(
+    await this.assertScopeAccesses(
       input,
       options,
       auth.capability,
-      auth.resourceScope === "none" ? null : document.authScopeId,
+      auth.resourceScope === "none"
+        ? [null]
+        : documents.map((document) => document.authScopeId),
     );
   }
 
-  private async checkDocumentAccess(
+  private async checkDocumentAccesses(
     input: { tenantId: string; collection: string },
     options: DocumentServiceOptions | undefined,
     operation: CollectionOperation,
-    document: StoredDocument,
-  ): Promise<boolean> {
+    documents: StoredDocument[],
+  ): Promise<boolean[]> {
     if (!hasActorOptions(options)) {
-      return true;
+      return documents.map(() => true);
     }
 
     const collection = this.registry.get(input.collection);
     const auth = resolveCollectionOperationAuth(collection, operation);
     if (!auth) {
-      return true;
+      return documents.map(() => true);
     }
 
-    return this.requireAuthorizer().checkAccess({
-      context: actorContext(input, options),
-      capability: auth.capability,
-      targetScopeId:
-        auth.resourceScope === "none" ? null : document.authScopeId,
-    });
+    return this.checkScopeAccesses(
+      input,
+      options,
+      auth.capability,
+      auth.resourceScope === "none"
+        ? documents.map(() => null)
+        : documents.map((document) => document.authScopeId),
+    );
   }
 
   private async assertScopeAccess(
@@ -727,13 +760,24 @@ export class DocumentService {
     capability: string,
     authScopeId: string | null,
   ): Promise<void> {
-    const allowed = await this.requireAuthorizer().checkAccess({
-      context: actorContext(input, options),
-      capability,
-      targetScopeId: authScopeId,
-    });
+    await this.assertScopeAccesses(input, options, capability, [authScopeId]);
+  }
 
-    if (!allowed) {
+  private async assertScopeAccesses(
+    input: { tenantId: string },
+    options: AuthenticatedDocumentServiceOptions,
+    capability: string,
+    authScopeIds: (string | null)[],
+  ): Promise<void> {
+    const accessResults = await this.checkScopeAccesses(
+      input,
+      options,
+      capability,
+      authScopeIds,
+    );
+    const deniedIndex = accessResults.findIndex((allowed) => !allowed);
+    if (deniedIndex !== -1) {
+      const authScopeId = authScopeIds[deniedIndex] ?? null;
       throw new DocumentServiceError(
         "AUTHORIZATION_DENIED",
         "Permission denied",
@@ -747,22 +791,41 @@ export class DocumentService {
     }
   }
 
+  private async checkScopeAccesses(
+    input: { tenantId: string },
+    options: AuthenticatedDocumentServiceOptions,
+    capability: string,
+    authScopeIds: (string | null)[],
+  ): Promise<boolean[]> {
+    const uniqueScopeIds = [...new Set(authScopeIds)];
+    const allowed = await this.requireAuthorizer().checkAccessMany({
+      context: actorContext(input, options),
+      checks: uniqueScopeIds.map((targetScopeId) => ({
+        capability,
+        targetScopeId,
+      })),
+    });
+    const allowedByScopeId = new Map(
+      uniqueScopeIds.map((scopeId, index) => [
+        scopeId,
+        allowed[index] ?? false,
+      ]),
+    );
+
+    return authScopeIds.map(
+      (scopeId) => allowedByScopeId.get(scopeId) ?? false,
+    );
+  }
+
   private async buildAccessibleDocumentScopeFilter(
     input: { tenantId: string },
     options: AuthenticatedDocumentServiceOptions,
     capability: string,
   ): Promise<(string | null)[]> {
-    const [rootScopeId, accessibleScopeIds] = await Promise.all([
-      this.requireAuthorizer().getTenantRootScopeId(input.tenantId),
-      this.requireAuthorizer().listAccessibleScopeIds({
-        context: actorContext(input, options),
-        capability,
-      }),
-    ]);
-
-    return accessibleScopeIds.map((scopeId) =>
-      scopeId === rootScopeId ? null : scopeId,
-    );
+    return this.requireAuthorizer().listAccessibleDocumentScopeIds({
+      context: actorContext(input, options),
+      capability,
+    });
   }
 
   private requireAuthorizer() {
@@ -810,4 +873,15 @@ function hasActorOptions(
   options: DocumentServiceOptions | undefined,
 ): options is AuthenticatedDocumentServiceOptions {
   return Boolean(options?.actor);
+}
+
+function assertServiceDocument<TData extends JsonObject>(
+  document: StoredDocument<TData> | undefined,
+  message: string,
+): StoredDocument<TData> {
+  if (!document) {
+    throw new Error(message);
+  }
+
+  return document;
 }

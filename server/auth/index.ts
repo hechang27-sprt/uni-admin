@@ -17,6 +17,7 @@ export type {
   BootstrapTenantOwnerInput,
   BootstrapTenantOwnerResult,
   CheckAccessInput,
+  CheckAccessManyInput,
   CreateRoleInput,
   CreateScopeInput,
   CreateTenantMembershipInput,

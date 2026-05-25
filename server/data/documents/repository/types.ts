@@ -4,16 +4,6 @@ import type {
   StoredDocument,
 } from "../types";
 
-export interface InsertDocumentRecord<TData extends JsonObject = JsonObject> {
-  tenantId: string;
-  collection: string;
-  schemaVersion: number;
-  data: TData;
-  authScopeId?: string | null;
-  remoteSource?: string | null;
-  remoteId?: string | null;
-}
-
 export interface InsertManyDocumentsRecord<
   TData extends JsonObject = JsonObject,
 > {
@@ -62,18 +52,9 @@ export interface UpsertRemoteProjectionsRecord<
 }
 
 export interface DocumentRepository {
-  insert<TData extends JsonObject>(
-    record: InsertDocumentRecord<TData>,
-  ): Promise<StoredDocument<TData>>;
   insertMany<TData extends JsonObject>(
     record: InsertManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[]>;
-  findById<TData extends JsonObject>(input: {
-    tenantId: string;
-    collection: string;
-    id: string;
-    includeDeleted?: boolean;
-  }): Promise<StoredDocument<TData> | null>;
   findByIds<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -92,18 +73,15 @@ export interface DocumentRepository {
     collection: string;
     query: NormalizedListDocumentsInput;
   }): Promise<StoredDocument<TData>[]>;
-  update<TData extends JsonObject>(
-    record: UpdateDocumentRecord<TData>,
-  ): Promise<StoredDocument<TData> | null>;
   updateMany<TData extends JsonObject>(
     record: UpdateManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[] | null>;
   upsertRemoteProjections<TData extends JsonObject>(
     record: UpsertRemoteProjectionsRecord<TData>,
   ): Promise<StoredDocument<TData>[]>;
-  hardDelete(input: {
+  hardDeleteMany(input: {
     tenantId: string;
     collection: string;
-    id: string;
-  }): Promise<boolean>;
+    ids: string[];
+  }): Promise<string[]>;
 }

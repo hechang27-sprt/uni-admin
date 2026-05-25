@@ -11,6 +11,7 @@ import type {
   BootstrapTenantOwnerInput,
   BootstrapTenantOwnerResult,
   CheckAccessInput,
+  CheckAccessManyInput,
   CreateRoleInput,
   CreateScopeInput,
   CreateTenantMembershipInput,
@@ -164,10 +165,10 @@ export class AuthRbacService implements DocumentAuthorizer {
 
   async grantPermission(input: GrantPermissionInput) {
     const role = await this.resolveRole(input);
-    await this.repository.grantPermission({
+    await this.repository.grantPermissions({
       tenantId: input.tenantId,
       roleId: role.roleId,
-      permissionKey: input.permissionKey,
+      permissionKeys: [input.permissionKey],
     });
   }
 
@@ -180,18 +181,15 @@ export class AuthRbacService implements DocumentAuthorizer {
       capability: "admin:role-permissions:grant",
       targetScopeId: null,
     });
-    const isOwner = await this.repository.checkAccess({
-      tenantId: context.tenantId,
-      userId: context.actor.userId,
-      capability: "admin:tenant:owner",
-      targetScopeId: null,
-    });
-    const hasGrantedCapability = await this.repository.checkAccess({
-      tenantId: context.tenantId,
-      userId: context.actor.userId,
-      capability: input.permissionKey,
-      targetScopeId: null,
-    });
+    const [isOwner, hasGrantedCapability] =
+      await this.repository.checkAccessMany({
+        tenantId: context.tenantId,
+        userId: context.actor.userId,
+        checks: [
+          { capability: "admin:tenant:owner", targetScopeId: null },
+          { capability: input.permissionKey, targetScopeId: null },
+        ],
+      });
     if (!isOwner && !hasGrantedCapability) {
       throw permissionDenied(context, input.permissionKey, null);
     }
@@ -200,20 +198,24 @@ export class AuthRbacService implements DocumentAuthorizer {
       ...input,
       tenantId: context.tenantId,
     });
-    await this.repository.grantPermission({
+    await this.repository.grantPermissions({
       tenantId: context.tenantId,
       roleId: role.roleId,
-      permissionKey: input.permissionKey,
+      permissionKeys: [input.permissionKey],
     });
   }
 
   async assignRole(input: AssignRoleInput) {
     const role = await this.resolveRole(input);
-    await this.repository.assignRole({
+    await this.repository.assignRoles({
       tenantId: input.tenantId,
-      userId: input.userId,
-      roleId: role.roleId,
-      scopeId: input.scopeId,
+      assignments: [
+        {
+          userId: input.userId,
+          roleId: role.roleId,
+          scopeId: input.scopeId,
+        },
+      ],
     });
   }
 
@@ -230,54 +232,69 @@ export class AuthRbacService implements DocumentAuthorizer {
       ...input,
       tenantId: context.tenantId,
     });
-    const isOwner = await this.repository.checkAccess({
+    const [isOwner] = await this.repository.checkAccessMany({
       tenantId: context.tenantId,
       userId: context.actor.userId,
-      capability: "admin:tenant:owner",
-      targetScopeId: null,
+      checks: [{ capability: "admin:tenant:owner", targetScopeId: null }],
     });
     if (!isOwner) {
       const permissionKeys = await this.repository.rolePermissionKeys({
         tenantId: context.tenantId,
         roleId: role.roleId,
       });
-      for (const permissionKey of permissionKeys) {
-        const canGrant = await this.repository.checkAccess({
-          tenantId: context.tenantId,
-          userId: context.actor.userId,
-          capability: permissionKey,
+      const accessResults = await this.repository.checkAccessMany({
+        tenantId: context.tenantId,
+        userId: context.actor.userId,
+        checks: permissionKeys.map((capability) => ({
+          capability,
           targetScopeId: input.scopeId,
-        });
-        if (!canGrant) {
-          throw permissionDenied(context, permissionKey, input.scopeId);
-        }
+        })),
+      });
+      const deniedIndex = accessResults.findIndex((allowed) => !allowed);
+      if (deniedIndex !== -1) {
+        throw permissionDenied(
+          context,
+          permissionKeys[deniedIndex]!,
+          input.scopeId,
+        );
       }
     }
 
-    await this.repository.assignRole({
+    await this.repository.assignRoles({
       tenantId: context.tenantId,
-      userId: input.userId,
-      roleId: role.roleId,
-      scopeId: input.scopeId,
+      assignments: [
+        {
+          userId: input.userId,
+          roleId: role.roleId,
+          scopeId: input.scopeId,
+        },
+      ],
     });
   }
 
-  checkAccess(input: CheckAccessInput) {
-    return this.repository.checkAccess({
+  async checkAccess(input: CheckAccessInput) {
+    const [allowed] = await this.checkAccessMany({
+      context: input.context,
+      checks: [
+        {
+          capability: input.capability,
+          targetScopeId: input.targetScopeId,
+        },
+      ],
+    });
+    return allowed ?? false;
+  }
+
+  checkAccessMany(input: CheckAccessManyInput) {
+    return this.repository.checkAccessMany({
       tenantId: input.context.tenantId,
       userId: input.context.actor.userId,
-      capability: input.capability,
-      targetScopeId: input.targetScopeId,
+      checks: input.checks,
     });
   }
 
   async assertAccess(input: CheckAccessInput) {
-    const allowed = await this.repository.checkAccess({
-      tenantId: input.context.tenantId,
-      userId: input.context.actor.userId,
-      capability: input.capability,
-      targetScopeId: input.targetScopeId,
-    });
+    const allowed = await this.checkAccess(input);
     if (!allowed) {
       throw permissionDenied(
         input.context,
@@ -295,22 +312,23 @@ export class AuthRbacService implements DocumentAuthorizer {
     });
   }
 
-  async listCreatableDocumentScopeIds(input: {
-    context: TenantActorContext;
-    capability: string;
-  }) {
-    const root = await this.repository.ensureTenantRootScope(
-      input.context.tenantId,
-    );
-    const scopeIds = await this.repository.listAccessibleScopeIds({
+  listAccessibleDocumentScopeIds(input: ListAccessibleScopesInput) {
+    return this.repository.listAccessibleDocumentScopeIds({
       tenantId: input.context.tenantId,
       userId: input.context.actor.userId,
       capability: input.capability,
     });
+  }
 
-    return scopeIds.map((scopeId) =>
-      scopeId === root.scopeId ? null : scopeId,
-    );
+  listCreatableDocumentScopeIds(input: {
+    context: TenantActorContext;
+    capability: string;
+  }) {
+    return this.repository.listAccessibleDocumentScopeIds({
+      tenantId: input.context.tenantId,
+      userId: input.context.actor.userId,
+      capability: input.capability,
+    });
   }
 
   async bootstrapTenantOwner(
@@ -335,18 +353,22 @@ export class AuthRbacService implements DocumentAuthorizer {
       passwordHash: await hashPassword(input.password),
     });
     await this.repository.upsertPermissions(builtInAdminPermissions);
-    for (const permission of builtInAdminPermissions) {
-      await this.repository.grantPermission({
-        tenantId: input.tenantId,
-        roleId: ownerRole.roleId,
-        permissionKey: permission.key,
-      });
-    }
-    await this.repository.assignRole({
+    await this.repository.grantPermissions({
       tenantId: input.tenantId,
-      userId: user.userId,
       roleId: ownerRole.roleId,
-      scopeId: rootScope.scopeId,
+      permissionKeys: builtInAdminPermissions.map(
+        (permission) => permission.key,
+      ),
+    });
+    await this.repository.assignRoles({
+      tenantId: input.tenantId,
+      assignments: [
+        {
+          userId: user.userId,
+          roleId: ownerRole.roleId,
+          scopeId: rootScope.scopeId,
+        },
+      ],
     });
 
     return {
@@ -363,23 +385,18 @@ export class AuthRbacService implements DocumentAuthorizer {
   }
 
   private async assertAdminAccess(input: CheckAccessInput): Promise<void> {
-    const owner = await this.repository.checkAccess({
+    const [owner, allowed] = await this.repository.checkAccessMany({
       tenantId: input.context.tenantId,
       userId: input.context.actor.userId,
-      capability: "admin:tenant:owner",
-      targetScopeId: null,
+      checks: [
+        { capability: "admin:tenant:owner", targetScopeId: null },
+        {
+          capability: input.capability,
+          targetScopeId: input.targetScopeId,
+        },
+      ],
     });
-    if (owner) {
-      return;
-    }
-
-    const allowed = await this.repository.checkAccess({
-      tenantId: input.context.tenantId,
-      userId: input.context.actor.userId,
-      capability: input.capability,
-      targetScopeId: input.targetScopeId,
-    });
-    if (!allowed) {
+    if (!owner && !allowed) {
       throw permissionDenied(
         input.context,
         input.capability,

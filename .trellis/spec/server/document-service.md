@@ -18,6 +18,20 @@ Follow the existing contract types in
 `server/data/documents/service/contracts.ts` when adding or changing service
 methods.
 
+## Batch Authorization And Scalar Wrappers
+
+- Scalar item methods call repository batch primitives with one item; do not
+  add scalar repository shortcuts.
+- `createMany`, `getByIds`, and `updateMany` collect distinct target auth
+  scopes and invoke `DocumentAuthorizer.checkAccessMany(...)` once per
+  protected operation.
+- `getByIds` maps denied documents to `null` in their original positions.
+  Protected mutation/create methods reject denied items with
+  `AUTHORIZATION_DENIED`.
+- `list` consumes `listAccessibleDocumentScopeIds(...)`, which already uses
+  `null` for tenant-root documents; it must not fetch the root just to
+  normalize filter IDs.
+
 ## Validation And Errors
 
 - Always call `registry.get(collection)` at the service boundary so unknown
@@ -34,8 +48,8 @@ methods.
 
 - Existing-document mutations require `expectedVersion`.
 - Stale versions fail with `CONFLICT_STALE_VERSION`.
-- Use `assertVersionAndUpdate` for single-document versioned updates where it
-  fits.
+- Use `assertVersionAndUpdate` for single-document versioned updates, passing
+  the row already loaded for authorization/patching so it does not reread it.
 - `updateMany` must remain all-or-nothing. It validates each existing document
   and version before calling the repository batch update, and the repository
   returns `null` if the transactional update count does not match the input.
@@ -68,3 +82,7 @@ methods.
 tenant isolation, filters, stale versions, JSON Patch edge cases, remote
 projection sync, and remote failure ordering. Add nearby tests when changing
 these service paths.
+
+`test/unit/server/auth-rbac.test.ts` additionally covers protected batch
+authorization allow/deny behavior and verifies one `checkAccessMany` call for
+each collection-shaped operation.

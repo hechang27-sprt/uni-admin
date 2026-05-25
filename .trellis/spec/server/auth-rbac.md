@@ -25,6 +25,38 @@ new DocumentService({
 });
 ```
 
+- Document authorization boundary:
+
+```ts
+interface DocumentAuthorizer {
+  checkAccessMany(input: {
+    context: TenantActorContext;
+    checks: { capability: string; targetScopeId: string | null }[];
+  }): Promise<boolean[]>;
+  listAccessibleDocumentScopeIds(input: {
+    context: TenantActorContext;
+    capability: string;
+  }): Promise<(string | null)[]>;
+}
+
+interface AuthRbacRepository {
+  grantPermissions(input: {
+    tenantId: string;
+    roleId: string;
+    permissionKeys: string[];
+  }): Promise<void>;
+  assignRoles(input: {
+    tenantId: string;
+    assignments: { userId: string; roleId: string; scopeId: string }[];
+  }): Promise<void>;
+  checkAccessMany(input: {
+    tenantId: string;
+    userId: string;
+    checks: { capability: string; targetScopeId: string | null }[];
+  }): Promise<boolean[]>;
+}
+```
+
 - Actor context:
 
 ```ts
@@ -59,6 +91,17 @@ interface TenantActorContext {
   containment.
 - Protected remote writes must authorize before calling a remote adapter.
   Adapter context receives `actor` only on protected calls.
+- Check results align with `checks` input order. Repeated service scope checks
+  must be deduplicated before calling the authorizer.
+- `listAccessibleDocumentScopeIds` returns `null` for the tenant-root scope in
+  its query; document filtering does not issue a second root lookup.
+- Scalar public service APIs such as `grantPermission`, `assignRole`, and
+  `checkAccess` wrap one-element repository batches. Login, actor membership
+  lookup, root-scope creation, scope-tree creation, and role resolution remain
+  justified singular operations.
+- Tenant-owner bootstrap grants all built-in permissions with one
+  `grantPermissions` call. Delegated assignment checks all target-role
+  capabilities in one `checkAccessMany` call.
 
 ### 4. Validation & Error Matrix
 
@@ -75,6 +118,9 @@ interface TenantActorContext {
   `AuthRbacError` code `AUTH_TENANT_MEMBERSHIP_REQUIRED`.
 - Missing role/scope/permission during RBAC setup -> `AUTH_ROLE_NOT_FOUND`,
   `AUTH_SCOPE_NOT_FOUND`, or `AUTH_PERMISSION_NOT_FOUND`.
+- Any failed check in a protected document batch ->
+  `DocumentServiceError` code `AUTHORIZATION_DENIED`; read batches return
+  `null` for denied positional items.
 
 ### 5. Good/Base/Bad Cases
 
@@ -82,10 +128,14 @@ interface TenantActorContext {
   actor can access `auth_scope_id = null` documents plus descendant scopes.
 - Good: assign a role at a child scope and verify sibling documents are absent
   from `list(input, { actor })`.
+- Good: authorize a multi-document update by sending its distinct scope checks
+  once and preserve document input order.
 - Base: call trusted `create` from seed/import code when no actor exists.
 - Bad: change `authScopeId` through JSON Patch or data update. Use
   `setDocumentAuthScope`.
 - Bad: pass a scope from tenant B into a tenant A document write.
+- Bad: iterate role permission keys and execute one access query for each
+  permission during delegated administration.
 
 ### 6. Tests Required
 
@@ -96,6 +146,10 @@ interface TenantActorContext {
 - Authorized mutation allow/deny behavior.
 - Remote write denial before adapter side effects.
 - Trusted write rejection for cross-tenant `authScopeId`.
+- Protected batch create/read/update allow and deny paths with one authorizer
+  batch call per logical operation.
+- Owner bootstrap bulk grant behavior and delegated multi-capability escalation
+  rejection.
 
 ### 7. Wrong vs Correct
 
@@ -130,3 +184,21 @@ await service.setDocumentAuthScope(
 
 The correct path treats authorization scope as framework metadata and checks
 `admin:documents:set-scope` against both the current and target scopes.
+
+#### Wrong
+
+```ts
+for (const capability of roleCapabilities) {
+  await repository.checkAccess({ tenantId, userId, capability, targetScopeId });
+}
+```
+
+#### Correct
+
+```ts
+await repository.checkAccessMany({
+  tenantId,
+  userId,
+  checks: roleCapabilities.map((capability) => ({ capability, targetScopeId })),
+});
+```

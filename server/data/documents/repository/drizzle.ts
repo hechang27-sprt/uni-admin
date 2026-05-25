@@ -22,7 +22,6 @@ import type {
 } from "../types";
 import type {
   DocumentRepository,
-  InsertDocumentRecord,
   InsertManyDocumentsRecord,
   UpdateDocumentRecord,
   UpdateManyDocumentsRecord,
@@ -35,38 +34,21 @@ import {
 } from "./query";
 
 type DocumentRow = InferSelectModel<typeof documentsTable>;
-type BatchUpdateRow = DocumentRow & { inputOrder: number };
+type MappableDocumentRow = Omit<
+  DocumentRow,
+  "createdAt" | "updatedAt" | "deletedAt"
+> & {
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt: Date | string | null;
+};
+type BatchUpdateRow = MappableDocumentRow & { inputOrder: number };
 type DrizzleDatabase = PgDatabase<any, typeof dbSchema>;
 
 class BatchUpdateConflict extends Error {}
 
 export class DrizzleDocumentRepository implements DocumentRepository {
   constructor(private readonly database: DrizzleDatabase) {}
-
-  async insert<TData extends JsonObject>(
-    record: InsertDocumentRecord<TData>,
-  ): Promise<StoredDocument<TData>> {
-    await assertAuthScopeBelongsToTenant(
-      this.database,
-      record.tenantId,
-      record.authScopeId ?? null,
-    );
-
-    const [row] = await this.database
-      .insert(documentsTable)
-      .values({
-        tenantId: record.tenantId,
-        collection: record.collection,
-        schemaVersion: record.schemaVersion,
-        data: record.data,
-        authScopeId: record.authScopeId ?? null,
-        remoteSource: record.remoteSource ?? null,
-        remoteId: record.remoteId ?? null,
-      })
-      .returning();
-
-    return mapDocumentRow<TData>(assertDocumentRow(row));
-  }
 
   async insertMany<TData extends JsonObject>(
     record: InsertManyDocumentsRecord<TData>,
@@ -96,26 +78,6 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       .returning();
 
     return rows.map((row) => mapDocumentRow<TData>(row));
-  }
-
-  async findById<TData extends JsonObject>(input: {
-    tenantId: string;
-    collection: string;
-    id: string;
-    includeDeleted?: boolean;
-  }): Promise<StoredDocument<TData> | null> {
-    const rows = await this.database
-      .select()
-      .from(documentsTable)
-      .where(
-        and(
-          ...buildDocumentScopeConditions(input, [
-            eq(documentsTable.id, input.id),
-          ]),
-        ),
-      )
-      .limit(1);
-    return rows[0] ? mapDocumentRow<TData>(rows[0]) : null;
   }
 
   async findByIds<TData extends JsonObject>(input: {
@@ -205,62 +167,6 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       .offset(input.query.offset);
 
     return rows.map((row) => mapDocumentRow<TData>(row));
-  }
-
-  async update<TData extends JsonObject>(
-    record: UpdateDocumentRecord<TData>,
-  ): Promise<StoredDocument<TData> | null> {
-    if ("authScopeId" in record) {
-      await assertAuthScopeBelongsToTenant(
-        this.database,
-        record.tenantId,
-        record.authScopeId ?? null,
-      );
-    }
-
-    const nextValues: Record<string, unknown> = {
-      version: record.expectedVersion + 1,
-      updatedAt: new Date(),
-    };
-
-    if (record.schemaVersion !== undefined) {
-      nextValues.schemaVersion = record.schemaVersion;
-    }
-
-    if (record.data !== undefined) {
-      nextValues.data = record.data;
-    }
-
-    if ("authScopeId" in record) {
-      nextValues.authScopeId = record.authScopeId;
-    }
-
-    if ("deletedAt" in record) {
-      nextValues.deletedAt = record.deletedAt;
-    }
-
-    if ("remoteSource" in record) {
-      nextValues.remoteSource = record.remoteSource;
-    }
-
-    if ("remoteId" in record) {
-      nextValues.remoteId = record.remoteId;
-    }
-
-    const [row] = await this.database
-      .update(documentsTable)
-      .set(nextValues)
-      .where(
-        and(
-          eq(documentsTable.tenantId, record.tenantId),
-          eq(documentsTable.collection, record.collection),
-          eq(documentsTable.id, record.id),
-          eq(documentsTable.version, record.expectedVersion),
-        ),
-      )
-      .returning();
-
-    return row ? mapDocumentRow<TData>(row) : null;
   }
 
   async updateMany<TData extends JsonObject>(
@@ -358,23 +264,28 @@ export class DrizzleDocumentRepository implements DocumentRepository {
     );
   }
 
-  async hardDelete(input: {
+  async hardDeleteMany(input: {
     tenantId: string;
     collection: string;
-    id: string;
-  }): Promise<boolean> {
+    ids: string[];
+  }): Promise<string[]> {
+    if (input.ids.length === 0) {
+      return [];
+    }
+
     const rows = await this.database
       .delete(documentsTable)
       .where(
         and(
           eq(documentsTable.tenantId, input.tenantId),
           eq(documentsTable.collection, input.collection),
-          eq(documentsTable.id, input.id),
+          inArray(documentsTable.id, input.ids),
         ),
       )
       .returning({ id: documentsTable.id });
 
-    return rows.length > 0;
+    const deletedIds = new Set(rows.map((row) => row.id));
+    return input.ids.filter((id) => deletedIds.has(id));
   }
 }
 
@@ -433,17 +344,10 @@ async function assertAuthScopesBelongToTenant(
     return;
   }
 
-  for (const authScopeId of new Set(authScopeIds)) {
-    await assertAuthScopeBelongsToTenant(database, tenantId, authScopeId);
-  }
-}
-
-async function assertAuthScopeBelongsToTenant(
-  database: DrizzleDatabase,
-  tenantId: string,
-  authScopeId: string | null,
-): Promise<void> {
-  if (authScopeId === null) {
+  const scopedIds = [...new Set(authScopeIds)].filter(
+    (authScopeId): authScopeId is string => authScopeId !== null,
+  );
+  if (scopedIds.length === 0) {
     return;
   }
 
@@ -453,18 +357,21 @@ async function assertAuthScopeBelongsToTenant(
     .where(
       and(
         eq(authScopesTable.tenantId, tenantId),
-        eq(authScopesTable.scopeId, authScopeId),
+        inArray(authScopesTable.scopeId, scopedIds),
       ),
-    )
-    .limit(1);
+    );
+  const validScopeIds = new Set(rows.map((row) => row.scopeId));
+  const invalidScopeId = scopedIds.find(
+    (scopeId) => !validScopeIds.has(scopeId),
+  );
 
-  if (rows.length === 0) {
+  if (invalidScopeId) {
     throw new DocumentServiceError(
       "INVALID_AUTH_SCOPE",
       "Document auth scope does not belong to the tenant",
       {
         tenantId,
-        authScopeId,
+        authScopeId: invalidScopeId,
       },
     );
   }
@@ -566,7 +473,7 @@ function buildBatchUpdateQuery<TData extends JsonObject>(
 }
 
 function mapDocumentRow<TData extends JsonObject>(
-  row: DocumentRow,
+  row: MappableDocumentRow,
 ): StoredDocument<TData> {
   return {
     id: row.id,
@@ -578,18 +485,16 @@ function mapDocumentRow<TData extends JsonObject>(
     remoteSource: row.remoteSource,
     remoteId: row.remoteId,
     version: row.version,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    deletedAt: row.deletedAt,
+    createdAt: asDate(row.createdAt),
+    updatedAt: asDate(row.updatedAt),
+    deletedAt: row.deletedAt === null ? null : asDate(row.deletedAt),
   };
 }
-function assertDocumentRow(row: DocumentRow | undefined): DocumentRow {
-  if (!row) {
-    throw new Error("Document insert did not return a row");
-  }
 
-  return row;
+function asDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
 }
+
 function assertUpsertedRemoteProjection<TData extends JsonObject>(
   document: StoredDocument<TData> | undefined,
   remoteId: string,

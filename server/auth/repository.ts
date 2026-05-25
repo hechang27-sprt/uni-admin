@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
 import {
@@ -71,33 +71,41 @@ export interface AuthRbacRepository {
   }): Promise<Role | null>;
   getRoleByKey(input: { tenantId: string; key: string }): Promise<Role | null>;
   upsertPermissions(input: PermissionDefinitionInput[]): Promise<Permission[]>;
-  getPermissionByKey(key: string): Promise<Permission | null>;
-  grantPermission(input: {
+  grantPermissions(input: {
     tenantId: string;
     roleId: string;
-    permissionKey: string;
+    permissionKeys: string[];
   }): Promise<void>;
-  assignRole(input: {
+  assignRoles(input: {
     tenantId: string;
-    userId: string;
-    roleId: string;
-    scopeId: string;
+    assignments: {
+      userId: string;
+      roleId: string;
+      scopeId: string;
+    }[];
   }): Promise<void>;
   rolePermissionKeys(input: {
     tenantId: string;
     roleId: string;
   }): Promise<string[]>;
-  checkAccess(input: {
+  checkAccessMany(input: {
     tenantId: string;
     userId: string;
-    capability: string;
-    targetScopeId: string | null;
-  }): Promise<boolean>;
+    checks: {
+      capability: string;
+      targetScopeId: string | null;
+    }[];
+  }): Promise<boolean[]>;
   listAccessibleScopeIds(input: {
     tenantId: string;
     userId: string;
     capability: string;
   }): Promise<string[]>;
+  listAccessibleDocumentScopeIds(input: {
+    tenantId: string;
+    userId: string;
+    capability: string;
+  }): Promise<(string | null)[]>;
 }
 
 export class DrizzleAuthRbacRepository implements AuthRbacRepository {
@@ -428,21 +436,15 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
     return rows.map(mapPermission);
   }
 
-  async getPermissionByKey(key: string): Promise<Permission | null> {
-    const rows = await this.database
-      .select()
-      .from(permissionsTable)
-      .where(eq(permissionsTable.key, key))
-      .limit(1);
-
-    return rows[0] ? mapPermission(rows[0]) : null;
-  }
-
-  async grantPermission(input: {
+  async grantPermissions(input: {
     tenantId: string;
     roleId: string;
-    permissionKey: string;
+    permissionKeys: string[];
   }): Promise<void> {
+    if (input.permissionKeys.length === 0) {
+      return;
+    }
+
     const role = await this.getRoleById({
       tenantId: input.tenantId,
       roleId: input.roleId,
@@ -451,57 +453,128 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
       throw new AuthRbacError("AUTH_ROLE_NOT_FOUND", "Role not found", input);
     }
 
-    const permission = await this.getPermissionByKey(input.permissionKey);
-    if (!permission) {
+    const permissionKeys = [...new Set(input.permissionKeys)];
+    const permissions = await this.database
+      .select()
+      .from(permissionsTable)
+      .where(inArray(permissionsTable.key, permissionKeys));
+    const permissionsByKey = new Map(
+      permissions.map((permission) => [permission.key, permission]),
+    );
+    const missingPermissionKey = permissionKeys.find(
+      (permissionKey) => !permissionsByKey.has(permissionKey),
+    );
+    if (missingPermissionKey) {
       throw new AuthRbacError(
         "AUTH_PERMISSION_NOT_FOUND",
         "Permission not found",
-        input,
+        { ...input, permissionKey: missingPermissionKey },
       );
     }
 
     await this.database
       .insert(rolePermissionsTable)
-      .values({
-        tenantId: input.tenantId,
-        roleId: input.roleId,
-        permissionId: permission.permissionId,
-      })
+      .values(
+        permissionKeys.map((permissionKey) => ({
+          tenantId: input.tenantId,
+          roleId: input.roleId,
+          permissionId: permissionsByKey.get(permissionKey)!.permissionId,
+        })),
+      )
       .onConflictDoNothing();
   }
 
-  async assignRole(input: {
+  async assignRoles(input: {
     tenantId: string;
-    userId: string;
-    roleId: string;
-    scopeId: string;
+    assignments: {
+      userId: string;
+      roleId: string;
+      scopeId: string;
+    }[];
   }): Promise<void> {
-    const [membership, role, scope] = await Promise.all([
-      this.findTenantMembership({
-        tenantId: input.tenantId,
-        userId: input.userId,
-      }),
-      this.getRoleById({ tenantId: input.tenantId, roleId: input.roleId }),
-      this.getScope({ tenantId: input.tenantId, scopeId: input.scopeId }),
-    ]);
+    if (input.assignments.length === 0) {
+      return;
+    }
 
-    if (!membership || membership.status !== "active") {
+    const userIds = [...new Set(input.assignments.map((item) => item.userId))];
+    const roleIds = [...new Set(input.assignments.map((item) => item.roleId))];
+    const scopeIds = [
+      ...new Set(input.assignments.map((item) => item.scopeId)),
+    ];
+    const [memberships, roles, scopes] = await Promise.all([
+      this.database
+        .select()
+        .from(tenantMembershipsTable)
+        .where(
+          and(
+            eq(tenantMembershipsTable.tenantId, input.tenantId),
+            inArray(tenantMembershipsTable.userId, userIds),
+          ),
+        ),
+      this.database
+        .select()
+        .from(rolesTable)
+        .where(
+          and(
+            eq(rolesTable.tenantId, input.tenantId),
+            inArray(rolesTable.roleId, roleIds),
+          ),
+        ),
+      this.database
+        .select()
+        .from(authScopesTable)
+        .where(
+          and(
+            eq(authScopesTable.tenantId, input.tenantId),
+            inArray(authScopesTable.scopeId, scopeIds),
+          ),
+        ),
+    ]);
+    const activeMembershipIds = new Set(
+      memberships
+        .filter((membership) => membership.status === "active")
+        .map((membership) => membership.userId),
+    );
+    const foundRoleIds = new Set(roles.map((role) => role.roleId));
+    const foundScopeIds = new Set(scopes.map((scope) => scope.scopeId));
+    const missingMembership = input.assignments.find(
+      (assignment) => !activeMembershipIds.has(assignment.userId),
+    );
+    const missingRole = input.assignments.find(
+      (assignment) => !foundRoleIds.has(assignment.roleId),
+    );
+    const missingScope = input.assignments.find(
+      (assignment) => !foundScopeIds.has(assignment.scopeId),
+    );
+
+    if (missingMembership) {
       throw new AuthRbacError(
         "AUTH_TENANT_MEMBERSHIP_REQUIRED",
         "Tenant membership is required",
-        input,
+        { tenantId: input.tenantId, ...missingMembership },
       );
     }
-    if (!role) {
-      throw new AuthRbacError("AUTH_ROLE_NOT_FOUND", "Role not found", input);
+    if (missingRole) {
+      throw new AuthRbacError("AUTH_ROLE_NOT_FOUND", "Role not found", {
+        tenantId: input.tenantId,
+        ...missingRole,
+      });
     }
-    if (!scope) {
-      throw new AuthRbacError("AUTH_SCOPE_NOT_FOUND", "Scope not found", input);
+    if (missingScope) {
+      throw new AuthRbacError("AUTH_SCOPE_NOT_FOUND", "Scope not found", {
+        tenantId: input.tenantId,
+        ...missingScope,
+      });
     }
 
     await this.database
       .insert(userRoleAssignmentsTable)
-      .values(input)
+      .values(
+        input.assignments.map((assignment) => ({
+          tenantId: input.tenantId,
+          ...assignment,
+        })),
+      )
       .onConflictDoNothing();
   }
 
@@ -526,61 +599,61 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => row.key);
   }
 
-  async checkAccess(input: {
+  async checkAccessMany(input: {
     tenantId: string;
     userId: string;
-    capability: string;
-    targetScopeId: string | null;
-  }): Promise<boolean> {
-    const targetScopeId =
-      input.targetScopeId ??
-      (await this.ensureTenantRootScope(input.tenantId)).scopeId;
-    const rows = await this.database
-      .select({ assignmentId: userRoleAssignmentsTable.assignmentId })
-      .from(userRoleAssignmentsTable)
-      .innerJoin(
-        tenantMembershipsTable,
-        and(
-          eq(
-            tenantMembershipsTable.tenantId,
-            userRoleAssignmentsTable.tenantId,
-          ),
-          eq(tenantMembershipsTable.userId, userRoleAssignmentsTable.userId),
-        ),
-      )
-      .innerJoin(
-        rolePermissionsTable,
-        and(
-          eq(rolePermissionsTable.tenantId, userRoleAssignmentsTable.tenantId),
-          eq(rolePermissionsTable.roleId, userRoleAssignmentsTable.roleId),
-        ),
-      )
-      .innerJoin(
-        permissionsTable,
-        eq(permissionsTable.permissionId, rolePermissionsTable.permissionId),
-      )
-      .innerJoin(
-        authScopeClosureTable,
-        and(
-          eq(authScopeClosureTable.tenantId, userRoleAssignmentsTable.tenantId),
-          eq(
-            authScopeClosureTable.ancestorId,
-            userRoleAssignmentsTable.scopeId,
-          ),
-          eq(authScopeClosureTable.descendantId, targetScopeId),
-        ),
-      )
-      .where(
-        and(
-          eq(userRoleAssignmentsTable.tenantId, input.tenantId),
-          eq(userRoleAssignmentsTable.userId, input.userId),
-          eq(tenantMembershipsTable.status, "active"),
-          eq(permissionsTable.key, input.capability),
-        ),
-      )
-      .limit(1);
+    checks: {
+      capability: string;
+      targetScopeId: string | null;
+    }[];
+  }): Promise<boolean[]> {
+    if (input.checks.length === 0) {
+      return [];
+    }
 
-    return rows.length > 0;
+    const rootScopeId = input.checks.some(
+      (check) => check.targetScopeId === null,
+    )
+      ? (await this.ensureTenantRootScope(input.tenantId)).scopeId
+      : null;
+    const values = input.checks.map(
+      (check, index) =>
+        sql`(${check.capability}::text, ${check.targetScopeId ?? rootScopeId}::uuid, ${index}::integer)`,
+    );
+    const result = await this.database.execute<{
+      inputOrder: number;
+      allowed: boolean;
+    }>(sql`
+      with checks (capability, target_scope_id, input_order) as (
+        values ${sql.join(values, sql`, `)}
+      )
+      select
+        checks.input_order as "inputOrder",
+        exists (
+          select 1
+          from ${userRoleAssignmentsTable} as assignment
+          inner join ${tenantMembershipsTable} as membership
+            on membership.tenant_id = assignment.tenant_id
+            and membership.user_id = assignment.user_id
+          inner join ${rolePermissionsTable} as role_permission
+            on role_permission.tenant_id = assignment.tenant_id
+            and role_permission.role_id = assignment.role_id
+          inner join ${permissionsTable} as permission
+            on permission.permission_id = role_permission.permission_id
+          inner join ${authScopeClosureTable} as closure
+            on closure.tenant_id = assignment.tenant_id
+            and closure.ancestor_id = assignment.scope_id
+            and closure.descendant_id = checks.target_scope_id
+          where assignment.tenant_id = ${input.tenantId}::uuid
+            and assignment.user_id = ${input.userId}::uuid
+            and membership.status = 'active'
+            and permission.key = checks.capability
+        ) as allowed
+      from checks
+      order by checks.input_order
+    `);
+
+    return result.rows.map((row: { allowed: boolean }) => row.allowed);
   }
 
   async listAccessibleScopeIds(input: {
@@ -620,6 +693,69 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
             authScopeClosureTable.ancestorId,
             userRoleAssignmentsTable.scopeId,
           ),
+        ),
+      )
+      .where(
+        and(
+          eq(userRoleAssignmentsTable.tenantId, input.tenantId),
+          eq(userRoleAssignmentsTable.userId, input.userId),
+          eq(tenantMembershipsTable.status, "active"),
+          eq(permissionsTable.key, input.capability),
+        ),
+      );
+
+    return rows.map((row) => row.scopeId);
+  }
+
+  async listAccessibleDocumentScopeIds(input: {
+    tenantId: string;
+    userId: string;
+    capability: string;
+  }): Promise<(string | null)[]> {
+    const rows = await this.database
+      .selectDistinct({
+        scopeId: sql<string | null>`case
+          when ${authScopesTable.key} = ${tenantRootScopeKey} then null
+          else ${authScopeClosureTable.descendantId}
+        end`,
+      })
+      .from(userRoleAssignmentsTable)
+      .innerJoin(
+        tenantMembershipsTable,
+        and(
+          eq(
+            tenantMembershipsTable.tenantId,
+            userRoleAssignmentsTable.tenantId,
+          ),
+          eq(tenantMembershipsTable.userId, userRoleAssignmentsTable.userId),
+        ),
+      )
+      .innerJoin(
+        rolePermissionsTable,
+        and(
+          eq(rolePermissionsTable.tenantId, userRoleAssignmentsTable.tenantId),
+          eq(rolePermissionsTable.roleId, userRoleAssignmentsTable.roleId),
+        ),
+      )
+      .innerJoin(
+        permissionsTable,
+        eq(permissionsTable.permissionId, rolePermissionsTable.permissionId),
+      )
+      .innerJoin(
+        authScopeClosureTable,
+        and(
+          eq(authScopeClosureTable.tenantId, userRoleAssignmentsTable.tenantId),
+          eq(
+            authScopeClosureTable.ancestorId,
+            userRoleAssignmentsTable.scopeId,
+          ),
+        ),
+      )
+      .innerJoin(
+        authScopesTable,
+        and(
+          eq(authScopesTable.tenantId, authScopeClosureTable.tenantId),
+          eq(authScopesTable.scopeId, authScopeClosureTable.descendantId),
         ),
       )
       .where(

@@ -114,6 +114,14 @@ export interface CheckAccessInput {
   targetScopeId: string | null;
 }
 
+export interface CheckAccessManyInput {
+  context: TenantActorContext;
+  checks: {
+    capability: string;
+    targetScopeId: string | null;
+  }[];
+}
+
 export interface ListAccessibleScopesInput {
   context: TenantActorContext;
   capability: string;
@@ -135,7 +143,8 @@ export interface BootstrapTenantOwnerResult {
 }
 
 export interface DocumentAuthorizer {
-  getTenantRootScopeId(tenantId: string): Promise<string>;
-  checkAccess(input: CheckAccessInput): Promise<boolean>;
-  listAccessibleScopeIds(input: ListAccessibleScopesInput): Promise<string[]>;
+  checkAccessMany(input: CheckAccessManyInput): Promise<boolean[]>;
+  listAccessibleDocumentScopeIds(
+    input: ListAccessibleScopesInput,
+  ): Promise<(string | null)[]>;
 }
