@@ -14,15 +14,15 @@ export interface DocumentServiceDependencies {
   repository: DocumentRepository;
 }
 
-export async function loadExisting(
+export async function loadExisting<TData extends JsonObject = JsonObject>(
   dependencies: DocumentServiceDependencies,
   input: VersionedDocumentInput,
   includeDeleted = false,
-): Promise<StoredDocument> {
+): Promise<StoredDocument<TData>> {
   const { registry, repository } = dependencies;
   registry.get(input.collection);
 
-  const [existing] = await repository.findByIds({
+  const [existing] = await repository.findByIds<TData>({
     tenantId: input.tenantId,
     collection: input.collection,
     ids: [input.id],
@@ -72,8 +72,8 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
         expectedVersion: input.expectedVersion,
         data,
         schemaVersion: registry.get(input.collection).schemaVersion,
-        ...(authScopeId !== undefined ? { authScopeId } : {}),
-        ...(deletedAt !== undefined ? { deletedAt } : {}),
+        ...(authScopeId === undefined ? {} : { authScopeId }),
+        ...(deletedAt === undefined ? {} : { deletedAt }),
         ...(remoteIdentity
           ? {
               remoteSource: remoteIdentity.remoteSource,
@@ -122,7 +122,7 @@ export async function upsertRemoteProjections<TData extends JsonObject>(
   projections: RemoteAdapterProjection<TData>[],
 ): Promise<StoredDocument<TData>[]> {
   const { registry, repository } = dependencies;
-  const collection = registry.get(input.collection);
+  const collection = registry.get<TData>(input.collection);
   const adapter = collection.remoteAdapter;
 
   if (!adapter) {
@@ -138,11 +138,11 @@ export async function upsertRemoteProjections<TData extends JsonObject>(
   const parsedProjections = projections.map((projection) => ({
     remoteId: projection.remoteId,
     authScopeId: projection.authScopeId,
-    data: parseData(
+    data: parseData<TData>(
       collection.schema,
       projection.data,
       input.collection,
-    ) as TData,
+    ),
   }));
 
   return repository.upsertRemoteProjections<TData>({
@@ -174,7 +174,7 @@ export function getRemoteAdapter<
   TDeleteInput,
   TOutputs
 > {
-  const collection = registry.get(collectionName);
+  const collection = registry.get<TData>(collectionName);
   const adapter = collection.remoteAdapter;
 
   if (!adapter) {
@@ -187,6 +187,7 @@ export function getRemoteAdapter<
     );
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- String registry lookup cannot retain adapter operation generics.
   return adapter as RemoteCollectionAdapter<
     TData,
     TSyncOneInput,
@@ -205,7 +206,7 @@ export function withRemoteOutput<TResult extends object, TOutput>(
   return output === undefined ? result : { ...result, output };
 }
 
-export function parseData<TData extends JsonObject>(
+export function parseData<TData extends JsonObject = JsonObject>(
   schema: { parse: (data: unknown) => TData },
   data: unknown,
   collection: string,

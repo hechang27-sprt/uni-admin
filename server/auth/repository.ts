@@ -1,4 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
+import type { PgliteQueryResultHKT } from "drizzle-orm/pglite";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
 import {
@@ -26,7 +28,10 @@ import type {
 
 export const tenantRootScopeKey = "__tenant_root";
 
-type DrizzleDatabase = PgDatabase<any, typeof dbSchema>;
+type DrizzleDatabase = PgDatabase<
+  NodePgQueryResultHKT | PgliteQueryResultHKT,
+  typeof dbSchema
+>;
 type Transaction = Parameters<Parameters<DrizzleDatabase["transaction"]>[0]>[0];
 
 export interface AuthRbacRepository {
@@ -433,7 +438,7 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
       })
       .returning();
 
-    return rows.map(mapPermission);
+    return rows.map((row) => mapPermission(row));
   }
 
   async grantPermissions(input: {
@@ -453,17 +458,22 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
       throw new AuthRbacError("AUTH_ROLE_NOT_FOUND", "Role not found", input);
     }
 
-    const permissionKeys = [...new Set(input.permissionKeys)];
+    const permissionKeys = new Set(input.permissionKeys);
     const permissions = await this.database
       .select()
       .from(permissionsTable)
-      .where(inArray(permissionsTable.key, permissionKeys));
+      .where(inArray(permissionsTable.key, permissionKeys.values().toArray()));
     const permissionsByKey = new Map(
-      permissions.map((permission) => [permission.key, permission]),
+      permissions
+        .values()
+        .map((permission): [string, typeof permission] => [
+          permission.key,
+          permission,
+        ]),
     );
-    const missingPermissionKey = permissionKeys.find(
-      (permissionKey) => !permissionsByKey.has(permissionKey),
-    );
+    const missingPermissionKey = permissionKeys
+      .values()
+      .find((permissionKey) => !permissionsByKey.has(permissionKey));
     if (missingPermissionKey) {
       throw new AuthRbacError(
         "AUTH_PERMISSION_NOT_FOUND",
@@ -475,11 +485,14 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
     await this.database
       .insert(rolePermissionsTable)
       .values(
-        permissionKeys.map((permissionKey) => ({
-          tenantId: input.tenantId,
-          roleId: input.roleId,
-          permissionId: permissionsByKey.get(permissionKey)!.permissionId,
-        })),
+        permissionKeys
+          .values()
+          .map((permissionKey) => ({
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            permissionId: permissionsByKey.get(permissionKey)!.permissionId,
+          }))
+          .toArray(),
       )
       .onConflictDoNothing();
   }
@@ -496,11 +509,21 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
       return;
     }
 
-    const userIds = [...new Set(input.assignments.map((item) => item.userId))];
-    const roleIds = [...new Set(input.assignments.map((item) => item.roleId))];
-    const scopeIds = [
-      ...new Set(input.assignments.map((item) => item.scopeId)),
-    ];
+    const userIds = new Set(
+      input.assignments.values().map((item) => item.userId),
+    )
+      .values()
+      .toArray();
+    const roleIds = new Set(
+      input.assignments.values().map((item) => item.roleId),
+    )
+      .values()
+      .toArray();
+    const scopeIds = new Set(
+      input.assignments.values().map((item) => item.scopeId),
+    )
+      .values()
+      .toArray();
     const [memberships, roles, scopes] = await Promise.all([
       this.database
         .select()
@@ -532,11 +555,14 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
     ]);
     const activeMembershipIds = new Set(
       memberships
+        .values()
         .filter((membership) => membership.status === "active")
         .map((membership) => membership.userId),
     );
-    const foundRoleIds = new Set(roles.map((role) => role.roleId));
-    const foundScopeIds = new Set(scopes.map((scope) => scope.scopeId));
+    const foundRoleIds = new Set(roles.values().map((role) => role.roleId));
+    const foundScopeIds = new Set(
+      scopes.values().map((scope) => scope.scopeId),
+    );
     const missingMembership = input.assignments.find(
       (assignment) => !activeMembershipIds.has(assignment.userId),
     );
@@ -611,11 +637,13 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
       return [];
     }
 
-    const rootScopeId = input.checks.some(
+    const includesTenantRoot = input.checks.some(
       (check) => check.targetScopeId === null,
-    )
-      ? (await this.ensureTenantRootScope(input.tenantId)).scopeId
+    );
+    const rootScope = includesTenantRoot
+      ? await this.ensureTenantRootScope(input.tenantId)
       : null;
+    const rootScopeId = rootScope?.scopeId ?? null;
     const values = input.checks.map(
       (check, index) =>
         sql`(${check.capability}::text, ${check.targetScopeId ?? rootScopeId}::uuid, ${index}::integer)`,
@@ -714,10 +742,12 @@ export class DrizzleAuthRbacRepository implements AuthRbacRepository {
   }): Promise<(string | null)[]> {
     const rows = await this.database
       .selectDistinct({
-        scopeId: sql<string | null>`case
-          when ${authScopesTable.key} = ${tenantRootScopeKey} then null
-          else ${authScopeClosureTable.descendantId}
-        end`,
+        scopeId: sql<string | null>`
+          case
+                    when ${authScopesTable.key} = ${tenantRootScopeKey} then null
+                    else ${authScopeClosureTable.descendantId}
+                  end
+        `,
       })
       .from(userRoleAssignmentsTable)
       .innerJoin(

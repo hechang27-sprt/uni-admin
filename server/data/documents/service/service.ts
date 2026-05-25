@@ -67,9 +67,13 @@ export class DocumentService {
     input: CreateDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get(input.collection);
+    const collection = this.registry.get<TData>(input.collection);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
-    const data = parseData(collection.schema, input.data, input.collection);
+    const data = parseData<TData>(
+      collection.schema,
+      input.data,
+      input.collection,
+    );
 
     const [created] = await this.repository.insertMany<TData>({
       tenantId: input.tenantId,
@@ -77,7 +81,7 @@ export class DocumentService {
       schemaVersion: collection.schemaVersion,
       items: [
         {
-          data: data as TData,
+          data,
           authScopeId: input.authScopeId,
           remoteSource: input.remoteSource,
           remoteId: input.remoteId,
@@ -95,14 +99,14 @@ export class DocumentService {
     input: CreateManyDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get(input.collection);
+    const collection = this.registry.get<TData>(input.collection);
     await this.authorizeCreate(
       input,
       input.items.map((item) => item.authScopeId ?? null),
       options,
     );
     const items = input.items.map((item) => ({
-      data: parseData(collection.schema, item.data, input.collection) as TData,
+      data: parseData<TData>(collection.schema, item.data, input.collection),
       authScopeId: item.authScopeId,
       remoteSource: item.remoteSource,
       remoteId: item.remoteId,
@@ -174,7 +178,7 @@ export class DocumentService {
     input: ListDocumentServiceInput,
     options?: DocumentServiceOptions,
   ): Promise<ListDocumentsResult<TData>> {
-    const collection = this.registry.get(input.collection);
+    const collection = this.registry.get<TData>(input.collection);
     const query = normalizeListInput(input);
     let scopeIds: (string | null)[] | undefined;
 
@@ -209,27 +213,26 @@ export class DocumentService {
     input: UpdateDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get(input.collection);
-    const existing = await loadExisting(this.dependencies, input);
+    const collection = this.registry.get<TData>(input.collection);
+    const existing = await loadExisting<TData>(this.dependencies, input);
     await this.authorizeDocuments(input, options, "update", [existing]);
-    const data = parseData(collection.schema, input.data, input.collection);
-
-    return assertVersionAndUpdate(
-      this.dependencies,
-      input,
-      existing,
-      data as TData,
+    const data = parseData<TData>(
+      collection.schema,
+      input.data,
+      input.collection,
     );
+
+    return assertVersionAndUpdate(this.dependencies, input, existing, data);
   }
 
   async updateMany<TData extends JsonObject>(
     input: UpdateManyDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get(input.collection);
+    const collection = this.registry.get<TData>(input.collection);
     const items = input.items.map((item) => ({
       ...item,
-      data: parseData(collection.schema, item.data, input.collection) as TData,
+      data: parseData<TData>(collection.schema, item.data, input.collection),
     }));
     const existingDocuments = await this.repository.findByIds<TData>({
       tenantId: input.tenantId,
@@ -237,8 +240,9 @@ export class DocumentService {
       ids: items.map((item) => item.id),
     });
 
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
+    const authorizedDocuments: StoredDocument<TData>[] = [];
+
+    for (const [index, item] of items.entries()) {
       const existing = existingDocuments[index];
 
       if (!item || !existing) {
@@ -260,12 +264,14 @@ export class DocumentService {
           },
         );
       }
+
+      authorizedDocuments.push(existing);
     }
     await this.authorizeDocuments(
       input,
       options,
       "update",
-      existingDocuments as StoredDocument<TData>[],
+      authorizedDocuments,
     );
 
     const records = items.map((item) => ({
@@ -295,8 +301,8 @@ export class DocumentService {
     input: PatchDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get(input.collection);
-    const existing = await loadExisting(this.dependencies, input);
+    const collection = this.registry.get<TData>(input.collection);
+    const existing = await loadExisting<TData>(this.dependencies, input);
     await this.authorizeDocuments(input, options, "patch", [existing]);
 
     if (existing.version !== input.expectedVersion) {
@@ -313,13 +319,13 @@ export class DocumentService {
     }
 
     const patched = applyJsonPatch(existing.data, input.patch);
-    const data = parseData(collection.schema, patched, input.collection);
+    const data = parseData<TData>(collection.schema, patched, input.collection);
 
     return assertVersionAndUpdate<TData>(
       this.dependencies,
       input,
       existing,
-      data as TData,
+      data,
     );
   }
 
@@ -359,7 +365,7 @@ export class DocumentService {
   ): Promise<void> {
     this.registry.get(input.collection);
 
-    if (input.confirmHardDelete !== true) {
+    if (!input.confirmHardDelete) {
       throw new DocumentServiceError(
         "HARD_DELETE_NOT_CONFIRMED",
         "Hard delete requires explicit confirmation",
@@ -510,11 +516,8 @@ export class DocumentService {
       never,
       { update: TOutput }
     >(this.registry, input.collection);
-    const collection = this.registry.get(input.collection);
-    const current = (await loadExisting(
-      this.dependencies,
-      input,
-    )) as StoredDocument<TData>;
+    const collection = this.registry.get<TData>(input.collection);
+    const current = await loadExisting<TData>(this.dependencies, input);
     await this.authorizeDocuments(input, options, "update", [current]);
 
     if (current.version !== input.expectedVersion) {
@@ -536,7 +539,7 @@ export class DocumentService {
       current,
       ...(hasActorOptions(options) ? { actor: options.actor } : {}),
     });
-    const data = parseData(
+    const data = parseData<TData>(
       collection.schema,
       result.projection.data,
       input.collection,
@@ -546,7 +549,7 @@ export class DocumentService {
       this.dependencies,
       input,
       current,
-      data as TData,
+      data,
       null,
       {
         remoteSource: adapter.remoteSource,
@@ -797,19 +800,24 @@ export class DocumentService {
     capability: string,
     authScopeIds: (string | null)[],
   ): Promise<boolean[]> {
-    const uniqueScopeIds = [...new Set(authScopeIds)];
+    const uniqueScopeIds = new Set(authScopeIds);
     const allowed = await this.requireAuthorizer().checkAccessMany({
       context: actorContext(input, options),
-      checks: uniqueScopeIds.map((targetScopeId) => ({
-        capability,
-        targetScopeId,
-      })),
+      checks: uniqueScopeIds
+        .values()
+        .map((targetScopeId) => ({
+          capability,
+          targetScopeId,
+        }))
+        .toArray(),
     });
     const allowedByScopeId = new Map(
-      uniqueScopeIds.map((scopeId, index) => [
-        scopeId,
-        allowed[index] ?? false,
-      ]),
+      uniqueScopeIds
+        .values()
+        .map((scopeId, index): [string | null, boolean] => [
+          scopeId,
+          allowed[index] ?? false,
+        ]),
     );
 
     return authScopeIds.map(

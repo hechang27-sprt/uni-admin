@@ -61,29 +61,37 @@ export function normalizeSort(sort: DocumentSort[] = []): DocumentSort[] {
 
 export function buildFilterCondition(filter: DocumentFilter): SQL | undefined {
   if ("and" in filter) {
-    return and(...filter.and.map(buildFilterCondition));
+    return and(...filter.and.map((child) => buildFilterCondition(child)));
   }
 
   if ("or" in filter) {
-    return or(...filter.or.map(buildFilterCondition));
+    return or(...filter.or.map((child) => buildFilterCondition(child)));
   }
 
   const field = buildFieldExpression(filter.field);
 
   switch (filter.op) {
-    case "eq":
+    case "eq": {
       return filter.value === null ? isNull(field) : eq(field, filter.value);
-    case "ne":
+    }
+    case "ne": {
       return filter.value === null ? isNotNull(field) : ne(field, filter.value);
-    case "gt":
+    }
+    case "gt": {
       return gt(field, filter.value);
-    case "gte":
+    }
+    case "gte": {
       return gte(field, filter.value);
-    case "lt":
+    }
+    case "lt": {
       return lt(field, filter.value);
-    case "lte":
+    }
+    case "lte": {
       return lte(field, filter.value);
+    }
   }
+
+  return undefined;
 }
 
 export function buildFieldExpression(field: DocumentField): SQL {
@@ -95,29 +103,42 @@ export function buildFieldExpression(field: DocumentField): SQL {
   }
 
   switch (field.name) {
-    case "id":
+    case "id": {
       return sql`${documentsTable.id}`;
-    case "tenantId":
+    }
+    case "tenantId": {
       return sql`${documentsTable.tenantId}`;
-    case "collection":
+    }
+    case "collection": {
       return sql`${documentsTable.collection}`;
-    case "schemaVersion":
+    }
+    case "schemaVersion": {
       return sql`${documentsTable.schemaVersion}`;
-    case "version":
+    }
+    case "version": {
       return sql`${documentsTable.version}`;
-    case "createdAt":
+    }
+    case "createdAt": {
       return sql`${documentsTable.createdAt}`;
-    case "updatedAt":
+    }
+    case "updatedAt": {
       return sql`${documentsTable.updatedAt}`;
-    case "deletedAt":
+    }
+    case "deletedAt": {
       return sql`${documentsTable.deletedAt}`;
-    case "authScopeId":
+    }
+    case "authScopeId": {
       return sql`${documentsTable.authScopeId}`;
-    case "remoteSource":
+    }
+    case "remoteSource": {
       return sql`${documentsTable.remoteSource}`;
-    case "remoteId":
+    }
+    case "remoteId": {
       return sql`${documentsTable.remoteId}`;
+    }
   }
+
+  throw new Error("Unsupported metadata field");
 }
 
 export function matchesFilter(
@@ -135,19 +156,27 @@ export function matchesFilter(
   const actual = getFieldValue(document, filter.field);
 
   switch (filter.op) {
-    case "eq":
+    case "eq": {
       return compareValues(actual, filter.value) === 0;
-    case "ne":
+    }
+    case "ne": {
       return compareValues(actual, filter.value) !== 0;
-    case "gt":
+    }
+    case "gt": {
       return compareValues(actual, filter.value) > 0;
-    case "gte":
+    }
+    case "gte": {
       return compareValues(actual, filter.value) >= 0;
-    case "lt":
+    }
+    case "lt": {
       return compareValues(actual, filter.value) < 0;
-    case "lte":
+    }
+    case "lte": {
       return compareValues(actual, filter.value) <= 0;
+    }
   }
+
+  return false;
 }
 
 export function compareDocuments(
@@ -218,5 +247,15 @@ function compareValues(
     return leftValue - rightValue;
   }
 
-  return String(leftValue).localeCompare(String(rightValue));
+  return toComparableText(leftValue).localeCompare(
+    toComparableText(rightValue),
+  );
+}
+
+function toComparableText(value: Exclude<JsonValue, null>): string {
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }

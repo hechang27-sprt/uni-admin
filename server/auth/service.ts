@@ -122,7 +122,8 @@ export class AuthRbacService implements DocumentAuthorizer {
   }
 
   async getTenantRootScopeId(tenantId: string) {
-    return (await this.repository.ensureTenantRootScope(tenantId)).scopeId;
+    const scope = await this.repository.ensureTenantRootScope(tenantId);
+    return scope.scopeId;
   }
 
   createScope(input: CreateScopeInput) {
@@ -408,17 +409,19 @@ export class AuthRbacService implements DocumentAuthorizer {
   private async resolveRole(
     input: GrantPermissionInput | AssignRoleInput,
   ): Promise<Role> {
-    const role = input.roleId
-      ? await this.repository.getRoleById({
-          tenantId: input.tenantId,
-          roleId: input.roleId,
-        })
-      : input.roleKey
-        ? await this.repository.getRoleByKey({
-            tenantId: input.tenantId,
-            key: input.roleKey,
-          })
-        : null;
+    let role: Role | null = null;
+
+    if (input.roleId) {
+      role = await this.repository.getRoleById({
+        tenantId: input.tenantId,
+        roleId: input.roleId,
+      });
+    } else if (input.roleKey) {
+      role = await this.repository.getRoleByKey({
+        tenantId: input.tenantId,
+        key: input.roleKey,
+      });
+    }
 
     if (!role) {
       throw new AuthRbacError("AUTH_ROLE_NOT_FOUND", "Role not found", input);

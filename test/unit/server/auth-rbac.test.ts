@@ -282,17 +282,19 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       key: "batch-editor",
     });
-    for (const permissionKey of [
-      "collection:tasks:create",
-      "collection:tasks:read",
-      "collection:tasks:update",
-    ]) {
-      await auth.grantPermission({
-        tenantId: tenantA,
-        roleId: role.roleId,
-        permissionKey,
-      });
-    }
+    await Promise.all(
+      [
+        "collection:tasks:create",
+        "collection:tasks:read",
+        "collection:tasks:update",
+      ].map((permissionKey) =>
+        auth.grantPermission({
+          tenantId: tenantA,
+          roleId: role.roleId,
+          permissionKey,
+        }),
+      ),
+    );
     await auth.assignRole({
       tenantId: tenantA,
       userId: user.userId,
@@ -308,15 +310,15 @@ describe("auth/RBAC service integration", () => {
         collection: "tasks",
         items: [
           {
-            authScopeId: childA!.scopeId,
+            authScopeId: childA.scopeId,
             data: { title: "A1", status: "draft" },
           },
           {
-            authScopeId: childA!.scopeId,
+            authScopeId: childA.scopeId,
             data: { title: "A2", status: "draft" },
           },
           {
-            authScopeId: childB!.scopeId,
+            authScopeId: childB.scopeId,
             data: { title: "B", status: "draft" },
           },
         ],
@@ -366,7 +368,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: limitedUser.userId,
       roleId: role.roleId,
-      scopeId: childA!.scopeId,
+      scopeId: childA.scopeId,
     });
     checkAccessMany.mockClear();
     await expect(
@@ -534,8 +536,7 @@ describe("auth/RBAC service integration", () => {
       never,
       never,
       never,
-      Partial<TaskDocument>,
-      never
+      Partial<TaskDocument>
     > = {
       remoteSource: "remote",
       async syncOne() {

@@ -25,7 +25,8 @@ export type CollectionOperationAuthInput =
   | false
   | CollectionOperationAuthDeclaration;
 
-export interface CollectionActionAuthDeclaration extends CollectionOperationAuthDeclaration {}
+export type CollectionActionAuthDeclaration =
+  CollectionOperationAuthDeclaration;
 
 export interface CollectionAuthDeclaration {
   resourceScope?: CollectionResourceScopeMode;
@@ -101,7 +102,9 @@ export class CollectionRegistry {
     return this;
   }
 
-  get(name: string): CollectionRegistration {
+  get<TData extends JsonObject = JsonObject>(
+    name: string,
+  ): CollectionRegistration<TData> {
     const collection = this.collections.get(name);
 
     if (!collection) {
@@ -114,7 +117,8 @@ export class CollectionRegistry {
       );
     }
 
-    return collection;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registered collection names establish their schema data type at runtime.
+    return collection as CollectionRegistration<TData>;
   }
 
   has(name: string): boolean {
@@ -122,7 +126,7 @@ export class CollectionRegistry {
   }
 
   list(): CollectionRegistration[] {
-    return [...this.collections.values()];
+    return this.collections.values().toArray();
   }
 }
 
@@ -211,7 +215,7 @@ export function deriveCollectionPermissionDefinitions(
     }
   }
 
-  return [...permissions.values()];
+  return permissions.values().toArray();
 }
 
 const collectionOperations: CollectionOperation[] = [

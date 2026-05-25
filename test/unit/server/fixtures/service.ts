@@ -139,7 +139,10 @@ export function createRemoteService(repository: DocumentRepository): {
     async syncList() {
       calls.syncList += 1;
       return {
-        projections: [...remoteRows.values()].map(mapRemoteTask),
+        projections: remoteRows
+          .values()
+          .map((row) => mapRemoteTask(row))
+          .toArray(),
         output: { nextCursor: null },
       };
     },

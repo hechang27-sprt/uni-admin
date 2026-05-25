@@ -10,6 +10,8 @@ import {
   type InferSelectModel,
   type SQL,
 } from "drizzle-orm";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
+import type { PgliteQueryResultHKT } from "drizzle-orm/pglite";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
 import type * as dbSchema from "#server/db/schema";
@@ -43,7 +45,10 @@ type MappableDocumentRow = Omit<
   deletedAt: Date | string | null;
 };
 type BatchUpdateRow = MappableDocumentRow & { inputOrder: number };
-type DrizzleDatabase = PgDatabase<any, typeof dbSchema>;
+type DrizzleDatabase = PgDatabase<
+  NodePgQueryResultHKT | PgliteQueryResultHKT,
+  typeof dbSchema
+>;
 
 class BatchUpdateConflict extends Error {}
 
@@ -101,7 +106,12 @@ export class DrizzleDocumentRepository implements DocumentRepository {
         ),
       );
     const rowsById = new Map(
-      rows.map((row) => [row.id, mapDocumentRow<TData>(row)]),
+      rows
+        .values()
+        .map((row): [string, StoredDocument<TData>] => [
+          row.id,
+          mapDocumentRow<TData>(row),
+        ]),
     );
 
     return input.ids.map((id) => rowsById.get(id) ?? null);
@@ -253,7 +263,12 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       .returning();
 
     const rowsByRemoteId = new Map(
-      rows.map((row) => [row.remoteId, mapDocumentRow<TData>(row)]),
+      rows
+        .values()
+        .map((row): [string | null, StoredDocument<TData>] => [
+          row.remoteId,
+          mapDocumentRow<TData>(row),
+        ]),
     );
 
     return record.projections.map((projection) =>
@@ -284,7 +299,7 @@ export class DrizzleDocumentRepository implements DocumentRepository {
       )
       .returning({ id: documentsTable.id });
 
-    const deletedIds = new Set(rows.map((row) => row.id));
+    const deletedIds = new Set(rows.values().map((row) => row.id));
     return input.ids.filter((id) => deletedIds.has(id));
   }
 }
@@ -344,9 +359,11 @@ async function assertAuthScopesBelongToTenant(
     return;
   }
 
-  const scopedIds = [...new Set(authScopeIds)].filter(
-    (authScopeId): authScopeId is string => authScopeId !== null,
-  );
+  const scopedIds = new Set(authScopeIds)
+    .values()
+    .filter((authScopeId): authScopeId is string => authScopeId !== null)
+    .toArray();
+
   if (scopedIds.length === 0) {
     return;
   }
@@ -360,7 +377,7 @@ async function assertAuthScopesBelongToTenant(
         inArray(authScopesTable.scopeId, scopedIds),
       ),
     );
-  const validScopeIds = new Set(rows.map((row) => row.scopeId));
+  const validScopeIds = new Set(rows.values().map((row) => row.scopeId));
   const invalidScopeId = scopedIds.find(
     (scopeId) => !validScopeIds.has(scopeId),
   );
@@ -381,24 +398,26 @@ function buildBatchUpdateQuery<TData extends JsonObject>(
   records: UpdateDocumentRecord<TData>[],
 ): SQL {
   const values = records.map((record, index) => {
-    return sql`(
-      ${record.id}::uuid,
-      ${record.tenantId}::uuid,
-      ${record.collection}::text,
-      ${record.expectedVersion}::integer,
-      ${record.schemaVersion ?? null}::integer,
-      ${record.data ?? null}::jsonb,
-      ${record.data !== undefined}::boolean,
-      ${"authScopeId" in record ? (record.authScopeId ?? null) : null}::uuid,
-      ${"authScopeId" in record}::boolean,
-      ${"deletedAt" in record ? (record.deletedAt ?? null) : null}::timestamp with time zone,
-      ${"deletedAt" in record}::boolean,
-      ${"remoteSource" in record ? (record.remoteSource ?? null) : null}::text,
-      ${"remoteSource" in record}::boolean,
-      ${"remoteId" in record ? (record.remoteId ?? null) : null}::text,
-      ${"remoteId" in record}::boolean,
-      ${index}::integer
-    )`;
+    return sql`
+      (
+            ${record.id}::uuid,
+            ${record.tenantId}::uuid,
+            ${record.collection}::text,
+            ${record.expectedVersion}::integer,
+            ${record.schemaVersion ?? null}::integer,
+            ${record.data ?? null}::jsonb,
+            ${record.data !== undefined}::boolean,
+            ${"authScopeId" in record ? (record.authScopeId ?? null) : null}::uuid,
+            ${"authScopeId" in record}::boolean,
+            ${"deletedAt" in record ? (record.deletedAt ?? null) : null}::timestamp with time zone,
+            ${"deletedAt" in record}::boolean,
+            ${"remoteSource" in record ? (record.remoteSource ?? null) : null}::text,
+            ${"remoteSource" in record}::boolean,
+            ${"remoteId" in record ? (record.remoteId ?? null) : null}::text,
+            ${"remoteId" in record}::boolean,
+            ${index}::integer
+          )
+    `;
   });
 
   return sql`
@@ -480,6 +499,7 @@ function mapDocumentRow<TData extends JsonObject>(
     tenantId: row.tenantId,
     collection: row.collection,
     schemaVersion: row.schemaVersion,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Document JSON is schema-validated before repository writes.
     data: row.data as TData,
     authScopeId: row.authScopeId,
     remoteSource: row.remoteSource,

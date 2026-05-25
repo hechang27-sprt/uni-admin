@@ -110,7 +110,7 @@ export interface RemoteCollectionAdapter<
     RemoteAdapterContext & {
       current: StoredDocument<TData>;
     },
-    RemoteDeleteResult<TData, TOutputs["delete"]> | void
+    RemoteDeleteResult<TData, TOutputs["delete"]> | undefined
   >;
 }
 
