@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
-- **Last Active**: 2026-05-22
+- **Total Sessions**: 11
+- **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~330 | Active |
+| `journal-1.md` | ~363 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-05-25 | Convert services to direct class APIs | `aa7731a`, `8f9c647` | `-` |
 | 10 | 2026-05-22 | Implement user auth and RBAC layer | `bdf45bd` | `-` |
 | 9 | 2026-05-22 | User Auth RBAC Planning | `c9a839a` | `-` |
 | 8 | 2026-05-22 | Sync docs and bootstrap specs | `5182cbe`, `d7bf915` | `-` |

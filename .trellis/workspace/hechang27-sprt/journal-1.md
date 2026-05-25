@@ -328,3 +328,36 @@ Implemented service-level username/password auth, tenant membership, scope-tree 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: Convert services to direct class APIs
+
+**Date**: 2026-05-25
+**Task**: Convert services to direct class APIs
+
+### Summary
+
+Converted the auth and document services to direct class construction, aligned constructor configuration types and exports, updated documentation examples, and verified typechecking and unit tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `aa7731a` | (see git log) |
+| `8f9c647` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
