@@ -361,3 +361,35 @@ Converted the auth and document services to direct class construction, aligned c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Enforce batch-only database access primitives
+
+**Date**: 2026-05-25
+**Task**: Enforce batch-only database access primitives
+
+### Summary
+
+Refactored document and auth/RBAC persistence to batch-only repeated operations, batched authorization and delegated checks, eliminated redundant mutation reads, added pgLite regressions, and recorded server contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `65505da7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
