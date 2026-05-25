@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   vite: { plugins: [tailwindcss()] },
   css: ["./app/assets/css/main.css"],
-  modules: ["@pinia/nuxt"],
+  modules: ["@pinia/nuxt", "@nuxt/eslint"],
   typescript: {
     nodeTsConfig: {
       compilerOptions: {
