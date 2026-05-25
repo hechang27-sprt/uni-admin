@@ -105,6 +105,43 @@ When you've made similar changes to multiple files:
 2. **Search**: Run grep to find any missed
 3. **Consider**: Should this be abstracted?
 
+### Preserve Iterator Pipelines Until Array Boundaries
+
+When a `Map`, `Set`, or array iterator is transformed again, keep it as an
+iterator until a called API or returned contract specifically requires an
+array. Do not materialize an intermediate array solely to call `.map()`,
+`.filter()`, `.find()`, or to construct another `Map`/`Set`.
+
+```typescript
+// BAD - the array exists only to feed more collection operations
+const permissionKeys = new Set(input.permissionKeys).values().toArray();
+const insertValues = permissionKeys.map((permissionKey) => ({
+  permissionKey,
+}));
+const rowsById = new Map(rows.map((row) => [row.id, row]));
+
+// GOOD - retain set semantics, materialize only at an array-taking boundary
+const permissionKeys = new Set(input.permissionKeys);
+const insertValues = permissionKeys
+  .values()
+  .map((permissionKey) => ({ permissionKey }))
+  .toArray();
+const rowsById = new Map(
+  rows.values().map((row): [string, Row] => [row.id, row]),
+);
+```
+
+**Boundary rule**:
+
+- Keep a `Set` when deduplication/membership is still part of the operation.
+- Pass iterators directly to `new Map(...)` and `new Set(...)`.
+- Use `.toArray()` at the boundary for array-only consumers such as an API
+  request payload, a database helper requiring `T[]`, or a declared array
+  return type.
+- After modernizing a collection pipeline, search adjacent code for
+  `new Set(array.map(...))`, `new Map(array.map(...))`, and spread conversions
+  from `.values()` that encode the same avoidable intermediate allocation.
+
 ### Reducers Should Use Exhaustive Structure
 
 When state is derived from action-like values (`action`, `kind`, `status`,
@@ -140,6 +177,7 @@ of that replay model.
 - [ ] No repeated untyped payload field extraction outside a shared decoder
 - [ ] Constants defined in one place
 - [ ] Similar patterns follow same structure
+- [ ] Iterator pipelines are materialized only at array-taking boundaries
 - [ ] Reducer/action transitions live in one reducer or command dispatcher
 
 ---
