@@ -1,14 +1,14 @@
 # Repository And Database
 
-The repository layer is Drizzle-backed. There is no separate in-memory
+The repository layer is Kysely-backed. There is no separate in-memory
 repository implementation.
 
 ## Schema
 
-`server/db/schema.ts` defines:
+`server/db/schema.ts` defines the typed Kysely `Database` shape, including:
 
-- `tenantsTable`
-- `documentsTable`
+- `tenants`
+- `documents`
 
 Document rows include framework identity, tenant boundary, collection name,
 schema version, JSONB projection data, optional remote identity, optimistic
@@ -23,10 +23,68 @@ where remote_source is not null and remote_id is not null
 
 Preserve this distinction between local-only rows and remote-backed rows.
 
+## Scenario: Kysely Client And Baseline Migration Boundary
+
+### 1. Scope / Trigger
+
+- Trigger: changing database clients, migrations, table interfaces, casing
+  conversion, or JSONB persistence behavior.
+
+### 2. Signatures
+
+```ts
+type DatabaseClient = Kysely<Database>;
+function createInMemoryDb(): DatabaseClient;
+function migrateToLatest(database: DatabaseClient): Promise<void>;
+```
+
+### 3. Contracts
+
+- The TypeScript `Database` contract uses camelCase table and column names.
+- Both PostgreSQL and pgLite clients configure
+  `CamelCasePlugin({ maintainNestedObjectKeys: true })`.
+- Physical database identifiers remain snake_case; migrations and raw SQL
+  fragments use those physical names explicitly.
+- `maintainNestedObjectKeys: true` is required because `documents.data` is
+  application JSON and keys such as `external_ref` must not be renamed.
+- The Kysely baseline targets an empty database. Existing Drizzle migration
+  history and data are not upgraded in place.
+
+### 4. Validation & Error Matrix
+
+- Migration failure -> `migrateToLatest()` rejects before tests seed data.
+- Omitting `maintainNestedObjectKeys: true` -> document JSON keys can be
+  silently camel-cased on reads, violating the stored payload contract.
+
+### 5. Good/Base/Bad Cases
+
+- Good: builders refer to `authScopeId` and the plugin targets
+  `auth_scope_id`; a document `data.external_ref` is returned unchanged.
+- Base: tests create a pgLite Kysely database, migrate it, then seed tenants.
+- Bad: write raw SQL with camelCase physical columns or use the default
+  `CamelCasePlugin` mapping for JSONB document rows.
+
+### 6. Tests Required
+
+- pgLite migration from an empty database followed by document/auth behavior
+  suites.
+- An assertion that snake_case JSON data keys round-trip unchanged through
+  repository reads.
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: maps plain JSON result objects recursively.
+plugins: [new CamelCasePlugin()]
+
+// Correct: transforms row identifiers without altering document JSON.
+plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })]
+```
+
 ## Repository Implementation
 
-`server/data/documents/repository/drizzle.ts` implements
-`DrizzleDocumentRepository`.
+`server/data/documents/repository/kysely.ts` implements
+`KyselyDocumentRepository`.
 
 Important patterns:
 
@@ -128,18 +186,21 @@ filter/sort SQL expression building:
 
 ## Database Utilities
 
-- Runtime `db` is created in `server/util/drizzle.ts` from `DATABASE_URL`.
+- Runtime `db` is created in `server/util/kysely.ts` from `DATABASE_URL`.
 - Tests use `createInMemoryDb()` from the same file to create a pgLite-backed
-  Drizzle database.
-- Drizzle Kit config lives in `drizzle.config.ts` and writes migrations under
-  `drizzle/`.
+  Kysely database.
+- Structured queries use `CamelCasePlugin({ maintainNestedObjectKeys: true })`
+  to map camelCase TypeScript identifiers to snake_case SQL without changing
+  JSONB document payload keys.
+- `server/db/migrate.ts` runs the Kysely baseline migration from
+  `server/db/migrations/` for empty databases.
 
 ## Anti-Patterns
 
 - Do not reintroduce a fake in-memory repository for service tests.
 - Do not duplicate query normalization in the service layer.
-- Do not build SQL with string concatenation. Use Drizzle expressions and
-  `sql` interpolation as in `buildBatchUpdateQuery`.
+- Do not build SQL with string concatenation. Use Kysely builders and `sql`
+  interpolation as in `buildBatchUpdateQuery`.
 - Do not reintroduce scalar item insert/read/update/delete repository methods
   or per-scope validation queries.
 - Do not update remote projection rows without clearing `deletedAt` when a

@@ -11,7 +11,7 @@ document rows in PostgreSQL/pgLite and service-level optimistic concurrency.
 - The document service returns `StoredDocument` objects with `version`,
   `createdAt`, `updatedAt`, and `deletedAt` metadata.
 - Remote-backed collections store local JSONB projections and read locally.
-- Tests construct state through `DrizzleDocumentRepository` and
+- Tests construct state through `KyselyDocumentRepository` and
   `DocumentService`.
 
 ## When To Use Pinia

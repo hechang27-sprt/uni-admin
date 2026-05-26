@@ -1,7 +1,7 @@
 # Type Safety
 
 The project uses TypeScript through Nuxt project references, Zod for runtime
-document validation, and Drizzle types for database rows.
+document validation, and Kysely database interfaces for persistence rows.
 
 ## TypeScript Entrypoints
 

@@ -8,19 +8,18 @@ import {
   it,
   vi,
 } from "vitest";
-import { sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { sql } from "kysely";
 import { z } from "zod";
 
 import {
-  DrizzleAuthRbacRepository,
+  KyselyAuthRbacRepository,
   AuthRbacService,
   builtInAdminPermissions,
 } from "#server/auth";
-import { tenantsTable } from "#server/db/schema";
-import { createInMemoryDb } from "#server/util/drizzle";
+import { migrateToLatest } from "#server/db/migrate";
+import { createInMemoryDb } from "#server/util/kysely";
 import {
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
   createCollectionRegistry,
   DocumentService,
   type RemoteCollectionAdapter,
@@ -43,22 +42,24 @@ describe("auth/RBAC service integration", () => {
 
   beforeEach(async () => {
     const db = getTestDatabase();
-    await migrate(db, { migrationsFolder: "drizzle" });
-    await db.insert(tenantsTable).values([
-      { id: tenantA, name: "Tenant A" },
-      { id: tenantB, name: "Tenant B" },
-    ]);
+    await migrateToLatest(db);
+    await db
+      .insertInto("tenants")
+      .values([
+        { id: tenantA, name: "Tenant A" },
+        { id: tenantB, name: "Tenant B" },
+      ])
+      .execute();
   });
 
   afterEach(async () => {
     const db = getTestDatabase();
-    await db.execute(sql`drop schema if exists drizzle cascade`);
-    await db.execute(sql`drop schema if exists public cascade`);
-    await db.execute(sql`create schema public`);
+    await sql`drop schema if exists public cascade`.execute(db);
+    await sql`create schema public`.execute(db);
   });
 
   afterAll(async () => {
-    await database?.$client.close();
+    await database?.destroy();
     database = null;
   });
 
@@ -392,6 +393,7 @@ describe("auth/RBAC service integration", () => {
   it("rejects trusted document writes with cross-tenant auth scopes", async () => {
     const auth = createTestAuthService();
     const { service } = await createTaskServiceWithAuth(auth);
+    const repository = new KyselyDocumentRepository(getTestDatabase());
     const tenantBRoot = await auth.ensureTenantRootScope(tenantB);
 
     await expect(
@@ -418,10 +420,114 @@ describe("auth/RBAC service integration", () => {
         ],
       }),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+
+    const created = await service.create<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      data: { title: "Local", status: "draft" },
+    });
+
+    await expect(
+      repository.updateMany<TaskDocument>({
+        records: [
+          {
+            tenantId: tenantA,
+            collection: "tasks",
+            id: created.id,
+            expectedVersion: created.version,
+            authScopeId: tenantBRoot.scopeId,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+
+    await expect(
+      repository.upsertRemoteProjections<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        schemaVersion: 1,
+        remoteSource: "remote",
+        projections: [
+          {
+            remoteId: "wrong-scope",
+            authScopeId: tenantBRoot.scopeId,
+            data: { title: "Remote", status: "draft" },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+  });
+
+  it("preserves tenant-scoped role assignment validation precedence", async () => {
+    const repository = new KyselyAuthRbacRepository(getTestDatabase());
+    const auth = new AuthRbacService({ repository });
+    const [tenantARoot, tenantBRoot] = await Promise.all([
+      auth.ensureTenantRootScope(tenantA),
+      auth.ensureTenantRootScope(tenantB),
+    ]);
+    const [tenantARole, tenantBRole] = await Promise.all([
+      auth.createRole({ tenantId: tenantA, key: "tenant-a-role" }),
+      auth.createRole({ tenantId: tenantB, key: "tenant-b-role" }),
+    ]);
+    const [member, noMembership] = await Promise.all([
+      auth.createUser(),
+      auth.createUser(),
+    ]);
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: member.userId,
+    });
+
+    await expect(
+      repository.assignRoles({
+        tenantId: tenantA,
+        assignments: [
+          {
+            userId: member.userId,
+            roleId: tenantBRole.roleId,
+            scopeId: tenantARoot.scopeId,
+          },
+          {
+            userId: noMembership.userId,
+            roleId: tenantARole.roleId,
+            scopeId: tenantARoot.scopeId,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "AUTH_TENANT_MEMBERSHIP_REQUIRED",
+      details: { userId: noMembership.userId },
+    });
+
+    await expect(
+      repository.assignRoles({
+        tenantId: tenantA,
+        assignments: [
+          {
+            userId: member.userId,
+            roleId: tenantBRole.roleId,
+            scopeId: tenantARoot.scopeId,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "AUTH_ROLE_NOT_FOUND" });
+
+    await expect(
+      repository.assignRoles({
+        tenantId: tenantA,
+        assignments: [
+          {
+            userId: member.userId,
+            roleId: tenantARole.roleId,
+            scopeId: tenantBRoot.scopeId,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "AUTH_SCOPE_NOT_FOUND" });
   });
 
   it("bootstraps owner grants through one bulk repository operation", async () => {
-    const repository = new DrizzleAuthRbacRepository(getTestDatabase());
+    const repository = new KyselyAuthRbacRepository(getTestDatabase());
     const grantPermissions = vi.spyOn(repository, "grantPermissions");
     const auth = new AuthRbacService({ repository });
     const owner = await auth.bootstrapTenantOwner({
@@ -446,7 +552,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("checks delegated multi-capability assignments in one batch and rejects escalation", async () => {
-    const repository = new DrizzleAuthRbacRepository(getTestDatabase());
+    const repository = new KyselyAuthRbacRepository(getTestDatabase());
     const checkAccessMany = vi.spyOn(repository, "checkAccessMany");
     const auth = new AuthRbacService({ repository });
     await auth.syncPermissions([
@@ -572,7 +678,7 @@ describe("auth/RBAC service integration", () => {
     await auth.syncCollectionPermissions(registry);
     const service = new DocumentService({
       registry,
-      repository: new DrizzleDocumentRepository(getTestDatabase()),
+      repository: new KyselyDocumentRepository(getTestDatabase()),
       authorizer: auth,
     });
     const root = await auth.ensureTenantRootScope(tenantA);
@@ -631,7 +737,7 @@ describe("auth/RBAC service integration", () => {
     return {
       service: new DocumentService({
         registry,
-        repository: new DrizzleDocumentRepository(getTestDatabase()),
+        repository: new KyselyDocumentRepository(getTestDatabase()),
         authorizer: auth,
       }),
     };
@@ -639,7 +745,7 @@ describe("auth/RBAC service integration", () => {
 
   function createTestAuthService() {
     return new AuthRbacService({
-      repository: new DrizzleAuthRbacRepository(getTestDatabase()),
+      repository: new KyselyAuthRbacRepository(getTestDatabase()),
     });
   }
 

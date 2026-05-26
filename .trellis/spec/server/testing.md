@@ -1,6 +1,6 @@
 # Server Testing
 
-Server data-layer tests should exercise the real Drizzle repository through
+Server data-layer tests should exercise the real Kysely repository through
 pgLite, not a fake repository.
 
 ## Current Test Setup
@@ -8,11 +8,11 @@ pgLite, not a fake repository.
 `test/unit/server/service.test.ts`:
 
 - creates one pgLite database with `createInMemoryDb()`;
-- wraps it in `DrizzleDocumentRepository`;
-- runs Drizzle migrations before each test;
-- seeds test tenants through `tenantsTable`;
+- wraps it in `KyselyDocumentRepository`;
+- runs `migrateToLatest()` before each test;
+- seeds test tenants through `database.insertInto("tenants")`;
 - drops and recreates schemas after each test;
-- closes `database.$client` after the suite.
+- closes `database.destroy()` after the suite.
 
 `test/unit/server/fixtures/service.ts` owns reusable schemas, tenant IDs,
 registry construction, document service construction, and remote adapter

@@ -26,7 +26,7 @@ The docs intentionally separate different reader goals:
 ## Current Status
 
 The implemented framework surface is still data-layer only. The current data
-layer uses a Drizzle-backed document repository, with pgLite-backed unit tests
+layer uses a Kysely-backed document repository, with pgLite-backed unit tests
 covering the same repository behavior. There are no stable Nuxt route handlers,
 composables, generated tables, UI schema runtime, operation queue, or custom
 action runner yet. Treat examples in the "current status" docs as service-level

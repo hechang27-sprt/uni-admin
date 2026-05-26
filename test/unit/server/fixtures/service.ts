@@ -16,6 +16,7 @@ const taskSchema = z.object({
   status: z.enum(["draft", "submitted", "done"]),
   priority: z.number(),
   tags: z.array(z.string()).default([]),
+  external_ref: z.string().optional(),
   nested: z
     .object({
       score: z.number(),

@@ -1,5 +1,5 @@
 export { normalizeListInput, normalizeSort } from "./query";
-export { DrizzleDocumentRepository } from "./drizzle";
+export { KyselyDocumentRepository } from "./kysely";
 export type {
   DocumentRepository,
   InsertManyDocumentsRecord,

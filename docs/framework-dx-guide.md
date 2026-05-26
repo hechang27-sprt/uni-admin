@@ -21,13 +21,13 @@ boundary. You write TypeScript code to:
 
 1. Define a local document schema.
 2. Register a collection.
-3. Create a Drizzle-backed repository.
+3. Create a Kysely-backed repository.
 4. Create a document service.
 5. Call service methods directly.
 
 There are no generated routes, table views, form builders, or client
 composables yet. Unit tests use pgLite to run the same repository contract
-in-memory, but the public document repository is `DrizzleDocumentRepository`.
+in-memory, but the public document repository is `KyselyDocumentRepository`.
 
 ## Tutorial: Register a Local Collection
 
@@ -52,9 +52,9 @@ Create a registry and service:
 import {
   createCollectionRegistry,
   DocumentService,
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
 } from "../server/data/documents";
-import { db } from "../server/util/drizzle";
+import { db } from "../server/util/kysely";
 
 const registry = createCollectionRegistry([
   {
@@ -66,7 +66,7 @@ const registry = createCollectionRegistry([
 
 const service = new DocumentService({
   registry,
-  repository: new DrizzleDocumentRepository(db),
+  repository: new KyselyDocumentRepository(db),
 });
 ```
 
@@ -316,15 +316,15 @@ routes, composables, or generated management UI yet.
 Create the auth/RBAC service beside the document service:
 
 ```ts
-import { AuthRbacService, DrizzleAuthRbacRepository } from "#server/auth";
+import { AuthRbacService, KyselyAuthRbacRepository } from "#server/auth";
 import {
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
   DocumentService,
   createCollectionRegistry,
 } from "#server/data/documents";
 
 const auth = new AuthRbacService({
-  repository: new DrizzleAuthRbacRepository(db),
+  repository: new KyselyAuthRbacRepository(db),
 });
 
 const registry = createCollectionRegistry([
@@ -343,7 +343,7 @@ await auth.syncCollectionPermissions(registry);
 
 const service = new DocumentService({
   registry,
-  repository: new DrizzleDocumentRepository(db),
+  repository: new KyselyDocumentRepository(db),
   authorizer: auth,
 });
 ```
@@ -377,26 +377,25 @@ by `admin:documents:set-scope`.
 
 ## Local Testing Setup
 
-Unit tests create a pgLite database, run the Drizzle migrations, seed tenants,
+Unit tests create a pgLite database, run the Kysely baseline migration, seed tenants,
 and then construct the same repository class used by application code:
 
 ```ts
-import { migrate } from "drizzle-orm/pglite/migrator";
-
-import { tenantsTable } from "#server/db/schema";
-import { createInMemoryDb } from "#server/util/drizzle";
-import { DrizzleDocumentRepository } from "#server/data/documents";
+import { migrateToLatest } from "#server/db/migrate";
+import { createInMemoryDb } from "#server/util/kysely";
+import { KyselyDocumentRepository } from "#server/data/documents";
 
 const database = createInMemoryDb();
-await migrate(database, { migrationsFolder: "drizzle" });
+await migrateToLatest(database);
 await database
-  .insert(tenantsTable)
-  .values([{ id: tenantId, name: "Test Tenant" }]);
+  .insertInto("tenants")
+  .values([{ id: tenantId, name: "Test Tenant" }])
+  .execute();
 
-const repository = new DrizzleDocumentRepository(database);
+const repository = new KyselyDocumentRepository(database);
 ```
 
-Close the pgLite client after the test suite with `database.$client.close()`.
+Close the pgLite client after the test suite with `database.destroy()`.
 
 ## Current Error Handling
 

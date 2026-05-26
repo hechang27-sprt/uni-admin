@@ -13,14 +13,14 @@
 ### 2. Signatures
 
 - Public auth surface: `server/auth/index.ts`.
-- Repository: `new DrizzleAuthRbacRepository(db)`.
+- Repository: `new KyselyAuthRbacRepository(db)`.
 - Service class: `new AuthRbacService({ repository })`.
 - Document integration:
 
 ```ts
 new DocumentService({
   registry,
-  repository: new DrizzleDocumentRepository(db),
+  repository: new KyselyDocumentRepository(db),
   authorizer: authRbacService,
 });
 ```
@@ -139,7 +139,7 @@ interface TenantActorContext {
 
 ### 6. Tests Required
 
-- pgLite migration test coverage through `migrate(db, { migrationsFolder })`.
+- pgLite migration test coverage through `migrateToLatest(db)`.
 - Username/password verification and actor resolution.
 - Tenant isolation for memberships, scopes, role assignments, and documents.
 - List filtering with child-scope and tenant-root/null documents.

@@ -1,7 +1,7 @@
 export { AuthRbacError, isAuthRbacError } from "./errors";
 export { hashPassword, verifyPassword } from "./password";
 export {
-  DrizzleAuthRbacRepository,
+  KyselyAuthRbacRepository,
   tenantRootScopeKey,
   type AuthRbacRepository,
 } from "./repository";

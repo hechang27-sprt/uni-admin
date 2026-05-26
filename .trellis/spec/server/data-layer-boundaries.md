@@ -18,7 +18,7 @@ contracts.
 - `server/data/documents/service/` owns service contracts, implementation, and
   service helper functions.
 - `server/data/documents/repository/` owns repository contracts, query
-  normalization/builders, and Drizzle persistence.
+  normalization/builders, and Kysely persistence.
 - `server/data/documents/index.ts` re-exports the public surface.
 
 ## Public Surface
@@ -47,6 +47,6 @@ surface. Current examples:
 
 - Do not let custom action code mutate database rows directly; use the document
   service projection/write path.
-- Do not put remote API calls inside Drizzle transactions.
+- Do not put remote API calls inside Kysely transactions.
 - Do not bypass `CollectionRegistry` or Zod schemas before persistence.
 - Do not import private service helpers as application API.

@@ -12,16 +12,15 @@ app/
 server/
   data/documents/
   db/schema.ts
-  util/drizzle.ts
+  db/migrate.ts
+  db/migrations/
+  util/kysely.ts
 test/
   unit/server/
 docs/
   README.md
   framework-dx-guide.md
   data-layer-development-notes.md
-drizzle/
-  0000_melted_leech.sql
-  meta/
 ```
 
 ## Placement Rules
@@ -31,8 +30,8 @@ drizzle/
   Tailwind with `@import "tailwindcss";`.
 - Put framework server code under `server/`, not under `app/`.
 - Put document data-layer code under `server/data/documents/`.
-- Put database schema in `server/db/schema.ts` and generated migrations under
-  `drizzle/`.
+- Put the Kysely database contract in `server/db/schema.ts` and migration
+  sources under `server/db/migrations/`.
 - Put unit tests under `test/unit/`; current server data-layer tests live in
   `test/unit/server/service.test.ts` with helpers in
   `test/unit/server/fixtures/service.ts`.

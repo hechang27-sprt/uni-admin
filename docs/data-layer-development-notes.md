@@ -20,7 +20,7 @@ Implemented today:
 - Remote response validation and projection mapping.
 - Service-level user identity, username/password credentials, tenant
   memberships, scope-tree RBAC, and actor-scoped document authorization.
-- Drizzle-backed repository implementation for runtime use and pgLite-backed
+- Kysely-backed repository implementation for runtime use and pgLite-backed
   unit tests.
 
 Not implemented yet:
@@ -76,7 +76,7 @@ table:
   implement resource-scoped RBAC.
 
 The service API is exported from `#server/auth`. Projects create a
-`DrizzleAuthRbacRepository`, then `AuthRbacService`, and pass that service as the
+`KyselyAuthRbacRepository`, then `AuthRbacService`, and pass that service as the
 `authorizer` option to `DocumentService` when they want actor-scoped document operations.
 
 Existing document methods remain trusted/internal entrypoints when called
@@ -116,9 +116,9 @@ import { z } from "zod";
 import {
   createCollectionRegistry,
   DocumentService,
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
 } from "../server/data/documents";
-import { db } from "../server/util/drizzle";
+import { db } from "../server/util/kysely";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -137,7 +137,7 @@ const registry = createCollectionRegistry([
 
 const service = new DocumentService({
   registry,
-  repository: new DrizzleDocumentRepository(db),
+  repository: new KyselyDocumentRepository(db),
 });
 ```
 
@@ -151,7 +151,7 @@ Batch methods are explicit:
 - `getByIds` returns results in the same order as the requested IDs and uses
   `null` for missing documents.
 - `updateMany` validates every item before the repository write and uses one
-  Drizzle transaction for the batch update. A stale or missing item prevents
+  Kysely transaction for the batch update. A stale or missing item prevents
   partial writes.
 
 List queries accept `filter`, `sort`, `limit`, `offset`, and `includeDeleted`.
@@ -265,9 +265,9 @@ The current document repository is split by responsibility:
 
 - `server/data/documents/repository/types.ts` defines the repository contract.
 - `server/data/documents/repository/query.ts` normalizes list input and builds
-  Drizzle filter/sort expressions.
-- `server/data/documents/repository/drizzle.ts` implements
-  `DrizzleDocumentRepository`, including batch update SQL and remote projection
+  Kysely filter/sort expressions.
+- `server/data/documents/repository/kysely.ts` implements
+  `KyselyDocumentRepository`, including batch update SQL and remote projection
   upserts.
 - `server/data/documents/repository/index.ts` is the public repository barrel.
 - `server/data/documents/service/contracts.ts` defines the service input,
@@ -277,8 +277,8 @@ The current document repository is split by responsibility:
   version, remote adapter, and projection helpers.
 
 There is no separate in-memory repository implementation now. Unit tests create
-a pgLite database with `createInMemoryDb()` from `server/util/drizzle.ts`, run
-the Drizzle migrations, and exercise the same `DrizzleDocumentRepository` used
+a pgLite database with `createInMemoryDb()` from `server/util/kysely.ts`, run
+the Kysely baseline migration, and exercise the same `KyselyDocumentRepository` used
 by the service.
 
 ## Type-Checking Notes
@@ -334,7 +334,7 @@ Keep data-layer changes narrow:
 - Preserve all-or-nothing semantics for batch updates.
 - Keep remote calls outside local database transactions.
 - Keep remote-backed read semantics local-only.
-- Add or update pgLite-backed unit coverage for `DrizzleDocumentRepository`
+- Add or update pgLite-backed unit coverage for `KyselyDocumentRepository`
   behavior.
 
 Future operation queue work should reuse the document service for projection

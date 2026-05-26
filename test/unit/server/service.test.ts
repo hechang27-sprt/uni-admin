@@ -7,14 +7,13 @@ import {
   expect,
   it,
 } from "vitest";
-import { sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { sql } from "kysely";
 
-import { tenantsTable } from "#server/db/schema";
-import { createInMemoryDb } from "#server/util/drizzle";
+import { migrateToLatest } from "#server/db/migrate";
+import { createInMemoryDb } from "#server/util/kysely";
 import {
   DocumentServiceError,
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
   type DocumentRepository,
   type DocumentService,
 } from "#server/data/documents";
@@ -28,7 +27,7 @@ import {
   type TaskDocument,
 } from "./fixtures/service";
 
-describe.each([{ name: "pgLite Drizzle repository" }])(
+describe.each([{ name: "pgLite Kysely repository" }])(
   "local document service ($name)",
   () => {
     let database: ReturnType<typeof createInMemoryDb> | null = null;
@@ -36,7 +35,7 @@ describe.each([{ name: "pgLite Drizzle repository" }])(
 
     beforeAll(() => {
       database = createInMemoryDb();
-      repository = new DrizzleDocumentRepository(database);
+      repository = new KyselyDocumentRepository(database);
     });
 
     beforeEach(async () => {
@@ -48,7 +47,7 @@ describe.each([{ name: "pgLite Drizzle repository" }])(
     });
 
     afterAll(async () => {
-      await database?.$client.close();
+      await database?.destroy();
       database = null;
       repository = null;
     });
@@ -56,19 +55,21 @@ describe.each([{ name: "pgLite Drizzle repository" }])(
     async function prepareTestDatabase(): Promise<void> {
       const db = getTestDatabase();
 
-      await migrate(db, { migrationsFolder: "drizzle" });
-      await db.insert(tenantsTable).values([
-        { id: tenantA, name: "Test Tenant A" },
-        { id: tenantB, name: "Test Tenant B" },
-      ]);
+      await migrateToLatest(db);
+      await db
+        .insertInto("tenants")
+        .values([
+          { id: tenantA, name: "Test Tenant A" },
+          { id: tenantB, name: "Test Tenant B" },
+        ])
+        .execute();
     }
 
     async function dropTestDatabaseTables(): Promise<void> {
       const db = getTestDatabase();
 
-      await db.execute(sql`drop schema if exists drizzle cascade`);
-      await db.execute(sql`drop schema if exists public cascade`);
-      await db.execute(sql`create schema public`);
+      await sql`drop schema if exists public cascade`.execute(db);
+      await sql`create schema public`.execute(db);
     }
 
     function getTestDatabase(): ReturnType<typeof createInMemoryDb> {
@@ -109,6 +110,31 @@ describe.each([{ name: "pgLite Drizzle repository" }])(
           data: { title: "Draft", status: "invalid", priority: 1 },
         }),
       ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    });
+
+    it("preserves snake_case keys in document JSON through row casing conversion", async () => {
+      const service = createTestService();
+      const created = await service.create<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        data: {
+          title: "External key",
+          status: "draft",
+          priority: 1,
+          tags: [],
+          external_ref: "source-record",
+        },
+      });
+
+      await expect(
+        service.getById<TaskDocument>({
+          tenantId: tenantA,
+          collection: "tasks",
+          id: created.id,
+        }),
+      ).resolves.toMatchObject({
+        data: { external_ref: "source-record" },
+      });
     });
 
     it("covers create, getById, list, update, patch, softDelete, restore, and hardDelete", async () => {

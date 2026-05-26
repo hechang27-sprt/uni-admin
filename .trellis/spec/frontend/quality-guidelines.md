@@ -25,7 +25,7 @@ rg "To be fille[d]|TODO: fil[l]|placeholde[r]" .trellis/spec
 - Server data-layer behavior is covered in `test/unit/server/service.test.ts`.
 - Shared test setup belongs in `test/unit/server/fixtures/service.ts`.
 - Unit tests use pgLite through `createInMemoryDb()` and migrate the real
-  Drizzle schema before exercising `DrizzleDocumentRepository`.
+  Kysely baseline before exercising `KyselyDocumentRepository`.
 - Add tests for tenant isolation, optimistic concurrency, validation failures,
   batch all-or-nothing behavior, remote projection behavior, and local-only
   reads when those areas change.
@@ -39,12 +39,12 @@ rg "To be fille[d]|TODO: fil[l]|placeholde[r]" .trellis/spec
 - Do remote mutations update local projections only after the remote call
   succeeds?
 - Are docs/examples clear about what exists today versus future API sketches?
-- Are generated files such as `.nuxt/` and Drizzle metadata handled
+- Are generated files such as `.nuxt/` and migration metadata handled
   intentionally?
 
 ## Anti-Patterns
 
 - Do not rely on build success alone for data-layer behavior.
 - Do not add tests that mock away the repository when the behavior depends on
-  Drizzle SQL, transactions, migrations, or pgLite compatibility.
+  Kysely SQL, transactions, migrations, or pgLite compatibility.
 - Do not leave Trellis spec templates or filler text in `.trellis/spec/`.

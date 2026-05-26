@@ -31,7 +31,7 @@ export type {
   ResolvedCollectionOperationAuth,
 } from "./registry";
 export {
-  DrizzleDocumentRepository,
+  KyselyDocumentRepository,
   normalizeListInput,
   normalizeSort,
   type DocumentRepository,

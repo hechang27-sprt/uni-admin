@@ -1,19 +1,5 @@
-import {
-  and,
-  eq,
-  gt,
-  gte,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  ne,
-  or,
-  sql,
-  type SQL,
-} from "drizzle-orm";
+import { sql, type RawBuilder } from "kysely";
 
-import { documentsTable } from "#server/db/schema";
 import type {
   DocumentField,
   DocumentFilter,
@@ -59,86 +45,60 @@ export function normalizeSort(sort: DocumentSort[] = []): DocumentSort[] {
   return normalized;
 }
 
-export function buildFilterCondition(filter: DocumentFilter): SQL | undefined {
+export function buildFilterCondition(
+  filter: DocumentFilter,
+): RawBuilder<boolean> {
   if ("and" in filter) {
-    return and(...filter.and.map((child) => buildFilterCondition(child)));
+    const children = filter.and.map((child) => buildFilterCondition(child));
+    return sql<boolean>`(${sql.join(children, sql` and `)})`;
   }
 
   if ("or" in filter) {
-    return or(...filter.or.map((child) => buildFilterCondition(child)));
+    const children = filter.or.map((child) => buildFilterCondition(child));
+    return sql<boolean>`(${sql.join(children, sql` or `)})`;
   }
 
   const field = buildFieldExpression(filter.field);
 
   switch (filter.op) {
     case "eq": {
-      return filter.value === null ? isNull(field) : eq(field, filter.value);
+      return filter.value === null
+        ? sql<boolean>`${field} is null`
+        : sql<boolean>`${field} = ${filter.value}`;
     }
     case "ne": {
-      return filter.value === null ? isNotNull(field) : ne(field, filter.value);
+      return filter.value === null
+        ? sql<boolean>`${field} is not null`
+        : sql<boolean>`${field} <> ${filter.value}`;
     }
     case "gt": {
-      return gt(field, filter.value);
+      return sql<boolean>`${field} > ${filter.value}`;
     }
     case "gte": {
-      return gte(field, filter.value);
+      return sql<boolean>`${field} >= ${filter.value}`;
     }
     case "lt": {
-      return lt(field, filter.value);
+      return sql<boolean>`${field} < ${filter.value}`;
     }
     case "lte": {
-      return lte(field, filter.value);
+      return sql<boolean>`${field} <= ${filter.value}`;
     }
   }
 
-  return undefined;
+  throw new Error("Unsupported filter operation");
 }
 
-export function buildFieldExpression(field: DocumentField): SQL {
+export function buildFieldExpression(
+  field: DocumentField,
+): RawBuilder<unknown> {
   if (field.kind === "data") {
-    return sql`jsonb_extract_path_text(${documentsTable.data}, ${sql.join(
+    return sql`jsonb_extract_path_text(${sql.ref("documents.data")}, ${sql.join(
       field.path.map((segment) => sql`${segment}`),
       sql`, `,
     )})`;
   }
 
-  switch (field.name) {
-    case "id": {
-      return sql`${documentsTable.id}`;
-    }
-    case "tenantId": {
-      return sql`${documentsTable.tenantId}`;
-    }
-    case "collection": {
-      return sql`${documentsTable.collection}`;
-    }
-    case "schemaVersion": {
-      return sql`${documentsTable.schemaVersion}`;
-    }
-    case "version": {
-      return sql`${documentsTable.version}`;
-    }
-    case "createdAt": {
-      return sql`${documentsTable.createdAt}`;
-    }
-    case "updatedAt": {
-      return sql`${documentsTable.updatedAt}`;
-    }
-    case "deletedAt": {
-      return sql`${documentsTable.deletedAt}`;
-    }
-    case "authScopeId": {
-      return sql`${documentsTable.authScopeId}`;
-    }
-    case "remoteSource": {
-      return sql`${documentsTable.remoteSource}`;
-    }
-    case "remoteId": {
-      return sql`${documentsTable.remoteId}`;
-    }
-  }
-
-  throw new Error("Unsupported metadata field");
+  return sql.ref(`documents.${field.name}`);
 }
 
 export function matchesFilter(
