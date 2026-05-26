@@ -9,8 +9,9 @@ caching is warranted.
 
 ## User Value
 
-- Application users can log in, establish a valid tenant-scoped session, and
-  later exercise protected admin capabilities through the framework.
+- Application users can log in, establish an authenticated session, select a
+  valid tenant context when needed, and later exercise protected admin
+  capabilities through the framework.
 - Framework adopters get an authenticated request boundary instead of manually
   resolving actors inside trusted server-only TypeScript.
 - The session design leaves room for secure performance improvements without
@@ -76,9 +77,11 @@ caching is warranted.
   keeps document transport contracts and route-level RBAC behavior out of the
   initial session trust-boundary implementation.
 - An authenticated session represents a user identity with zero or one active
-  tenant context. Login creates a tenant-less authenticated session; after a
-  tenant is selected, the session associates the identity with one
-  `tenantId`, never a set of simultaneously active tenants.
+  tenant context. Login automatically selects the tenant when the
+  authenticated user has exactly one active membership; when the user has
+  zero or multiple active memberships, login creates a tenant-less
+  authenticated session. At no point does a session associate the identity
+  with more than one active `tenantId`.
 - The eventual generated UI should allow an authenticated user to switch among
   tenants where that user has an active membership. A tenant switch changes the
   session's absent or single active `tenantId`; it does not broaden one
@@ -97,9 +100,10 @@ caching is warranted.
   containing `tenantId` and nullable `name`, and session expiration timestamps
   needed for client expiry handling. It does not duplicate the selectable
   membership list or include permission/role state.
-- Tenant-less sessions are authenticated only for account/session operations
-  and tenant selection. They cannot resolve `TenantActorContext` or authorize
-  any tenant-scoped application operation until an active tenant is selected.
+- Tenant-less sessions are authenticated only for account/session operations,
+  membership discovery, and tenant selection. They cannot resolve
+  `TenantActorContext` or authorize any tenant-scoped application operation
+  until an active tenant is selected.
 - The endpoint/session MVP does not add a session-validation cache. A valid
   opaque session is a live database row; authorization remains database-backed
   through the existing RBAC queries.
@@ -147,10 +151,11 @@ caching is warranted.
   `NUXT_AUTH_SESSION_ABSOLUTE_TIMEOUT_SECONDS` (`604800`).
 - When renewal occurs, the server updates both the cookie expiration and the
   session-row idle expiration, clamped to the absolute expiration timestamp.
-- The MVP treats cookie-authenticated state-changing session endpoints as
-  same-origin browser operations. `logout`, `logout-all`, and tenant switch
-  accept JSON requests from the application origin rather than supporting
-  separately hosted or third-party cookie-authenticated clients.
+- The MVP treats cookie-authenticated or cookie-creating state-changing
+  session endpoints as same-origin browser operations. `login`, `logout`,
+  `logout-all`, and `select-tenant` accept JSON requests from the application
+  origin rather than supporting separately hosted or third-party
+  cookie-authenticated clients.
 - The opaque session cookie is `HttpOnly`, `SameSite=Lax`, `Path=/`, and
   `Secure` in production. It must not set a broad `Domain` attribute.
 - State-changing cookie-authenticated endpoints reject cross-site browser
@@ -187,6 +192,26 @@ caching is warranted.
   the user does not have an active membership, tenant selection is denied
   explicitly as a forbidden operation. The response must not distinguish a
   nonexistent tenant membership from an inactive or revoked membership.
+- The endpoint contract for this milestone is:
+
+  | Method | Path | Successful result |
+  | --- | --- | --- |
+  | `POST` | `/api/auth/login` | `200`; verifies `{ username, password }`, creates an opaque session, auto-selects a tenant only for exactly one active membership, sets the cookie, and returns the current-session view. |
+  | `GET` | `/api/auth/session` | `200`; returns the current-session view for a valid tenant-less or tenant-selected session. |
+  | `GET` | `/api/auth/tenants` | `200`; returns the authenticated user's active selectable tenants as `{ tenantId, name }` items. |
+  | `POST` | `/api/auth/select-tenant` | `200`; accepts `{ tenantId }`, validates active membership, rotates the session token, selects that tenant, and returns the updated current-session view. |
+  | `POST` | `/api/auth/logout` | `204`; idempotently clears the cookie and deletes the current session row when one exists. |
+  | `POST` | `/api/auth/logout-all` | `204`; for a valid authenticated session, deletes all sessions for its user and clears the current cookie. |
+
+- The current-session response contains
+  `{ user: { userId, displayName }, tenant: { tenantId, name } | null, expiresAt, absoluteExpiresAt }`;
+  the tenant-list response contains `{ tenants: Array<{ tenantId, name }> }`.
+- Malformed request payloads return `400`. Generic login or session
+  authentication failures return `401`. Authenticated selection of an
+  inaccessible tenant returns `403`. Failed same-origin/CSRF validation also
+  returns `403`.
+- `/api/auth/select-tenant` covers both first selection from a tenant-less
+  session and later switches from one selected tenant to another.
 - Login-attempt throttling and rate limiting are not part of this task's
   requirements or implementation scope.
 
@@ -240,20 +265,20 @@ caching is warranted.
 
 ## Acceptance Criteria
 
-- [ ] Brainstorm establishes the session/authentication trust boundary and
+- [x] Brainstorm establishes the session/authentication trust boundary and
       threat assumptions for the MVP.
-- [ ] PRD defines required endpoints and their observable authentication,
+- [x] PRD defines required endpoints and their observable authentication,
       tenant, expiration, and error behavior.
-- [ ] PRD resolves whether sessions store only identity/context claims or also
+- [x] PRD resolves whether sessions store only identity/context claims or also
       store/caches derived authorization state.
-- [ ] PRD defines how permission, membership, credential, and user-status
+- [x] PRD defines how permission, membership, credential, and user-status
       changes affect active sessions.
 - [x] PRD separates endpoint/session MVP scope from protected document CRUD
       routes, client composables, and generated UI unless those are
       intentionally bundled into the milestone.
-- [ ] Research/design, if needed, evaluates the appropriate Nuxt/Nitro session
+- [x] Research/design, if needed, evaluates the appropriate Nuxt/Nitro session
       mechanism and any cache invalidation implications before implementation.
-- [ ] Complex implementation work receives `design.md` and `implement.md`
+- [x] Complex implementation work receives `design.md` and `implement.md`
       after the brainstorm converges and before the task is started.
 
 ## Likely Out Of Scope Until Decided
@@ -271,8 +296,8 @@ caching is warranted.
 
 ## Open Questions For The Next Session
 
-- What concrete endpoint paths, HTTP status codes, and success response shapes
-  should define the session lifecycle API contract?
+- No unresolved product-scope decision currently blocks technical design and
+  implementation planning.
 
 ## Notes
 
