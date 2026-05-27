@@ -18,8 +18,7 @@ export interface InsertManyDocumentsRecord<
   }[];
 }
 
-export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
-  tenantId: string;
+export type UpdateDocumentRecord<TData extends JsonObject = JsonObject> = {
   collection: string;
   id: string;
   expectedVersion: number;
@@ -29,11 +28,12 @@ export interface UpdateDocumentRecord<TData extends JsonObject = JsonObject> {
   deletedAt?: Date | null;
   remoteSource?: string | null;
   remoteId?: string | null;
-}
+};
 
 export interface UpdateManyDocumentsRecord<
   TData extends JsonObject = JsonObject,
 > {
+  tenantId: string;
   records: UpdateDocumentRecord<TData>[];
 }
 

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Checked document repository batch ordering, auth-scope validation, atomicity, mapping, and SQL pushdown requirements."}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Checked delegated role authorization, scope closure insertion, tenant isolation, and test coverage contracts."}

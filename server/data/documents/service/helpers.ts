@@ -64,9 +64,9 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
   }
 
   const updatedRows = await repository.updateMany<TData>({
+    tenantId: input.tenantId,
     records: [
       {
-        tenantId: input.tenantId,
         collection: input.collection,
         id: input.id,
         expectedVersion: input.expectedVersion,

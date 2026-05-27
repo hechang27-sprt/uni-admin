@@ -394,6 +394,7 @@ describe("auth/RBAC service integration", () => {
     const auth = createTestAuthService();
     const { service } = await createTaskServiceWithAuth(auth);
     const repository = new KyselyDocumentRepository(getTestDatabase());
+    const tenantARoot = await auth.ensureTenantRootScope(tenantA);
     const tenantBRoot = await auth.ensureTenantRootScope(tenantB);
 
     await expect(
@@ -420,26 +421,51 @@ describe("auth/RBAC service integration", () => {
         ],
       }),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+    await expect(
+      service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+      }),
+    ).resolves.toMatchObject({ items: [] });
 
-    const created = await service.create<TaskDocument>({
+    const created = await service.createMany<TaskDocument>({
       tenantId: tenantA,
       collection: "tasks",
-      data: { title: "Local", status: "draft" },
+      items: [
+        { data: { title: "Local A", status: "draft" } },
+        { data: { title: "Local B", status: "draft" } },
+      ],
     });
 
     await expect(
       repository.updateMany<TaskDocument>({
+        tenantId: tenantA,
         records: [
           {
-            tenantId: tenantA,
             collection: "tasks",
-            id: created.id,
-            expectedVersion: created.version,
+            id: created[0]!.id,
+            expectedVersion: created[0]!.version,
+            authScopeId: tenantARoot.scopeId,
+          },
+          {
+            collection: "tasks",
+            id: created[1]!.id,
+            expectedVersion: created[1]!.version,
             authScopeId: tenantBRoot.scopeId,
           },
         ],
       }),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+    await expect(
+      service.getByIds<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: created.map((document) => document.id),
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ authScopeId: null }),
+      expect.objectContaining({ authScopeId: null }),
+    ]);
 
     await expect(
       repository.upsertRemoteProjections<TaskDocument>({
@@ -449,6 +475,11 @@ describe("auth/RBAC service integration", () => {
         remoteSource: "remote",
         projections: [
           {
+            remoteId: "valid-scope",
+            authScopeId: tenantARoot.scopeId,
+            data: { title: "Would insert", status: "draft" },
+          },
+          {
             remoteId: "wrong-scope",
             authScopeId: tenantBRoot.scopeId,
             data: { title: "Remote", status: "draft" },
@@ -456,6 +487,14 @@ describe("auth/RBAC service integration", () => {
         ],
       }),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
+    await expect(
+      repository.findByRemoteIdentity<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        remoteSource: "remote",
+        remoteId: "valid-scope",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("preserves tenant-scoped role assignment validation precedence", async () => {
@@ -551,9 +590,13 @@ describe("auth/RBAC service integration", () => {
     ).resolves.toEqual(builtInAdminPermissions.map(() => true));
   });
 
-  it("checks delegated multi-capability assignments in one batch and rejects escalation", async () => {
+  it("checks delegated assignment capabilities in SQL and rejects escalation", async () => {
     const repository = new KyselyAuthRbacRepository(getTestDatabase());
     const checkAccessMany = vi.spyOn(repository, "checkAccessMany");
+    const findDeniedRolePermission = vi.spyOn(
+      repository,
+      "findDeniedRolePermission",
+    );
     const auth = new AuthRbacService({ repository });
     await auth.syncPermissions([
       { key: "admin:tenant:owner", source: "admin" },
@@ -620,18 +663,38 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_DENIED" });
+    expect(findDeniedRolePermission).toHaveBeenCalledOnce();
+    expect(findDeniedRolePermission).toHaveBeenCalledWith({
+      tenantId: tenantA,
+      roleId: escalated.roleId,
+      userId: actor.userId,
+      targetScopeId: child.scopeId,
+    });
     expect(
-      checkAccessMany.mock.calls.some(
-        ([input]) =>
-          input.checks.length === 2 &&
-          input.checks.some(
-            (check) => check.capability === "collection:tasks:read",
-          ) &&
-          input.checks.some(
-            (check) => check.capability === "collection:tasks:delete",
-          ),
+      checkAccessMany.mock.calls.some(([input]) =>
+        input.checks.some((check) =>
+          check.capability.startsWith("collection:tasks:"),
+        ),
       ),
-    ).toBe(true);
+    ).toBe(false);
+
+    await auth.grantPermission({
+      tenantId: tenantA,
+      roleId: delegator.roleId,
+      permissionKey: "collection:tasks:delete",
+    });
+    findDeniedRolePermission.mockClear();
+    await expect(
+      auth.assignRoleAsActor(
+        { tenantId: tenantA, actor: { userId: actor.userId } },
+        {
+          userId: target.userId,
+          roleId: escalated.roleId,
+          scopeId: child.scopeId,
+        },
+      ),
+    ).resolves.toBeUndefined();
+    expect(findDeniedRolePermission).toHaveBeenCalledOnce();
   });
 
   it("denies remote writes before adapter side effects", async () => {

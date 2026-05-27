@@ -275,14 +275,16 @@ export class DocumentService {
     );
 
     const records = items.map((item) => ({
-      tenantId: input.tenantId,
       collection: input.collection,
       id: item.id,
       expectedVersion: item.expectedVersion,
       schemaVersion: collection.schemaVersion,
       data: item.data,
     }));
-    const updated = await this.repository.updateMany<TData>({ records });
+    const updated = await this.repository.updateMany<TData>({
+      tenantId: input.tenantId,
+      records,
+    });
 
     if (!updated) {
       throw new DocumentServiceError(

@@ -239,25 +239,15 @@ export class AuthRbacService implements DocumentAuthorizer {
       checks: [{ capability: "admin:tenant:owner", targetScopeId: null }],
     });
     if (!isOwner) {
-      const permissionKeys = await this.repository.rolePermissionKeys({
-        tenantId: context.tenantId,
-        roleId: role.roleId,
-      });
-      const accessResults = await this.repository.checkAccessMany({
-        tenantId: context.tenantId,
-        userId: context.actor.userId,
-        checks: permissionKeys.map((capability) => ({
-          capability,
+      const deniedCapability =
+        await this.repository.findDeniedRolePermission({
+          tenantId: context.tenantId,
+          roleId: role.roleId,
+          userId: context.actor.userId,
           targetScopeId: input.scopeId,
-        })),
-      });
-      const deniedIndex = accessResults.findIndex((allowed) => !allowed);
-      if (deniedIndex !== -1) {
-        throw permissionDenied(
-          context,
-          permissionKeys[deniedIndex]!,
-          input.scopeId,
-        );
+        });
+      if (deniedCapability) {
+        throw permissionDenied(context, deniedCapability, input.scopeId);
       }
     }
 

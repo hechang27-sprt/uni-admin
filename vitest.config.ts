@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   test: {
+    coverage: {
+      provider: "v8",
+    },
     projects: [
       {
         resolve: {

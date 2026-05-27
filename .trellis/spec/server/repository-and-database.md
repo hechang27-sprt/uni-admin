@@ -96,8 +96,13 @@ Important patterns:
   arrays and unwrap the result.
 - Keep batch update behavior transactional through `buildBatchUpdateQuery`.
 - Preserve input order for `findByIds` and `updateMany`.
-- Validate all distinct non-null `authScopeId` values for a logical write in
-  one tenant-scoped query; reject if any scope is absent.
+- Gate `insertMany`, `updateMany`, and `upsertRemoteProjections` mutations
+  through a statement-local invalid-scope CTE so successful scoped writes
+  validate and mutate in one database call. On rejected writes, an ordered
+  validation lookup may run to preserve `INVALID_AUTH_SCOPE` details.
+- Correlate ordered read, delete, and upsert output through SQL input
+  relations with ordinality rather than building `Map` or `Set` instances
+  from query results.
 - Use `onConflictDoUpdate` for remote projection upserts keyed by remote
   identity.
 
@@ -139,6 +144,8 @@ interface DocumentRepository {
 
 - `findByIds` returns positional `null` entries and preserves caller order.
 - `updateMany` is atomic and returns `null` when any optimistic update fails.
+- Mixed valid and invalid scoped write batches are atomic: no valid item is
+  persisted when any requested `authScopeId` is invalid.
 - One-element calls are the required repository path for scalar service CRUD.
 - Batch SQL result mapping must return `Date` instances for document timestamp
   fields; pgLite may return strings from raw `execute()` statements.
@@ -152,23 +159,28 @@ interface DocumentRepository {
 
 ### 5. Good/Base/Bad Cases
 
-- Good: validate two distinct scopes once, then insert multiple documents.
+- Good: gate a multi-row insert with one invalid-scope CTE and insert only
+  when every requested scope belongs to the tenant.
 - Base: create one document through `insertMany({ items: [item] })`.
 - Bad: loop over `items` and issue one scope lookup or update per row.
 
 ### 6. Tests Required
 
 - pgLite tests for ordered batch create/read/update, atomic stale update
-  rejection, cross-tenant scope rejection, and timestamp return types after
-  scalar methods use batch SQL.
+  rejection, cross-tenant scope rejection without partial writes, and
+  timestamp return types after scalar methods use batch SQL.
 
 ### 7. Wrong vs Correct
 
 ```ts
+// Wrong: successful writes pay a separate validation round trip.
+await assertAuthScopesBelongToTenant(db, tenantId, scopeIds);
+await db.insertInto("documents").values(items).execute();
+
 // Wrong: database work grows with the item count.
 for (const item of items) await repository.update(item);
 
-// Correct: the repository performs one set-shaped optimistic mutation.
+// Correct: SQL gates and performs one set-shaped optimistic mutation.
 await repository.updateMany({ records });
 ```
 
@@ -189,6 +201,8 @@ filter/sort SQL expression building:
 - Runtime `db` is created in `server/util/kysely.ts` from `DATABASE_URL`.
 - Tests use `createInMemoryDb()` from the same file to create a pgLite-backed
   Kysely database.
+- `pivotToColumns()` in `server/util/db.ts` is the shared row-to-column helper
+  for SQL array parameters and normalizes `undefined` values to `null`.
 - Structured queries use `CamelCasePlugin({ maintainNestedObjectKeys: true })`
   to map camelCase TypeScript identifiers to snake_case SQL without changing
   JSONB document payload keys.

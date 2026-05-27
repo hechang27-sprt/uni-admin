@@ -49,6 +49,12 @@ interface AuthRbacRepository {
     tenantId: string;
     assignments: { userId: string; roleId: string; scopeId: string }[];
   }): Promise<void>;
+  findDeniedRolePermission(input: {
+    tenantId: string;
+    roleId: string;
+    userId: string;
+    targetScopeId: string;
+  }): Promise<string | null>;
   checkAccessMany(input: {
     tenantId: string;
     userId: string;
@@ -101,7 +107,11 @@ interface TenantActorContext {
   justified singular operations.
 - Tenant-owner bootstrap grants all built-in permissions with one
   `grantPermissions` call. Delegated assignment checks all target-role
-  capabilities in one `checkAccessMany` call.
+  capabilities inside one `findDeniedRolePermission` query after admin/owner
+  checks, returning only the first capability the actor lacks.
+- Child auth-scope creation inserts the new scope and its closure rows from
+  parent closure data in one statement; do not read ancestor rows into
+  TypeScript for a mapped follow-up insert.
 
 ### 4. Validation & Error Matrix
 
@@ -148,8 +158,8 @@ interface TenantActorContext {
 - Trusted write rejection for cross-tenant `authScopeId`.
 - Protected batch create/read/update allow and deny paths with one authorizer
   batch call per logical operation.
-- Owner bootstrap bulk grant behavior and delegated multi-capability escalation
-  rejection.
+- Owner bootstrap bulk grant behavior and delegated role denial/allow behavior
+  through `findDeniedRolePermission`.
 
 ### 7. Wrong vs Correct
 
@@ -188,17 +198,21 @@ The correct path treats authorization scope as framework metadata and checks
 #### Wrong
 
 ```ts
-for (const capability of roleCapabilities) {
-  await repository.checkAccess({ tenantId, userId, capability, targetScopeId });
-}
+const capabilities = await repository.rolePermissionKeys({ tenantId, roleId });
+await repository.checkAccessMany({
+  tenantId,
+  userId,
+  checks: capabilities.map((capability) => ({ capability, targetScopeId })),
+});
 ```
 
 #### Correct
 
 ```ts
-await repository.checkAccessMany({
+const deniedCapability = await repository.findDeniedRolePermission({
   tenantId,
+  roleId,
   userId,
-  checks: roleCapabilities.map((capability) => ({ capability, targetScopeId })),
+  targetScopeId,
 });
 ```

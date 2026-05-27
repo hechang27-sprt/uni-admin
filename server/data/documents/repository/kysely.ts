@@ -1,6 +1,12 @@
-import { sql, type RawBuilder, type Selectable } from "kysely";
+/* oxlint-disable typescript/unbound-method -- Kysely expression-builder callback methods are used only to build SQL AST nodes. */
+import {
+  sql,
+  type RawBuilder,
+  type Selectable,
+  type Transaction,
+} from "kysely";
 
-import type { DocumentsTable } from "#server/db/schema";
+import type { Database, DocumentsTable } from "#server/db/schema";
 import type { DatabaseClient } from "#server/util/kysely";
 import { DocumentServiceError } from "../errors";
 import type {
@@ -16,13 +22,16 @@ import {
 import type {
   DocumentRepository,
   InsertManyDocumentsRecord,
-  UpdateDocumentRecord,
   UpdateManyDocumentsRecord,
   UpsertRemoteProjectionsRecord,
 } from "./types";
+import { pivotToColumns } from "#server/util/db";
 
 type DocumentRow = Selectable<DocumentsTable>;
-type BatchUpdateRow = DocumentRow & { inputOrder: number };
+type NullableDocumentRow = {
+  [K in keyof DocumentRow]: DocumentRow[K] | null;
+};
+type DocumentDatabase = DatabaseClient | Transaction<Database>;
 
 class BatchUpdateConflict extends Error {}
 
@@ -30,29 +39,54 @@ export class KyselyDocumentRepository implements DocumentRepository {
   constructor(private readonly database: DatabaseClient) {}
 
   async insertMany<TData extends JsonObject>(
-    record: InsertManyDocumentsRecord<TData>,
+    input: InsertManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[]> {
-    if (record.items.length === 0) {
+    if (input.items.length === 0) {
       return [];
     }
+
+    const { data, authScopeId, remoteId, remoteSource } = pivotToColumns(
+      input.items,
+    );
+
     await assertAuthScopesBelongToTenant(
       this.database,
-      record.tenantId,
-      record.items.map((item) => item.authScopeId ?? null),
+      input.tenantId,
+      authScopeId ?? [],
     );
+
+    type InsertInput = {
+      data: TData;
+      authScopeId: string | null;
+      remoteSource: string | null;
+      remoteId: string | null;
+    };
 
     const rows = await this.database
       .insertInto("documents")
-      .values(
-        record.items.map((item) => ({
-          tenantId: record.tenantId,
-          collection: record.collection,
-          schemaVersion: record.schemaVersion,
-          data: item.data,
-          authScopeId: item.authScopeId ?? null,
-          remoteSource: item.remoteSource ?? null,
-          remoteId: item.remoteId ?? null,
-        })),
+      .columns([
+        "tenantId",
+        "collection",
+        "schemaVersion",
+        "data",
+        "authScopeId",
+        "remoteId",
+        "remoteSource",
+      ])
+      .expression(({ selectFrom, val }) =>
+        selectFrom(
+          sql<InsertInput>`unnest(${data}::jsonb[], ${authScopeId}::uuid[], ${remoteId}::text[], ${remoteSource}::text[])`.as<"input">(
+            sql`input(data, auth_scope_id, remote_id, remote_source)`,
+          ),
+        ).select([
+          val(input.tenantId).as("tenantId"),
+          val(input.collection).as("collection"),
+          val(input.schemaVersion).as("schemaVersion"),
+          "input.data",
+          "input.authScopeId",
+          "input.remoteId",
+          "input.remoteSource",
+        ]),
       )
       .returningAll()
       .execute();
@@ -71,23 +105,33 @@ export class KyselyDocumentRepository implements DocumentRepository {
     }
 
     let query = this.database
-      .selectFrom("documents")
-      .selectAll()
-      .where("tenantId", "=", input.tenantId)
-      .where("collection", "=", input.collection)
-      .where("id", "in", input.ids);
+      .selectFrom(({ selectFrom }) =>
+        selectFrom(
+          sql<{
+            id: string;
+            inputOrder: number;
+          }>`unnest(${input.ids}::uuid[]) with ordinality`.as(
+            sql`t(id, input_order)`,
+          ),
+        )
+          .selectAll()
+          .as("input"),
+      )
+      .leftJoin("documents", (join) =>
+        join
+          .onRef("documents.id", "=", "input.id")
+          .on("documents.tenantId", "=", input.tenantId)
+          .on("documents.collection", "=", input.collection),
+      )
+      .selectAll("documents")
+      .orderBy("input.inputOrder");
     if (!input.includeDeleted) {
-      query = query.where("deletedAt", "is", null);
+      query = query.where("documents.deletedAt", "is", null);
     }
     const rows = await query.execute();
-    const rowsById = new Map(
-      rows.map((row): [string, StoredDocument<TData>] => [
-        row.id,
-        mapDocumentRow<TData>(row),
-      ]),
+    return rows.map((row) =>
+      mapNullableDocumentRow<TData>(row as NullableDocumentRow),
     );
-
-    return input.ids.map((id) => rowsById.get(id) ?? null);
   }
 
   async findByRemoteIdentity<TData extends JsonObject>(input: {
@@ -146,26 +190,127 @@ export class KyselyDocumentRepository implements DocumentRepository {
   }
 
   async updateMany<TData extends JsonObject>(
-    record: UpdateManyDocumentsRecord<TData>,
+    input: UpdateManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[] | null> {
-    if (record.records.length === 0) {
+    if (input.records.length === 0) {
       return [];
     }
-    await assertAuthScopesBelongToTenant(
-      this.database,
-      record.records[0]?.tenantId,
-      record.records
-        .filter((item) => "authScopeId" in item)
-        .map((item) => item.authScopeId ?? null),
-    );
+
+    const columns = pivotToColumns(input.records, "set");
+    const nullColumn = <T>() =>
+      Array.from<T | null>({ length: input.records.length }, () => null);
+    const falseColumn = () =>
+      Array.from<boolean>({ length: input.records.length }, () => false);
+    const updateColumns = {
+      id: columns.id,
+      collection: columns.collection,
+      expectedVersion: columns.expectedVersion,
+      schemaVersion: columns.schemaVersion ?? nullColumn<number>(),
+      data: columns.data ?? nullColumn<TData>(),
+      setData: columns.setData ?? falseColumn(),
+      authScopeId: columns.authScopeId ?? nullColumn<string>(),
+      setAuthScopeId: columns.setAuthScopeId ?? falseColumn(),
+      deletedAt: columns.deletedAt ?? nullColumn<Date>(),
+      setDeletedAt: columns.setDeletedAt ?? falseColumn(),
+      remoteSource: columns.remoteSource ?? nullColumn<string>(),
+      setRemoteSource: columns.setRemoteSource ?? falseColumn(),
+      remoteId: columns.remoteId ?? nullColumn<string>(),
+      setRemoteId: columns.setRemoteId ?? falseColumn(),
+    };
+    type UpdateInput = {
+      [K in keyof typeof columns]: (typeof columns)[K][number];
+    };
 
     try {
       return await this.database.transaction().execute(async (tx) => {
-        const result = await buildBatchUpdateQuery(record.records).execute(tx);
-        if (result.rows.length !== record.records.length) {
+        await assertAuthScopesBelongToTenant(
+          tx,
+          input.tenantId,
+          updateColumns.authScopeId,
+        );
+
+        const result = await tx
+          .updateTable("documents")
+          .from(
+            sql<UpdateInput>`
+              unnest(
+                ${updateColumns.id}::uuid[],
+                ${updateColumns.collection}::text[],
+                ${updateColumns.expectedVersion}::int[],
+                ${updateColumns.schemaVersion}::int[],
+                ${updateColumns.data}::jsonb[],
+                ${updateColumns.setData}::boolean[],
+                ${updateColumns.authScopeId}::uuid[],
+                ${updateColumns.setAuthScopeId}::boolean[],
+                ${updateColumns.deletedAt}::timestamp with time zone[],
+                ${updateColumns.setDeletedAt}::boolean[],
+                ${updateColumns.remoteSource}::text[],
+                ${updateColumns.setRemoteSource}::boolean[],
+                ${updateColumns.remoteId}::text[],
+                ${updateColumns.setRemoteId}::boolean[]
+              )
+            `.as<"updates">(
+              sql`
+                updates(
+                  id, collection, expected_version, schema_version,
+                  data, set_data,
+                  auth_scope_id, set_auth_scope_id,
+                  deleted_at, set_deleted_at,
+                  remote_source, set_remote_source,
+                  remote_id, set_remote_id
+                )
+              `,
+            ),
+          )
+          .whereRef("documents.id", "=", "updates.id")
+          .where("documents.tenantId", "=", input.tenantId)
+          .whereRef("documents.collection", "=", "updates.collection")
+          .whereRef("documents.version", "=", "updates.expectedVersion")
+          .set(({ eb, fn }) => ({
+            version: eb("documents.version", "+", 1),
+            schemaVersion: fn.coalesce(
+              "updates.schemaVersion",
+              "documents.schemaVersion",
+            ),
+            updatedAt: sql`now()`,
+            data: sql<JsonObject>`
+              case
+                when updates.set_data then updates.data
+                else documents.data
+              end
+            `,
+            authScopeId: sql<string | null>`
+              case
+                when updates.set_auth_scope_id then updates.auth_scope_id
+                else documents.auth_scope_id
+              end
+            `,
+            deletedAt: sql<Date | string | null>`
+              case
+                when updates.set_deleted_at then updates.deleted_at
+                else documents.deleted_at
+              end
+            `,
+            remoteId: sql<string | null>`
+              case
+                when updates.set_remote_id then updates.remote_id
+                else documents.remote_id
+              end
+            `,
+            remoteSource: sql<string | null>`
+              case
+                when updates.set_remote_source then updates.remote_source
+                else documents.remote_source
+              end
+            `,
+          }))
+          .returningAll(["documents"])
+          .execute();
+
+        if (result.length !== input.records.length) {
           throw new BatchUpdateConflict();
         }
-        return result.rows.map((row) => mapDocumentRow<TData>(row));
+        return result.map((row) => mapDocumentRow<TData>(row));
       });
     } catch (error) {
       if (error instanceof BatchUpdateConflict) {
@@ -181,55 +326,70 @@ export class KyselyDocumentRepository implements DocumentRepository {
     if (record.projections.length === 0) {
       return [];
     }
+
+    const { remoteId, data, authScopeId } = pivotToColumns(record.projections);
+
     await assertAuthScopesBelongToTenant(
       this.database,
       record.tenantId,
-      record.projections.map((projection) => projection.authScopeId ?? null),
+      authScopeId ?? [],
     );
 
-    const now = new Date();
+    type ProjectionInput = {
+      data: TData;
+      authScopeId: string | null;
+      remoteId: string;
+    };
+
     const rows = await this.database
       .insertInto("documents")
-      .values(
-        record.projections.map((projection) => ({
-          tenantId: record.tenantId,
-          collection: record.collection,
-          schemaVersion: record.schemaVersion,
-          data: projection.data,
-          authScopeId: projection.authScopeId ?? null,
-          remoteSource: record.remoteSource,
-          remoteId: projection.remoteId,
-          updatedAt: now,
-        })),
+      .columns([
+        "tenantId",
+        "collection",
+        "schemaVersion",
+        "data",
+        "authScopeId",
+        "remoteSource",
+        "remoteId",
+        "updatedAt",
+      ])
+      .expression(({ selectFrom, val }) =>
+        selectFrom(
+          sql<ProjectionInput>`unnest(${data}::jsonb[], ${authScopeId}::uuid[], ${remoteId}::text[])`.as<"input">(
+            sql`input(data, auth_scope_id, remote_id)`,
+          ),
+        ).select([
+          val(record.tenantId).as("tenantId"),
+          val(record.collection).as("collection"),
+          val(record.schemaVersion).as("schemaVersion"),
+          "input.data",
+          "input.authScopeId",
+          val(record.remoteSource).as("remoteSource"),
+          "input.remoteId",
+          sql`now()`.as("updatedAt"),
+        ]),
       )
       .onConflict((conflict) =>
         conflict
-          .columns(["tenantId", "collection", "remoteSource", "remoteId"])
-          .where(sql<boolean>`remote_source is not null and remote_id is not null`)
-          .doUpdateSet({
-            schemaVersion: sql`excluded.schema_version`,
-            data: sql`excluded.data`,
-            authScopeId: sql`coalesce(excluded.auth_scope_id, documents.auth_scope_id)`,
+          .columns(["tenantId", "collection", "remoteId", "remoteSource"])
+          .where("remoteSource", "is not", null)
+          .where("remoteId", "is not", null)
+          .doUpdateSet(({ ref, fn, eb }) => ({
+            schemaVersion: ref("excluded.schemaVersion"),
+            data: ref("excluded.data"),
+            authScopeId: fn.coalesce(
+              "excluded.authScopeId",
+              "documents.authScopeId",
+            ),
             deletedAt: null,
-            version: sql`documents.version + 1`,
-            updatedAt: now,
-          }),
+            version: eb("documents.version", "+", 1),
+            updatedAt: sql`now()`,
+          })),
       )
       .returningAll()
       .execute();
 
-    const rowsByRemoteId = new Map(
-      rows.map((row): [string | null, StoredDocument<TData>] => [
-        row.remoteId,
-        mapDocumentRow<TData>(row),
-      ]),
-    );
-    return record.projections.map((projection) =>
-      assertUpsertedRemoteProjection(
-        rowsByRemoteId.get(projection.remoteId),
-        projection.remoteId,
-      ),
-    );
+    return rows.map((row) => mapDocumentRow<TData>(row));
   }
 
   async hardDeleteMany(input: {
@@ -241,15 +401,38 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return [];
     }
 
-    const rows = await this.database
-      .deleteFrom("documents")
-      .where("tenantId", "=", input.tenantId)
-      .where("collection", "=", input.collection)
-      .where("id", "in", input.ids)
-      .returning("id")
-      .execute();
-    const deletedIds = new Set(rows.map((row) => row.id));
-    return input.ids.filter((id) => deletedIds.has(id));
+    const result = await this.database
+      .with("input", (db) =>
+        db
+          .selectFrom(
+            sql<{
+              id: string;
+              inputOrder: number;
+            }>`unnest(${input.ids}::uuid[]) with ordinality`.as(
+              sql`t(id, input_order)`,
+            ),
+          )
+          .selectAll(),
+      )
+      .with("deleted", (db) =>
+        db
+          .deleteFrom("documents")
+          .where("tenantId", "=", input.tenantId)
+          .where("collection", "=", input.collection)
+          .where("id", "in", db.selectFrom("input").select("id"))
+          .returning("id"),
+      )
+      .selectFrom("input")
+      .innerJoin("deleted", "deleted.id", "input.id")
+      .select(
+        sql<
+          string[]
+        >`coalesce(array_agg(input.id order by input.input_order), array[]::uuid[])`.as(
+          "ids",
+        ),
+      )
+      .executeTakeFirstOrThrow();
+    return result.ids;
   }
 }
 
@@ -272,7 +455,10 @@ function buildAuthScopeCondition(
   }
   if (scopedIds.length > 0) {
     conditions.push(
-      sql<boolean>`documents.auth_scope_id in (${sql.join(scopedIds.map((scopeId) => sql`${scopeId}`), sql`, `)})`,
+      sql<boolean>`documents.auth_scope_id in (${sql.join(
+        scopedIds.map((scopeId) => sql`${scopeId}`),
+        sql`, `,
+      )})`,
     );
   }
   return conditions.length === 1
@@ -281,38 +467,38 @@ function buildAuthScopeCondition(
 }
 
 async function assertAuthScopesBelongToTenant(
-  database: DatabaseClient,
+  database: DocumentDatabase,
   tenantId: string | undefined,
   authScopeIds: (string | null)[],
 ): Promise<void> {
-  if (!tenantId) {
-    return;
-  }
-  const scopedIds = [
-    ...new Set(
-      authScopeIds.filter((scopeId): scopeId is string => scopeId !== null),
-    ),
-  ];
-  if (scopedIds.length === 0) {
+  if (!tenantId || authScopeIds.length === 0) {
     return;
   }
 
-  const values = scopedIds.map(
-    (scopeId, inputOrder) => sql`(${scopeId}::uuid, ${inputOrder}::integer)`,
-  );
-  const result = await sql<{ scopeId: string }>`
-    select requested_scope.scope_id as "scopeId"
-    from (values ${sql.join(values, sql`, `)})
-      as requested_scope(scope_id, input_order)
-    where not exists (
-      select 1 from auth_scopes
-      where tenant_id = ${tenantId}::uuid
-        and scope_id = requested_scope.scope_id
+  const invalid = await database
+    .selectFrom(({ selectFrom }) =>
+      selectFrom(
+        sql<{
+          authScopeId: string | null;
+          inputOrder: number;
+        }>`unnest(${authScopeIds}::uuid[]) with ordinality`.as(
+          sql`t(auth_scope_id, input_order)`,
+        ),
+      )
+        .selectAll()
+        .as("input"),
     )
-    order by requested_scope.input_order
-    limit 1
-  `.execute(database);
-  const invalidScopeId = result.rows[0]?.scopeId;
+    .leftJoin("authScopes", (join) =>
+      join
+        .on("authScopes.tenantId", "=", tenantId)
+        .onRef("authScopes.scopeId", "=", "input.authScopeId"),
+    )
+    .select("input.authScopeId")
+    .where("input.authScopeId", "is not", null)
+    .where("authScopes.scopeId", "is", null)
+    .orderBy("input.inputOrder")
+    .executeTakeFirst();
+  const invalidScopeId = invalid?.authScopeId;
   if (invalidScopeId) {
     throw new DocumentServiceError(
       "INVALID_AUTH_SCOPE",
@@ -320,62 +506,6 @@ async function assertAuthScopesBelongToTenant(
       { tenantId, authScopeId: invalidScopeId },
     );
   }
-}
-
-function buildBatchUpdateQuery<TData extends JsonObject>(
-  records: UpdateDocumentRecord<TData>[],
-): RawBuilder<BatchUpdateRow> {
-  const values = records.map(
-    (record, index) => sql`
-      (
-        ${record.id}::uuid,
-        ${record.tenantId}::uuid,
-        ${record.collection}::text,
-        ${record.expectedVersion}::integer,
-        ${record.schemaVersion ?? null}::integer,
-        ${record.data ?? null}::jsonb,
-        ${record.data !== undefined}::boolean,
-        ${"authScopeId" in record ? (record.authScopeId ?? null) : null}::uuid,
-        ${"authScopeId" in record}::boolean,
-        ${"deletedAt" in record ? (record.deletedAt ?? null) : null}::timestamp with time zone,
-        ${"deletedAt" in record}::boolean,
-        ${"remoteSource" in record ? (record.remoteSource ?? null) : null}::text,
-        ${"remoteSource" in record}::boolean,
-        ${"remoteId" in record ? (record.remoteId ?? null) : null}::text,
-        ${"remoteId" in record}::boolean,
-        ${index}::integer
-      )
-    `,
-  );
-
-  return sql<BatchUpdateRow>`
-    with updates (
-      id, tenant_id, collection, expected_version, schema_version, data,
-      set_data, auth_scope_id, set_auth_scope_id, deleted_at, set_deleted_at,
-      remote_source, set_remote_source, remote_id, set_remote_id, input_order
-    ) as (
-      values ${sql.join(values, sql`, `)}
-    ),
-    updated as (
-      update documents as document
-      set
-        schema_version = coalesce(updates.schema_version, document.schema_version),
-        data = case when updates.set_data then updates.data else document.data end,
-        auth_scope_id = case when updates.set_auth_scope_id then updates.auth_scope_id else document.auth_scope_id end,
-        deleted_at = case when updates.set_deleted_at then updates.deleted_at else document.deleted_at end,
-        remote_source = case when updates.set_remote_source then updates.remote_source else document.remote_source end,
-        remote_id = case when updates.set_remote_id then updates.remote_id else document.remote_id end,
-        version = document.version + 1,
-        updated_at = now()
-      from updates
-      where document.id = updates.id
-        and document.tenant_id = updates.tenant_id
-        and document.collection = updates.collection
-        and document.version = updates.expected_version
-      returning document.*, updates.input_order
-    )
-    select * from updated order by input_order
-  `;
 }
 
 function mapDocumentRow<TData extends JsonObject>(
@@ -398,16 +528,17 @@ function mapDocumentRow<TData extends JsonObject>(
   };
 }
 
-function toDate(value: Date | string): Date {
-  return value instanceof Date ? value : new Date(value);
+function mapNullableDocumentRow<TData extends JsonObject>(
+  row: NullableDocumentRow,
+): StoredDocument<TData> | null {
+  if (!row.id) {
+    return null;
+  }
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The left join is fully populated whenever the document primary key exists.
+  return mapDocumentRow<TData>(row as DocumentRow);
 }
 
-function assertUpsertedRemoteProjection<TData extends JsonObject>(
-  document: StoredDocument<TData> | undefined,
-  remoteId: string,
-): StoredDocument<TData> {
-  if (!document) {
-    throw new Error(`Remote projection was not returned for ${remoteId}`);
-  }
-  return document;
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
 }
