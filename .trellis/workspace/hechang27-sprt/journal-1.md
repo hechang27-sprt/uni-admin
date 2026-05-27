@@ -393,3 +393,35 @@ Refactored document and auth/RBAC persistence to batch-only repeated operations,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Migrate Drizzle data layer to Kysely
+
+**Date**: 2026-05-27
+**Task**: Migrate Drizzle data layer to Kysely
+
+### Summary
+
+Replaced Drizzle persistence with Kysely repositories and a baseline migration, configured CamelCasePlugin without transforming nested JSON keys, updated tests and project guidance, and verified typecheck, lint, tests, build, and GitNexus affected-flow scope.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0eef7f14` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
