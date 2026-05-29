@@ -1,4 +1,5 @@
-import type { TenantActorContext } from "#server/data/documents";
+import type { TenantActorContext, TenantContext } from "#server/data/documents";
+import { ActorContext } from "../data/documents/types";
 
 export interface AuthUser {
   userId: string;
@@ -114,14 +115,14 @@ export interface CheckAccessInput {
   targetScopeId: string | null;
 }
 
-export interface CapabilityAccessCheck {
+export type CapabilityAccessCheck = {
   capability: string;
   targetScopeId: string | null;
-}
+};
 
-export interface CheckAccessManyInput {
-  context: TenantActorContext;
-  checks: CapabilityAccessCheck[];
+export interface CheckAccessManyInput
+  extends TenantContext, Partial<ActorContext> {
+  checks?: CapabilityAccessCheck[];
   tenantAccess?: {
     userId?: string[];
     roleId?: string[];
@@ -159,6 +160,25 @@ export interface BootstrapTenantOwnerResult {
   rootScope: AuthScope;
   ownerRole: Role;
   context: TenantActorContext;
+}
+
+export type AccessCheckFailure =
+  | { kind: "membership"; userId: string }
+  | { kind: "role"; roleId: string }
+  | { kind: "assignment"; assignmentId: string }
+  | { kind: "scope"; scopeId: string }
+  | { kind: "document"; documentId: string }
+  | { kind: "permission"; permissionKey: string }
+  | {
+      kind: "capability";
+      capability: string;
+      targetScopeId: string | null;
+    };
+
+export interface AccessCheckEvaluation {
+  allowed: boolean;
+  failure: AccessCheckFailure | null;
+  capabilities?: boolean[];
 }
 
 export interface DocumentAuthorizer {

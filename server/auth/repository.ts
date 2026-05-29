@@ -765,47 +765,32 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           sql`input(capability, target_scope_id, input_order)`,
         ),
       )
-      .select(({ selectFrom, exists, lit }) => [
-        exists(
-          selectFrom("tenantMemberships as tenantUser")
-            .innerJoin("userRoleAssignments as userRoleScope", (join) =>
-              join
-                .onRef("userRoleScope.tenantId", "=", "tenantUser.tenantId")
-                .onRef("userRoleScope.userId", "=", "tenantUser.userId"),
-            )
-            .innerJoin("rolePermissions", (join) =>
-              join
-                .onRef(
-                  "rolePermissions.tenantId",
-                  "=",
-                  "userRoleScope.tenantId",
-                )
-                .onRef("rolePermissions.roleId", "=", "userRoleScope.roleId"),
-            )
-            .innerJoin(
-              "permissions",
-              "permissions.permissionId",
-              "rolePermissions.permissionId",
-            )
-            .innerJoin("authScopeClosure as closure", (join) =>
-              join
-                .onRef("closure.tenantId", "=", "tenantUser.tenantId")
-                .onRef("ancestorId", "=", "userRoleScope.scopeId"),
-            )
-            .where("tenantUser.tenantId", "=", input.tenantId)
-            .where("tenantUser.userId", "=", input.userId)
-            .whereRef("permissions.key", "=", "input.capability")
-            .where((eb) =>
-              eb(
-                "closure.descendantId",
-                "=",
-                eb.fn.coalesce("input.targetScopeId", eb.val(rootScopeId)),
-              ),
-            )
-            .select(lit(1).as("_")),
-        ).as("allowed"),
-      ])
-      .orderBy("input.inputOrder")
+      .innerJoin("permissions as p", "permissionId", "capability")
+      .leftJoin("rolePermissions as rp", (join) =>
+        join
+          .onRef("rp.permissionId", "=", "p.permissionId")
+          .on("rp.tenantId", "=", input.tenantId),
+      )
+      .innerJoin("userRoleAssignments as rs", (join) =>
+        join
+          .onRef("rs.roleId", "=", "rp.roleId")
+          .on("rs.userId", "=", input.userId)
+          .on("rs.tenantId", "=", input.tenantId),
+      )
+      .innerJoin("tenantMemberships as m", (join) =>
+        join
+          .onRef("m.userId", "=", "rs.userId")
+          .onRef("m.tenantId", "=", "rs.tenantId"),
+      )
+      .innerJoin("authScopeClosure as closure", (join) =>
+        join
+          .onRef("ancestorId", "=", "rs.scopeId")
+          .onRef("descendantId", "=", ({ fn, val }) =>
+            fn.coalesce("targetScopeId", val(rootScopeId)),
+          )
+          .on("closure.tenantId", "=", input.tenantId),
+      )
+      .select((eb) => eb("descendantId", "is not", null).as("allowed"))
       .execute();
 
     return accessResults.map((access) => Boolean(access.allowed.valueOf()));
