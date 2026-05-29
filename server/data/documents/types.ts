@@ -6,11 +6,13 @@ export interface TenantContext {
   tenantId: string;
 }
 
-export interface TenantActorContext extends TenantContext {
+export interface ActorContext {
   actor: {
     userId: string;
   };
 }
+
+export interface TenantActorContext extends TenantContext, ActorContext {}
 
 export interface StoredDocument<TData extends JsonObject = JsonObject> {
   id: string;

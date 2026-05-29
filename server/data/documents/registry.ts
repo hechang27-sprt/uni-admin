@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { injectable } from "inversify";
 
 import { DocumentServiceError } from "./errors";
 import type { RemoteCollectionAdapter } from "./remote";
@@ -59,6 +60,7 @@ export interface CollectionRegistration<TData extends JsonObject = JsonObject> {
   remoteAdapter?: RemoteCollectionAdapter<TData>;
 }
 
+@injectable()
 export class CollectionRegistry {
   private readonly collections = new Map<string, CollectionRegistration>();
 

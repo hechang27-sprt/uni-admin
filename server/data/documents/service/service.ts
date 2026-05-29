@@ -1,7 +1,8 @@
 import { applyJsonPatch } from "../json-patch";
-import { normalizeListInput } from "../repository";
+import { DocumentRepository, normalizeListInput } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
+  CollectionRegistry,
   resolveCollectionOperationAuth,
   type CollectionOperation,
 } from "../registry";
@@ -13,7 +14,6 @@ import type {
 } from "../types";
 import type {
   CreateDocumentInput,
-  DocumentServiceConfig,
   CreateManyDocumentInput,
   DocumentServiceOptions,
   GetDocumentInput,
@@ -37,32 +37,23 @@ import type {
   SetDocumentAuthScopeInput,
 } from "./contracts";
 import {
-  assertVersionAndUpdate,
   getRemoteAdapter,
   loadExisting,
   parseData,
   upsertRemoteProjection,
   upsertRemoteProjections,
   withRemoteOutput,
-  type DocumentServiceDependencies,
 } from "./helpers";
+import { AuthRbacService } from "#server/auth";
+import { injectable } from "inversify";
 
+@injectable()
 export class DocumentService {
-  private readonly registry: DocumentServiceConfig["registry"];
-  private readonly repository: DocumentServiceConfig["repository"];
-  private readonly authorizer: DocumentServiceConfig["authorizer"];
-  private readonly dependencies: DocumentServiceDependencies;
-
-  constructor(options: DocumentServiceConfig) {
-    this.registry = options.registry;
-    this.repository = options.repository;
-    this.authorizer = options.authorizer;
-    this.dependencies = {
-      registry: options.registry,
-      repository: options.repository,
-      validateAuthScopes: (input) => this.validateAuthScopes(input),
-    };
-  }
+  constructor(
+    private readonly registry: CollectionRegistry,
+    private readonly repository: DocumentRepository,
+    private readonly authorizer: AuthRbacService,
+  ) {}
 
   async create<TData extends JsonObject>(
     input: CreateDocumentInput<TData>,
@@ -906,6 +897,71 @@ export class DocumentService {
     }
 
     return options;
+  }
+
+  private async assertVersionAndUpdate<TData extends JsonObject>(
+    input: VersionedDocumentInput,
+    existing: StoredDocument,
+    data?: TData,
+    deletedAt?: Date | null,
+    remoteIdentity?: { remoteSource: string; remoteId: string },
+    authScopeId?: string | null,
+  ): Promise<StoredDocument<TData>> {
+    if (existing.version !== input.expectedVersion) {
+      throw new DocumentServiceError(
+        "CONFLICT_STALE_VERSION",
+        "Document version is stale",
+        {
+          collection: input.collection,
+          documentId: input.id,
+          expectedVersion: input.expectedVersion,
+          currentVersion: existing.version,
+        },
+      );
+    }
+
+    if (authScopeId !== undefined) {
+      const params = {
+        tenantId: input.tenantId,
+        authScopeIds: [authScopeId],
+      };
+    }
+
+    const updatedRows = await repository.updateMany<TData>({
+      tenantId: input.tenantId,
+      records: [
+        {
+          collection: input.collection,
+          id: input.id,
+          expectedVersion: input.expectedVersion,
+          data,
+          schemaVersion: registry.get(input.collection).schemaVersion,
+          ...(authScopeId === undefined ? {} : { authScopeId }),
+          ...(deletedAt === undefined ? {} : { deletedAt }),
+          ...(remoteIdentity
+            ? {
+                remoteSource: remoteIdentity.remoteSource,
+                remoteId: remoteIdentity.remoteId,
+              }
+            : {}),
+        },
+      ],
+    });
+    const updated = updatedRows?.[0];
+
+    if (!updated) {
+      throw new DocumentServiceError(
+        "CONFLICT_STALE_VERSION",
+        "Document version is stale",
+        {
+          collection: input.collection,
+          documentId: input.id,
+          expectedVersion: input.expectedVersion,
+        },
+      );
+    }
+
+    return updated;
   }
 }
 
