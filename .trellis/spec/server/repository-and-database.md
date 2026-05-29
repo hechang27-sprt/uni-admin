@@ -203,6 +203,11 @@ filter/sort SQL expression building:
   Kysely database.
 - `pivotToColumns()` in `server/util/db.ts` is the shared row-to-column helper
   for SQL array parameters and normalizes `undefined` values to `null`.
+- For repository batch inputs with optional fields, pass the matching Zod
+  object schema to `pivotToColumns()` so column names come from the declared
+  input shape rather than from whichever row keys happen to exist. This is
+  required for full-length `null` value columns and prefixed `setX` boolean
+  columns when every row omits an optional field.
 - Structured queries use `CamelCasePlugin({ maintainNestedObjectKeys: true })`
   to map camelCase TypeScript identifiers to snake_case SQL without changing
   JSONB document payload keys.
@@ -219,3 +224,6 @@ filter/sort SQL expression building:
   or per-scope validation queries.
 - Do not update remote projection rows without clearing `deletedAt` when a
   projection is refreshed.
+- Do not discover batch SQL parameter columns only from the first row or from
+  observed row keys when the input type has optional fields; use the schema
+  shape.

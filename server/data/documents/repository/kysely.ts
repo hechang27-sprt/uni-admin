@@ -25,6 +25,11 @@ import type {
   UpdateManyDocumentsRecord,
   UpsertRemoteProjectionsRecord,
 } from "./types";
+import {
+  insertManyDocumentsItemSchema,
+  updateDocumentRecordSchema,
+  upsertRemoteProjectionSchema,
+} from "./types";
 import { pivotToColumns } from "#server/util/db";
 
 type DocumentRow = Selectable<DocumentsTable>;
@@ -47,6 +52,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
     const { data, authScopeId, remoteId, remoteSource } = pivotToColumns(
       input.items,
+      insertManyDocumentsItemSchema,
     );
 
     await assertAuthScopesBelongToTenant(
@@ -196,27 +202,11 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return [];
     }
 
-    const columns = pivotToColumns(input.records, "set");
-    const nullColumn = <T>() =>
-      Array.from<T | null>({ length: input.records.length }, () => null);
-    const falseColumn = () =>
-      Array.from<boolean>({ length: input.records.length }, () => false);
-    const updateColumns = {
-      id: columns.id,
-      collection: columns.collection,
-      expectedVersion: columns.expectedVersion,
-      schemaVersion: columns.schemaVersion ?? nullColumn<number>(),
-      data: columns.data ?? nullColumn<TData>(),
-      setData: columns.setData ?? falseColumn(),
-      authScopeId: columns.authScopeId ?? nullColumn<string>(),
-      setAuthScopeId: columns.setAuthScopeId ?? falseColumn(),
-      deletedAt: columns.deletedAt ?? nullColumn<Date>(),
-      setDeletedAt: columns.setDeletedAt ?? falseColumn(),
-      remoteSource: columns.remoteSource ?? nullColumn<string>(),
-      setRemoteSource: columns.setRemoteSource ?? falseColumn(),
-      remoteId: columns.remoteId ?? nullColumn<string>(),
-      setRemoteId: columns.setRemoteId ?? falseColumn(),
-    };
+    const columns = pivotToColumns(
+      input.records,
+      updateDocumentRecordSchema,
+      "set",
+    );
     type UpdateInput = {
       [K in keyof typeof columns]: (typeof columns)[K][number];
     };
@@ -226,7 +216,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
         await assertAuthScopesBelongToTenant(
           tx,
           input.tenantId,
-          updateColumns.authScopeId,
+          columns.authScopeId,
         );
 
         const result = await tx
@@ -234,20 +224,20 @@ export class KyselyDocumentRepository implements DocumentRepository {
           .from(
             sql<UpdateInput>`
               unnest(
-                ${updateColumns.id}::uuid[],
-                ${updateColumns.collection}::text[],
-                ${updateColumns.expectedVersion}::int[],
-                ${updateColumns.schemaVersion}::int[],
-                ${updateColumns.data}::jsonb[],
-                ${updateColumns.setData}::boolean[],
-                ${updateColumns.authScopeId}::uuid[],
-                ${updateColumns.setAuthScopeId}::boolean[],
-                ${updateColumns.deletedAt}::timestamp with time zone[],
-                ${updateColumns.setDeletedAt}::boolean[],
-                ${updateColumns.remoteSource}::text[],
-                ${updateColumns.setRemoteSource}::boolean[],
-                ${updateColumns.remoteId}::text[],
-                ${updateColumns.setRemoteId}::boolean[]
+                ${columns.id}::uuid[],
+                ${columns.collection}::text[],
+                ${columns.expectedVersion}::int[],
+                ${columns.schemaVersion}::int[],
+                ${columns.data}::jsonb[],
+                ${columns.setData}::boolean[],
+                ${columns.authScopeId}::uuid[],
+                ${columns.setAuthScopeId}::boolean[],
+                ${columns.deletedAt}::timestamp with time zone[],
+                ${columns.setDeletedAt}::boolean[],
+                ${columns.remoteSource}::text[],
+                ${columns.setRemoteSource}::boolean[],
+                ${columns.remoteId}::text[],
+                ${columns.setRemoteId}::boolean[]
               )
             `.as<"updates">(
               sql`
@@ -327,7 +317,10 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return [];
     }
 
-    const { remoteId, data, authScopeId } = pivotToColumns(record.projections);
+    const { remoteId, data, authScopeId } = pivotToColumns(
+      record.projections,
+      upsertRemoteProjectionSchema,
+    );
 
     await assertAuthScopesBelongToTenant(
       this.database,
