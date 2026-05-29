@@ -425,3 +425,35 @@ Replaced Drizzle persistence with Kysely repositories and a baseline migration, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Optimize Kysely database access
+
+**Date**: 2026-05-29
+**Task**: Optimize Kysely database access
+
+### Summary
+
+Optimized document and auth repository database access with Kysely SQL pushdown, added pivotToColumns null normalization, restored simpler auth-scope validation where appropriate, fixed updateMany typing/runtime behavior, and verified lint/typecheck/focused unit coverage before archiving the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `80fbaeb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
