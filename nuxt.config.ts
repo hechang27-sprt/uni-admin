@@ -19,7 +19,10 @@ export default defineNuxtConfig({
     preset: "bun",
     typescript: {
       tsConfig: {
-        compilerOptions: {},
+        compilerOptions: {
+          emitDecoratorMetadata: true,
+          experimentalDecorators: true,
+        },
         include: ["../test/unit/server/**/*.ts"],
       },
     },
