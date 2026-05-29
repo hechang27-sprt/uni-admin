@@ -425,3 +425,72 @@ Replaced Drizzle persistence with Kysely repositories and a baseline migration, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Optimize Kysely database access
+
+**Date**: 2026-05-29
+**Task**: Optimize Kysely database access
+
+### Summary
+
+Optimized document and auth repository database access with Kysely SQL pushdown, added pivotToColumns null normalization, restored simpler auth-scope validation where appropriate, fixed updateMany typing/runtime behavior, and verified lint/typecheck/focused unit coverage before archiving the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `80fbaeb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 15: Refactor document list Kysely builders
+
+**Date**: 2026-05-29
+**Task**: Refactor document list Kysely builders
+**Branch**: `dev`
+
+### Summary
+
+Refactored document list filter, auth-scope, and sort expression construction to use Kysely expression-builder APIs instead of raw SQL fragments.
+
+### Main Changes
+
+- Moved list filter construction to expression-builder callbacks.
+- Replaced raw auth-scope SQL fragments with typed Kysely boolean expressions.
+- Reworked data and metadata sort/filter field expressions to use `eb.fn`, `eb.ref`, and `eb.val`.
+- Validation run: `bun run typecheck`, `bun run lint`, `bunx vitest run --project unit test/unit/server/service.test.ts test/unit/server/auth-rbac.test.ts`, `git diff --check`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8d0e3bc4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
