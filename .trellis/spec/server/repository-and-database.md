@@ -75,16 +75,24 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
 
 ```ts
 // Wrong: maps plain JSON result objects recursively.
-plugins: [new CamelCasePlugin()]
+plugins: [new CamelCasePlugin()];
 
 // Correct: transforms row identifiers without altering document JSON.
-plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })]
+plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })];
 ```
 
 ## Repository Implementation
 
 `server/data/documents/repository/kysely.ts` implements
 `KyselyDocumentRepository`.
+
+`server/auth/repository.ts` implements `KyselyAuthRbacRepository`.
+Auth/RBAC repository methods expose database facts and set-shaped SQL helpers:
+active membership lookup, tenant-bound user/role/assignment/scope/document id
+validation, permission-key validation, capability checks, and delegated role
+permission denial lookup.
+Keep omnibus authorization policy in `AuthRbacService.checkAccessMany`; do not
+reintroduce a repository-level `checkAccessMany` policy method.
 
 Important patterns:
 
@@ -96,13 +104,21 @@ Important patterns:
   arrays and unwrap the result.
 - Keep batch update behavior transactional through `buildBatchUpdateQuery`.
 - Preserve input order for `findByIds` and `updateMany`.
-- Gate `insertMany`, `updateMany`, and `upsertRemoteProjections` mutations
-  through a statement-local invalid-scope CTE so successful scoped writes
-  validate and mutate in one database call. On rejected writes, an ordered
-  validation lookup may run to preserve `INVALID_AUTH_SCOPE` details.
+- Do not perform auth-scope tenant validation in
+  `KyselyDocumentRepository`. Document service methods validate non-null
+  `authScopeId` values through the configured `DocumentAuthorizer` before
+  calling repository write methods.
 - Correlate ordered read, delete, and upsert output through SQL input
   relations with ordinality rather than building `Map` or `Set` instances
   from query results.
+- Prefer Kysely query/expression builders for repository query structure,
+  joins, `exists` checks, and CTE composition. Keep `sql` fragments narrowly
+  scoped to primitives Kysely cannot express cleanly, such as typed
+  `unnest(...::uuid[])` input relations, casts, and small computed expressions.
+- For `unnest()` input relations, alias the raw source directly with
+  `.as<"input">(...)`. Do not wrap it in a nested `selectFrom` callback just
+  to call `.selectAll().as("input")`; the direct alias is shorter and keeps
+  Kysely's table alias typing intact.
 - Use `onConflictDoUpdate` for remote projection upserts keyed by remote
   identity.
 
@@ -144,8 +160,9 @@ interface DocumentRepository {
 
 - `findByIds` returns positional `null` entries and preserves caller order.
 - `updateMany` is atomic and returns `null` when any optimistic update fails.
-- Mixed valid and invalid scoped write batches are atomic: no valid item is
-  persisted when any requested `authScopeId` is invalid.
+- Mixed valid and invalid scoped write batches are rejected by the service
+  before repository persistence: no valid item is persisted when any requested
+  `authScopeId` is invalid.
 - One-element calls are the required repository path for scalar service CRUD.
 - Batch SQL result mapping must return `Date` instances for document timestamp
   fields; pgLite may return strings from raw `execute()` statements.
@@ -159,8 +176,8 @@ interface DocumentRepository {
 
 ### 5. Good/Base/Bad Cases
 
-- Good: gate a multi-row insert with one invalid-scope CTE and insert only
-  when every requested scope belongs to the tenant.
+- Good: service validates every requested non-null `authScopeId` before
+  calling the repository for a multi-row insert.
 - Base: create one document through `insertMany({ items: [item] })`.
 - Bad: loop over `items` and issue one scope lookup or update per row.
 
@@ -173,15 +190,39 @@ interface DocumentRepository {
 ### 7. Wrong vs Correct
 
 ```ts
-// Wrong: successful writes pay a separate validation round trip.
-await assertAuthScopesBelongToTenant(db, tenantId, scopeIds);
-await db.insertInto("documents").values(items).execute();
+// Wrong: repository write method owns auth-scope validity policy.
+await repository.assertAuthScopesBelongToTenant(tenantId, scopeIds);
+await repository.insertMany({ tenantId, collection, schemaVersion, items });
+
+// Wrong: hides a composable repository query inside one raw SQL statement.
+await sql`with input as (...) select exists (...)`.execute(db);
+
+// Wrong: wraps a plain unnest source in an unnecessary subquery.
+await db.selectFrom(({ selectFrom }) =>
+  selectFrom(sql<{ id: string }>`unnest(${ids}::uuid[])`.as(sql`t(id)`))
+    .selectAll()
+    .as("input"),
+);
 
 // Wrong: database work grows with the item count.
 for (const item of items) await repository.update(item);
 
 // Correct: SQL gates and performs one set-shaped optimistic mutation.
 await repository.updateMany({ records });
+
+// Correct: builder owns the query; raw SQL is only the typed input relation.
+await db
+  .with("input", (db) =>
+    db
+      .selectFrom(
+        sql<{ id: string }>`unnest(${ids}::uuid[])`.as<"input">(sql`input(id)`),
+      )
+      .selectAll(),
+  )
+  .selectFrom("input")
+  .innerJoin("documents", "documents.id", "input.id")
+  .select("documents.id")
+  .execute();
 ```
 
 ## Query Normalization
@@ -220,6 +261,9 @@ filter/sort SQL expression building:
 - Do not duplicate query normalization in the service layer.
 - Do not build SQL with string concatenation. Use Kysely builders and `sql`
   interpolation as in `buildBatchUpdateQuery`.
+- Do not write whole repository queries as raw SQL when Kysely can express the
+  CTEs, joins, filters, and boolean conditions. Whole-statement raw SQL loses
+  typed table references and makes casing/alias mistakes easier to miss.
 - Do not reintroduce scalar item insert/read/update/delete repository methods
   or per-scope validation queries.
 - Do not update remote projection rows without clearing `deletedAt` when a

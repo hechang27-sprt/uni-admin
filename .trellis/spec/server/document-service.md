@@ -25,6 +25,10 @@ methods.
 - `createMany`, `getByIds`, and `updateMany` collect distinct target auth
   scopes and invoke `DocumentAuthorizer.checkAccessMany(...)` once per
   protected operation.
+- Document writes that receive non-null `authScopeId` values validate those
+  scope ids through `DocumentAuthorizer.validateTenantAccess(...)` before
+  repository persistence, including trusted writes without an actor and remote
+  projection upserts.
 - `getByIds` maps denied documents to `null` in their original positions.
   Protected mutation/create methods reject denied items with
   `AUTHORIZATION_DENIED`.

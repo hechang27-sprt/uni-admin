@@ -32,11 +32,16 @@ interface DocumentAuthorizer {
   checkAccessMany(input: {
     context: TenantActorContext;
     checks: { capability: string; targetScopeId: string | null }[];
+    tenantAccess?: { scopeId?: string[] };
   }): Promise<boolean[]>;
   listAccessibleDocumentScopeIds(input: {
     context: TenantActorContext;
     capability: string;
   }): Promise<(string | null)[]>;
+  validateTenantAccess(input: {
+    tenantId: string;
+    scopeIds?: string[];
+  }): Promise<{ invalidScopeId: string | null }>;
 }
 
 interface AuthRbacRepository {
@@ -55,7 +60,34 @@ interface AuthRbacRepository {
     userId: string;
     targetScopeId: string;
   }): Promise<string | null>;
-  checkAccessMany(input: {
+  findActiveTenantMembership(input: {
+    tenantId: string;
+    userId: string;
+  }): Promise<TenantMembership | null>;
+  findInvalidActiveMembershipUserId(input: {
+    tenantId: string;
+    userIds: string[];
+  }): Promise<string | null>;
+  findInvalidRoleId(input: {
+    tenantId: string;
+    roleIds: string[];
+  }): Promise<string | null>;
+  findInvalidAssignmentId(input: {
+    tenantId: string;
+    assignmentIds: string[];
+  }): Promise<string | null>;
+  findInvalidScopeId(input: {
+    tenantId: string;
+    scopeIds: string[];
+  }): Promise<string | null>;
+  findInvalidDocumentId(input: {
+    tenantId: string;
+    documentIds: string[];
+  }): Promise<string | null>;
+  findInvalidPermissionKey(input: {
+    permissionKeys: string[];
+  }): Promise<string | null>;
+  checkCapabilities(input: {
     tenantId: string;
     userId: string;
     checks: { capability: string; targetScopeId: string | null }[];
@@ -105,6 +137,19 @@ interface TenantActorContext {
   `checkAccess` wrap one-element repository batches. Login, actor membership
   lookup, root-scope creation, scope-tree creation, and role resolution remain
   justified singular operations.
+- `AuthRbacService.checkAccessMany` owns omnibus orchestration for active
+  membership, tenant-bound id validity, permission-key validity, and capability
+  authorization. Repository helpers report database facts; they do not expose a
+  service-policy omnibus method.
+- Service-level omnibus input may include `tenantAccess.userId` for validating
+  target memberships and `permissionKeys` for list-access APIs that need
+  permission-key validation without requiring access to a single target scope.
+- Auth service list-access APIs validate active actor membership and
+  permission-key existence through the same service-owned omnibus evaluator
+  before asking repository list queries for accessible scopes.
+- Repository validation helpers report the first ordered failure needed to
+  choose the service error, not every invalid id or denied capability. Preserve
+  caller order inside each input set when selecting that failure.
 - Tenant-owner bootstrap grants all built-in permissions with one
   `grantPermissions` call. Delegated assignment checks all target-role
   capabilities inside one `findDeniedRolePermission` query after admin/owner
@@ -123,7 +168,8 @@ interface TenantActorContext {
   options -> `AUTHORIZATION_DENIED`.
 - Missing capability or failed scope containment -> `AUTHORIZATION_DENIED`.
 - Cross-tenant `authScopeId` in trusted document writes ->
-  `INVALID_AUTH_SCOPE`.
+  `INVALID_AUTH_SCOPE`; document service performs this validation through the
+  configured `DocumentAuthorizer` before repository writes.
 - Missing or inactive tenant membership during actor resolution ->
   `AuthRbacError` code `AUTH_TENANT_MEMBERSHIP_REQUIRED`.
 - Missing role/scope/permission during RBAC setup -> `AUTH_ROLE_NOT_FOUND`,
@@ -199,7 +245,7 @@ The correct path treats authorization scope as framework metadata and checks
 
 ```ts
 const capabilities = await repository.rolePermissionKeys({ tenantId, roleId });
-await repository.checkAccessMany({
+await repository.checkCapabilities({
   tenantId,
   userId,
   checks: capabilities.map((capability) => ({ capability, targetScopeId })),
