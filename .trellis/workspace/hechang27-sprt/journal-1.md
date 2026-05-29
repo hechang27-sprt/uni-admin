@@ -494,3 +494,46 @@ Refactored document list filter, auth-scope, and sort expression construction to
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Omnibus auth access checks
+
+**Date**: 2026-05-29
+**Task**: Omnibus auth access checks
+
+### Summary
+
+Centralized auth/document access validation at the service boundary, removed repository-owned auth-scope and RBAC validity policy checks, and updated tests/specs for omnibus access checks.
+
+### Main Changes
+
+- Moved omnibus auth validation into `AuthRbacService` through service-owned access evaluation and validation helpers.
+- Split repository access checking into database fact helpers for invalid memberships, roles, assignments, scopes, documents, and permission keys.
+- Removed document repository auth-scope tenant validation; document service validates scoped writes through the configured authorizer before persistence.
+- Simplified `grantPermissions` and `assignRoles` repository methods so they persist service-validated inputs only.
+- Added service-level validation for direct permission grants and role assignments before repository writes.
+- Updated auth/document tests to cover service-boundary validation and protected document access behavior.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4820099` | refactor: centralize auth access validation |
+
+### Testing
+
+- [OK] `npm run typecheck`
+- [OK] `npm run lint`
+- [OK] `npm run test -- test/unit/server/auth-rbac.test.ts`
+- [OK] `npm run test -- test/unit/server/service.test.ts`
+- [OK] `git diff --check`
+- [OK] `npx gitnexus analyze`
+- [OK] GitNexus change detection
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

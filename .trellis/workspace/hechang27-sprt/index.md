@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
+- **Total Sessions**: 16
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~496 | Active |
+| `journal-1.md` | ~528 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-05-29 | Omnibus auth access checks | `5a100b1` | `-` |
 | 15 | 2026-05-29 | Refactor document list Kysely builders | `8d0e3bc4` | `dev` |
 | 14 | 2026-05-29 | Optimize Kysely database access | `80fbaeb` | `-` |
 | 13 | 2026-05-27 | Migrate Drizzle data layer to Kysely | `0eef7f14` | `-` |
