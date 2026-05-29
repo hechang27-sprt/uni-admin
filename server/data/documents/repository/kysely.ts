@@ -1,10 +1,5 @@
 /* oxlint-disable typescript/unbound-method -- Kysely expression-builder callback methods are used only to build SQL AST nodes. */
-import {
-  sql,
-  type RawBuilder,
-  type Selectable,
-  type Transaction,
-} from "kysely";
+import { sql, type Selectable, type Transaction } from "kysely";
 
 import type { Database, DocumentsTable } from "#server/db/schema";
 import type { DatabaseClient } from "#server/util/kysely";
@@ -15,6 +10,7 @@ import type {
   StoredDocument,
 } from "../types";
 import {
+  buildAuthScopeCondition,
   buildFieldExpression,
   buildFilterCondition,
   normalizeSort,
@@ -24,6 +20,11 @@ import type {
   InsertManyDocumentsRecord,
   UpdateManyDocumentsRecord,
   UpsertRemoteProjectionsRecord,
+} from "./types";
+import {
+  insertManyDocumentsItemSchema,
+  updateDocumentRecordSchema,
+  upsertRemoteProjectionSchema,
 } from "./types";
 import { pivotToColumns } from "#server/util/db";
 
@@ -47,6 +48,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
     const { data, authScopeId, remoteId, remoteSource } = pivotToColumns(
       input.items,
+      insertManyDocumentsItemSchema,
     );
 
     await assertAuthScopesBelongToTenant(
@@ -169,17 +171,18 @@ export class KyselyDocumentRepository implements DocumentRepository {
     if (!input.query.includeDeleted) {
       query = query.where("deletedAt", "is", null);
     }
-    if (input.query.filter) {
-      query = query.where(buildFilterCondition(input.query.filter));
+    const { filter, authScopeIds } = input.query;
+    if (filter) {
+      query = query.where((eb) => buildFilterCondition(eb, filter));
     }
-    const authScopeCondition = buildAuthScopeCondition(
-      input.query.authScopeIds,
-    );
-    if (authScopeCondition) {
-      query = query.where(authScopeCondition);
+    if (authScopeIds) {
+      query = query.where((eb) => buildAuthScopeCondition(eb, authScopeIds));
     }
     for (const sort of normalizeSort(input.query.sort)) {
-      query = query.orderBy(buildFieldExpression(sort.field), sort.direction);
+      query = query.orderBy(
+        (eb) => buildFieldExpression(eb, sort.field),
+        sort.direction,
+      );
     }
 
     const rows = await query
@@ -196,27 +199,11 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return [];
     }
 
-    const columns = pivotToColumns(input.records, "set");
-    const nullColumn = <T>() =>
-      Array.from<T | null>({ length: input.records.length }, () => null);
-    const falseColumn = () =>
-      Array.from<boolean>({ length: input.records.length }, () => false);
-    const updateColumns = {
-      id: columns.id,
-      collection: columns.collection,
-      expectedVersion: columns.expectedVersion,
-      schemaVersion: columns.schemaVersion ?? nullColumn<number>(),
-      data: columns.data ?? nullColumn<TData>(),
-      setData: columns.setData ?? falseColumn(),
-      authScopeId: columns.authScopeId ?? nullColumn<string>(),
-      setAuthScopeId: columns.setAuthScopeId ?? falseColumn(),
-      deletedAt: columns.deletedAt ?? nullColumn<Date>(),
-      setDeletedAt: columns.setDeletedAt ?? falseColumn(),
-      remoteSource: columns.remoteSource ?? nullColumn<string>(),
-      setRemoteSource: columns.setRemoteSource ?? falseColumn(),
-      remoteId: columns.remoteId ?? nullColumn<string>(),
-      setRemoteId: columns.setRemoteId ?? falseColumn(),
-    };
+    const columns = pivotToColumns(
+      input.records,
+      updateDocumentRecordSchema,
+      "set",
+    );
     type UpdateInput = {
       [K in keyof typeof columns]: (typeof columns)[K][number];
     };
@@ -226,7 +213,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
         await assertAuthScopesBelongToTenant(
           tx,
           input.tenantId,
-          updateColumns.authScopeId,
+          columns.authScopeId,
         );
 
         const result = await tx
@@ -234,20 +221,20 @@ export class KyselyDocumentRepository implements DocumentRepository {
           .from(
             sql<UpdateInput>`
               unnest(
-                ${updateColumns.id}::uuid[],
-                ${updateColumns.collection}::text[],
-                ${updateColumns.expectedVersion}::int[],
-                ${updateColumns.schemaVersion}::int[],
-                ${updateColumns.data}::jsonb[],
-                ${updateColumns.setData}::boolean[],
-                ${updateColumns.authScopeId}::uuid[],
-                ${updateColumns.setAuthScopeId}::boolean[],
-                ${updateColumns.deletedAt}::timestamp with time zone[],
-                ${updateColumns.setDeletedAt}::boolean[],
-                ${updateColumns.remoteSource}::text[],
-                ${updateColumns.setRemoteSource}::boolean[],
-                ${updateColumns.remoteId}::text[],
-                ${updateColumns.setRemoteId}::boolean[]
+                ${columns.id}::uuid[],
+                ${columns.collection}::text[],
+                ${columns.expectedVersion}::int[],
+                ${columns.schemaVersion}::int[],
+                ${columns.data}::jsonb[],
+                ${columns.setData}::boolean[],
+                ${columns.authScopeId}::uuid[],
+                ${columns.setAuthScopeId}::boolean[],
+                ${columns.deletedAt}::timestamp with time zone[],
+                ${columns.setDeletedAt}::boolean[],
+                ${columns.remoteSource}::text[],
+                ${columns.setRemoteSource}::boolean[],
+                ${columns.remoteId}::text[],
+                ${columns.setRemoteId}::boolean[]
               )
             `.as<"updates">(
               sql`
@@ -327,7 +314,10 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return [];
     }
 
-    const { remoteId, data, authScopeId } = pivotToColumns(record.projections);
+    const { remoteId, data, authScopeId } = pivotToColumns(
+      record.projections,
+      upsertRemoteProjectionSchema,
+    );
 
     await assertAuthScopesBelongToTenant(
       this.database,
@@ -434,36 +424,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .executeTakeFirstOrThrow();
     return result.ids;
   }
-}
-
-function buildAuthScopeCondition(
-  authScopeIds?: (string | null)[],
-): RawBuilder<boolean> | undefined {
-  if (!authScopeIds) {
-    return undefined;
-  }
-  if (authScopeIds.length === 0) {
-    return sql<boolean>`false`;
-  }
-
-  const scopedIds = authScopeIds.filter(
-    (scopeId): scopeId is string => scopeId !== null,
-  );
-  const conditions: RawBuilder<boolean>[] = [];
-  if (authScopeIds.includes(null)) {
-    conditions.push(sql<boolean>`documents.auth_scope_id is null`);
-  }
-  if (scopedIds.length > 0) {
-    conditions.push(
-      sql<boolean>`documents.auth_scope_id in (${sql.join(
-        scopedIds.map((scopeId) => sql`${scopeId}`),
-        sql`, `,
-      )})`,
-    );
-  }
-  return conditions.length === 1
-    ? conditions[0]
-    : sql<boolean>`(${sql.join(conditions, sql` or `)})`;
 }
 
 async function assertAuthScopesBelongToTenant(

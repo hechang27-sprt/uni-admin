@@ -1,5 +1,6 @@
-import { sql, type RawBuilder } from "kysely";
+import type { Expression, ExpressionBuilder, SqlBool } from "kysely";
 
+import type { Database } from "#server/db/schema";
 import type {
   DocumentField,
   DocumentFilter,
@@ -9,6 +10,10 @@ import type {
   NormalizedListDocumentsInput,
   StoredDocument,
 } from "../types";
+
+type DocumentsExpressionBuilder = ExpressionBuilder<Database, "documents">;
+type DocumentsBooleanExpression = Expression<SqlBool>;
+type DocumentsFieldExpression = Expression<unknown>;
 
 export function normalizeListInput(
   input: ListDocumentsInput = {},
@@ -46,59 +51,80 @@ export function normalizeSort(sort: DocumentSort[] = []): DocumentSort[] {
 }
 
 export function buildFilterCondition(
+  eb: DocumentsExpressionBuilder,
   filter: DocumentFilter,
-): RawBuilder<boolean> {
+): DocumentsBooleanExpression {
   if ("and" in filter) {
-    const children = filter.and.map((child) => buildFilterCondition(child));
-    return sql<boolean>`(${sql.join(children, sql` and `)})`;
+    return eb.and(filter.and.map((child) => buildFilterCondition(eb, child)));
   }
 
   if ("or" in filter) {
-    const children = filter.or.map((child) => buildFilterCondition(child));
-    return sql<boolean>`(${sql.join(children, sql` or `)})`;
+    return eb.or(filter.or.map((child) => buildFilterCondition(eb, child)));
   }
 
-  const field = buildFieldExpression(filter.field);
+  const field = buildFieldExpression(eb, filter.field);
 
   switch (filter.op) {
     case "eq": {
       return filter.value === null
-        ? sql<boolean>`${field} is null`
-        : sql<boolean>`${field} = ${filter.value}`;
+        ? eb(field, "is", null)
+        : eb(field, "=", filter.value);
     }
     case "ne": {
       return filter.value === null
-        ? sql<boolean>`${field} is not null`
-        : sql<boolean>`${field} <> ${filter.value}`;
+        ? eb(field, "is not", null)
+        : eb(field, "<>", filter.value);
     }
     case "gt": {
-      return sql<boolean>`${field} > ${filter.value}`;
+      return eb(field, ">", filter.value);
     }
     case "gte": {
-      return sql<boolean>`${field} >= ${filter.value}`;
+      return eb(field, ">=", filter.value);
     }
     case "lt": {
-      return sql<boolean>`${field} < ${filter.value}`;
+      return eb(field, "<", filter.value);
     }
     case "lte": {
-      return sql<boolean>`${field} <= ${filter.value}`;
+      return eb(field, "<=", filter.value);
     }
   }
 
   throw new Error("Unsupported filter operation");
 }
 
-export function buildFieldExpression(
-  field: DocumentField,
-): RawBuilder<unknown> {
-  if (field.kind === "data") {
-    return sql`jsonb_extract_path_text(${sql.ref("documents.data")}, ${sql.join(
-      field.path.map((segment) => sql`${segment}`),
-      sql`, `,
-    )})`;
+export function buildAuthScopeCondition(
+  eb: DocumentsExpressionBuilder,
+  authScopeIds: (string | null)[],
+): DocumentsBooleanExpression {
+  if (authScopeIds.length === 0) {
+    return eb.lit(false);
   }
 
-  return sql.ref(`documents.${field.name}`);
+  const scopedIds = authScopeIds.filter(
+    (scopeId): scopeId is string => scopeId !== null,
+  );
+  const conditions: DocumentsBooleanExpression[] = [];
+  if (authScopeIds.includes(null)) {
+    conditions.push(eb("documents.authScopeId", "is", null));
+  }
+  if (scopedIds.length > 0) {
+    conditions.push(eb("documents.authScopeId", "in", scopedIds));
+  }
+  return conditions.length === 1 ? conditions[0]! : eb.or(conditions);
+}
+
+export function buildFieldExpression(
+  eb: DocumentsExpressionBuilder,
+  field: DocumentField,
+): DocumentsFieldExpression {
+  if (field.kind === "data") {
+    return eb.fn<string | null>("jsonb_extract_path_text", [
+      eb.ref("documents.data"),
+      ...field.path.map((segment) => eb.val(segment)),
+    ]);
+  }
+
+  return eb.ref(`documents.${field.name}`);
 }
 
 export function matchesFilter(
