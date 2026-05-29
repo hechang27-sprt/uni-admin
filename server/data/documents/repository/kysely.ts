@@ -1,9 +1,8 @@
 /* oxlint-disable typescript/unbound-method -- Kysely expression-builder callback methods are used only to build SQL AST nodes. */
-import { sql, type Selectable, type Transaction } from "kysely";
+import { sql, type Selectable } from "kysely";
 
-import type { Database, DocumentsTable } from "#server/db/schema";
+import type { DocumentsTable } from "#server/db/schema";
 import type { DatabaseClient } from "#server/util/kysely";
-import { DocumentServiceError } from "../errors";
 import type {
   JsonObject,
   NormalizedListDocumentsInput,
@@ -32,7 +31,6 @@ type DocumentRow = Selectable<DocumentsTable>;
 type NullableDocumentRow = {
   [K in keyof DocumentRow]: DocumentRow[K] | null;
 };
-type DocumentDatabase = DatabaseClient | Transaction<Database>;
 
 class BatchUpdateConflict extends Error {}
 
@@ -49,12 +47,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
     const { data, authScopeId, remoteId, remoteSource } = pivotToColumns(
       input.items,
       insertManyDocumentsItemSchema,
-    );
-
-    await assertAuthScopesBelongToTenant(
-      this.database,
-      input.tenantId,
-      authScopeId ?? [],
     );
 
     type InsertInput = {
@@ -210,12 +202,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
     try {
       return await this.database.transaction().execute(async (tx) => {
-        await assertAuthScopesBelongToTenant(
-          tx,
-          input.tenantId,
-          columns.authScopeId,
-        );
-
         const result = await tx
           .updateTable("documents")
           .from(
@@ -319,12 +305,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       upsertRemoteProjectionSchema,
     );
 
-    await assertAuthScopesBelongToTenant(
-      this.database,
-      record.tenantId,
-      authScopeId ?? [],
-    );
-
     type ProjectionInput = {
       data: TData;
       authScopeId: string | null;
@@ -423,48 +403,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       )
       .executeTakeFirstOrThrow();
     return result.ids;
-  }
-}
-
-async function assertAuthScopesBelongToTenant(
-  database: DocumentDatabase,
-  tenantId: string | undefined,
-  authScopeIds: (string | null)[],
-): Promise<void> {
-  if (!tenantId || authScopeIds.length === 0) {
-    return;
-  }
-
-  const invalid = await database
-    .selectFrom(({ selectFrom }) =>
-      selectFrom(
-        sql<{
-          authScopeId: string | null;
-          inputOrder: number;
-        }>`unnest(${authScopeIds}::uuid[]) with ordinality`.as(
-          sql`t(auth_scope_id, input_order)`,
-        ),
-      )
-        .selectAll()
-        .as("input"),
-    )
-    .leftJoin("authScopes", (join) =>
-      join
-        .on("authScopes.tenantId", "=", tenantId)
-        .onRef("authScopes.scopeId", "=", "input.authScopeId"),
-    )
-    .select("input.authScopeId")
-    .where("input.authScopeId", "is not", null)
-    .where("authScopes.scopeId", "is", null)
-    .orderBy("input.inputOrder")
-    .executeTakeFirst();
-  const invalidScopeId = invalid?.authScopeId;
-  if (invalidScopeId) {
-    throw new DocumentServiceError(
-      "INVALID_AUTH_SCOPE",
-      "Document auth scope does not belong to the tenant",
-      { tenantId, authScopeId: invalidScopeId },
-    );
   }
 }
 

@@ -12,6 +12,10 @@ import type { JsonObject, StoredDocument, TenantContext } from "../types";
 export interface DocumentServiceDependencies {
   registry: CollectionRegistry;
   repository: DocumentRepository;
+  validateAuthScopes?: (input: {
+    tenantId: string;
+    authScopeIds: (string | null | undefined)[];
+  }) => Promise<void>;
 }
 
 export async function loadExisting<TData extends JsonObject = JsonObject>(
@@ -61,6 +65,13 @@ export async function assertVersionAndUpdate<TData extends JsonObject>(
         currentVersion: existing.version,
       },
     );
+  }
+
+  if (authScopeId !== undefined) {
+    await dependencies.validateAuthScopes?.({
+      tenantId: input.tenantId,
+      authScopeIds: [authScopeId],
+    });
   }
 
   const updatedRows = await repository.updateMany<TData>({
@@ -144,6 +155,11 @@ export async function upsertRemoteProjections<TData extends JsonObject>(
       input.collection,
     ),
   }));
+
+  await dependencies.validateAuthScopes?.({
+    tenantId: input.tenantId,
+    authScopeIds: parsedProjections.map((projection) => projection.authScopeId),
+  });
 
   return repository.upsertRemoteProjections<TData>({
     tenantId: input.tenantId,

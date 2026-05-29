@@ -60,6 +60,7 @@ export class DocumentService {
     this.dependencies = {
       registry: options.registry,
       repository: options.repository,
+      validateAuthScopes: (input) => this.validateAuthScopes(input),
     };
   }
 
@@ -69,6 +70,10 @@ export class DocumentService {
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get<TData>(input.collection);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
+    await this.validateAuthScopes({
+      tenantId: input.tenantId,
+      authScopeIds: [input.authScopeId],
+    });
     const data = parseData<TData>(
       collection.schema,
       input.data,
@@ -100,11 +105,16 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
     const collection = this.registry.get<TData>(input.collection);
+    const authScopeIds = input.items.map((item) => item.authScopeId);
     await this.authorizeCreate(
       input,
-      input.items.map((item) => item.authScopeId ?? null),
+      authScopeIds.map((authScopeId) => authScopeId ?? null),
       options,
     );
+    await this.validateAuthScopes({
+      tenantId: input.tenantId,
+      authScopeIds,
+    });
     const items = input.items.map((item) => ({
       data: parseData<TData>(collection.schema, item.data, input.collection),
       authScopeId: item.authScopeId,
@@ -484,6 +494,10 @@ export class DocumentService {
       { create: TOutput }
     >(this.registry, input.collection);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
+    await this.validateAuthScopes({
+      tenantId: input.tenantId,
+      authScopeIds: [input.authScopeId],
+    });
     const result = await adapter.createRemote(input.input, {
       tenantId: input.tenantId,
       collection: input.collection,
@@ -636,6 +650,10 @@ export class DocumentService {
   ): Promise<StoredDocument> {
     const authenticatedOptions = this.requireActorOptions(input, options);
     const existing = await loadExisting(this.dependencies, input, true);
+    await this.validateAuthScopes({
+      tenantId: input.tenantId,
+      authScopeIds: [input.authScopeId],
+    });
     await this.assertScopeAccesses(
       input,
       authenticatedOptions,
@@ -838,11 +856,37 @@ export class DocumentService {
     });
   }
 
+  private async validateAuthScopes(input: {
+    tenantId: string;
+    authScopeIds: (string | null | undefined)[];
+  }): Promise<void> {
+    const scopeIds = input.authScopeIds.filter(
+      (authScopeId): authScopeId is string =>
+        authScopeId !== null && authScopeId !== undefined,
+    );
+    if (scopeIds.length === 0) {
+      return;
+    }
+
+    const authorizer = this.requireAuthorizer();
+    const { invalidScopeId } = await authorizer.validateTenantAccess({
+      tenantId: input.tenantId,
+      scopeIds,
+    });
+    if (invalidScopeId) {
+      throw new DocumentServiceError(
+        "INVALID_AUTH_SCOPE",
+        "Document auth scope does not belong to the tenant",
+        { tenantId: input.tenantId, authScopeId: invalidScopeId },
+      );
+    }
+  }
+
   private requireAuthorizer() {
     if (!this.authorizer) {
       throw new DocumentServiceError(
         "AUTHORIZER_REQUIRED",
-        "Document authorizer is required for actor-scoped service operations",
+        "Document authorizer is required for protected or scoped service operations",
       );
     }
 
