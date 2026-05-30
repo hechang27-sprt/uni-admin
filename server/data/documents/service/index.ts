@@ -1,7 +1,6 @@
 export { DocumentService } from "./service";
 export type {
   CreateDocumentInput,
-  DocumentServiceConfig,
   CreateManyDocumentInput,
   DocumentServiceOptions,
   GetDocumentInput,

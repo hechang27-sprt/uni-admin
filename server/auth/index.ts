@@ -8,6 +8,8 @@ export {
 export { AuthRbacService, builtInAdminPermissions } from "./service";
 export type {
   AssignRoleInput,
+  AccessCheckEvaluation,
+  AccessCheckFailure,
   AuthScope,
   AuthUser,
   BootstrapTenantOwnerInput,
@@ -18,7 +20,6 @@ export type {
   CreateScopeInput,
   CreateTenantMembershipInput,
   CreateUserInput,
-  DocumentAuthorizer,
   GrantPermissionInput,
   ListAccessibleScopesInput,
   Permission,

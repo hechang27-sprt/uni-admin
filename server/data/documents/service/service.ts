@@ -1,9 +1,9 @@
 import { applyJsonPatch } from "../json-patch";
-import { DocumentRepository, normalizeListInput } from "../repository";
+import { normalizeListInput, type DocumentRepository } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
-  CollectionRegistry,
   resolveCollectionOperationAuth,
+  type CollectionRegistry,
   type CollectionOperation,
 } from "../registry";
 import type {
@@ -36,22 +36,21 @@ import type {
   VersionedDocumentInput,
   SetDocumentAuthScopeInput,
 } from "./contracts";
-import {
-  getRemoteAdapter,
-  loadExisting,
-  parseData,
-  upsertRemoteProjection,
-  upsertRemoteProjections,
-  withRemoteOutput,
-} from "./helpers";
-import { AuthRbacService } from "#server/auth";
-import { injectable } from "inversify";
+import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
+import type { AuthRbacService } from "#server/auth";
+import { inject, injectable } from "inversify";
+import type { RemoteAdapterProjection } from "../remote";
+import { SERVER_DI_TYPES } from "#server/di/tokens";
+import type { CapabilityAccessCheck } from "~~/server/auth/types";
 
 @injectable()
 export class DocumentService {
   constructor(
+    @inject(SERVER_DI_TYPES.CollectionRegistry)
     private readonly registry: CollectionRegistry,
+    @inject(SERVER_DI_TYPES.DocumentRepository)
     private readonly repository: DocumentRepository,
+    @inject(SERVER_DI_TYPES.AuthRbacService)
     private readonly authorizer: AuthRbacService,
   ) {}
 
@@ -61,10 +60,12 @@ export class DocumentService {
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get<TData>(input.collection);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
-    await this.validateAuthScopes({
-      tenantId: input.tenantId,
-      authScopeIds: [input.authScopeId],
-    });
+    if (!hasActorOptions(options)) {
+      await this.validateAuthScopes({
+        tenantId: input.tenantId,
+        authScopeIds: [input.authScopeId],
+      });
+    }
     const data = parseData<TData>(
       collection.schema,
       input.data,
@@ -102,10 +103,12 @@ export class DocumentService {
       authScopeIds.map((authScopeId) => authScopeId ?? null),
       options,
     );
-    await this.validateAuthScopes({
-      tenantId: input.tenantId,
-      authScopeIds,
-    });
+    if (!hasActorOptions(options)) {
+      await this.validateAuthScopes({
+        tenantId: input.tenantId,
+        authScopeIds,
+      });
+    }
     const items = input.items.map((item) => ({
       data: parseData<TData>(collection.schema, item.data, input.collection),
       authScopeId: item.authScopeId,
@@ -215,7 +218,7 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get<TData>(input.collection);
-    const existing = await loadExisting<TData>(this.dependencies, input);
+    const existing = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "update", [existing]);
     const data = parseData<TData>(
       collection.schema,
@@ -223,7 +226,7 @@ export class DocumentService {
       input.collection,
     );
 
-    return assertVersionAndUpdate(this.dependencies, input, existing, data);
+    return this.assertVersionAndUpdate(input, existing, data);
   }
 
   async updateMany<TData extends JsonObject>(
@@ -305,7 +308,7 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
     const collection = this.registry.get<TData>(input.collection);
-    const existing = await loadExisting<TData>(this.dependencies, input);
+    const existing = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "patch", [existing]);
 
     if (existing.version !== input.expectedVersion) {
@@ -324,42 +327,25 @@ export class DocumentService {
     const patched = applyJsonPatch(existing.data, input.patch);
     const data = parseData<TData>(collection.schema, patched, input.collection);
 
-    return assertVersionAndUpdate<TData>(
-      this.dependencies,
-      input,
-      existing,
-      data,
-    );
+    return this.assertVersionAndUpdate<TData>(input, existing, data);
   }
 
   async softDelete(
     input: VersionedDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument> {
-    const existing = await loadExisting(this.dependencies, input);
+    const existing = await this.loadExisting(input);
     await this.authorizeDocuments(input, options, "delete", [existing]);
-    return assertVersionAndUpdate(
-      this.dependencies,
-      input,
-      existing,
-      undefined,
-      new Date(),
-    );
+    return this.assertVersionAndUpdate(input, existing, undefined, new Date());
   }
 
   async restore(
     input: VersionedDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument> {
-    const existing = await loadExisting(this.dependencies, input, true);
+    const existing = await this.loadExisting(input, true);
     await this.authorizeDocuments(input, options, "restore", [existing]);
-    return assertVersionAndUpdate(
-      this.dependencies,
-      input,
-      existing,
-      undefined,
-      null,
-    );
+    return this.assertVersionAndUpdate(input, existing, undefined, null);
   }
 
   async hardDelete(
@@ -428,11 +414,7 @@ export class DocumentService {
       collection: input.collection,
     });
     const document = result.projection
-      ? await upsertRemoteProjection<TData>(
-          this.dependencies,
-          input,
-          result.projection,
-        )
+      ? await this.upsertRemoteProjection<TData>(input, result.projection)
       : null;
 
     return withRemoteOutput({ document }, result.output);
@@ -458,8 +440,7 @@ export class DocumentService {
       tenantId: input.tenantId,
       collection: input.collection,
     });
-    const documents = await upsertRemoteProjections<TData>(
-      this.dependencies,
+    const documents = await this.upsertRemoteProjections<TData>(
       input,
       result.projections,
     );
@@ -485,23 +466,21 @@ export class DocumentService {
       { create: TOutput }
     >(this.registry, input.collection);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
-    await this.validateAuthScopes({
-      tenantId: input.tenantId,
-      authScopeIds: [input.authScopeId],
-    });
+    if (!hasActorOptions(options)) {
+      await this.validateAuthScopes({
+        tenantId: input.tenantId,
+        authScopeIds: [input.authScopeId],
+      });
+    }
     const result = await adapter.createRemote(input.input, {
       tenantId: input.tenantId,
       collection: input.collection,
       ...(hasActorOptions(options) ? { actor: options.actor } : {}),
     });
-    const document = await upsertRemoteProjection<TData>(
-      this.dependencies,
-      input,
-      {
-        ...result.projection,
-        authScopeId: result.projection.authScopeId ?? input.authScopeId,
-      },
-    );
+    const document = await this.upsertRemoteProjection<TData>(input, {
+      ...result.projection,
+      authScopeId: result.projection.authScopeId ?? input.authScopeId,
+    });
 
     return withRemoteOutput({ document }, result.output);
   }
@@ -524,7 +503,7 @@ export class DocumentService {
       { update: TOutput }
     >(this.registry, input.collection);
     const collection = this.registry.get<TData>(input.collection);
-    const current = await loadExisting<TData>(this.dependencies, input);
+    const current = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "update", [current]);
 
     if (current.version !== input.expectedVersion) {
@@ -552,8 +531,7 @@ export class DocumentService {
       input.collection,
     );
 
-    const document = await assertVersionAndUpdate<TData>(
-      this.dependencies,
+    const document = await this.assertVersionAndUpdate<TData>(
       input,
       current,
       data,
@@ -580,7 +558,7 @@ export class DocumentService {
       TDeleteInput,
       { delete: TOutput }
     >(this.registry, input.collection);
-    const current = await loadExisting(this.dependencies, input);
+    const current = await this.loadExisting(input);
     await this.authorizeDocuments(input, options, "delete", [current]);
 
     if (current.version !== input.expectedVersion) {
@@ -604,13 +582,11 @@ export class DocumentService {
     });
 
     if (result?.projection) {
-      const projected = await upsertRemoteProjection(
-        this.dependencies,
+      const projected = await this.upsertRemoteProjection(
         input,
         result.projection,
       );
-      const document = await assertVersionAndUpdate(
-        this.dependencies,
+      const document = await this.assertVersionAndUpdate(
         {
           tenantId: input.tenantId,
           collection: input.collection,
@@ -624,8 +600,7 @@ export class DocumentService {
       return withRemoteOutput({ document }, result.output);
     }
 
-    const document = await assertVersionAndUpdate(
-      this.dependencies,
+    const document = await this.assertVersionAndUpdate(
       input,
       current,
       undefined,
@@ -640,7 +615,7 @@ export class DocumentService {
     options: DocumentServiceOptions,
   ): Promise<StoredDocument> {
     const authenticatedOptions = this.requireActorOptions(input, options);
-    const existing = await loadExisting(this.dependencies, input, true);
+    const existing = await this.loadExisting(input, true);
     await this.validateAuthScopes({
       tenantId: input.tenantId,
       authScopeIds: [input.authScopeId],
@@ -652,8 +627,7 @@ export class DocumentService {
       [existing.authScopeId, input.authScopeId],
     );
 
-    return assertVersionAndUpdate(
-      this.dependencies,
+    return this.assertVersionAndUpdate(
       input,
       existing,
       undefined,
@@ -812,16 +786,23 @@ export class DocumentService {
     authScopeIds: (string | null)[],
   ): Promise<boolean[]> {
     const uniqueScopeIds = new Set(authScopeIds);
-    const allowed = await this.requireAuthorizer().checkAccessMany({
-      context: actorContext(input, options),
-      checks: uniqueScopeIds
-        .values()
-        .map((targetScopeId) => ({
-          capability,
-          targetScopeId,
-        }))
-        .toArray(),
+    const checks = uniqueScopeIds
+      .values()
+      .map(
+        (targetScopeId) =>
+          ({
+            capabilities: [capability],
+            targetScopeId,
+          }) satisfies CapabilityAccessCheck,
+      )
+      .toArray();
+    const access = await this.authorizer.evaluateAccess({
+      ...actorContext(input, options),
+      checks,
     });
+    const allowed =
+      access.capabilities?.map((capEval) => capEval.allowed) ??
+      checks.map(() => access.allowed);
     const allowedByScopeId = new Map(
       uniqueScopeIds
         .values()
@@ -841,7 +822,7 @@ export class DocumentService {
     options: AuthenticatedDocumentServiceOptions,
     capability: string,
   ): Promise<(string | null)[]> {
-    return this.requireAuthorizer().listAccessibleDocumentScopeIds({
+    return this.authorizer.listAccessibleDocumentScopeIds({
       context: actorContext(input, options),
       capability,
     });
@@ -859,11 +840,12 @@ export class DocumentService {
       return;
     }
 
-    const authorizer = this.requireAuthorizer();
-    const { invalidScopeId } = await authorizer.validateTenantAccess({
+    const access = await this.authorizer.evaluateAccess({
       tenantId: input.tenantId,
-      scopeIds,
+      tenantAccess: { scopeId: scopeIds },
     });
+    const invalidScopeId =
+      access.failure?.kind === "scope" ? access.failure.scopeId : null;
     if (invalidScopeId) {
       throw new DocumentServiceError(
         "INVALID_AUTH_SCOPE",
@@ -871,17 +853,6 @@ export class DocumentService {
         { tenantId: input.tenantId, authScopeId: invalidScopeId },
       );
     }
-  }
-
-  private requireAuthorizer() {
-    if (!this.authorizer) {
-      throw new DocumentServiceError(
-        "AUTHORIZER_REQUIRED",
-        "Document authorizer is required for protected or scoped service operations",
-      );
-    }
-
-    return this.authorizer;
   }
 
   private requireActorOptions(
@@ -897,6 +868,85 @@ export class DocumentService {
     }
 
     return options;
+  }
+
+  private async loadExisting<TData extends JsonObject = JsonObject>(
+    input: VersionedDocumentInput,
+    includeDeleted = false,
+  ): Promise<StoredDocument<TData>> {
+    this.registry.get(input.collection);
+
+    const [existing] = await this.repository.findByIds<TData>({
+      tenantId: input.tenantId,
+      collection: input.collection,
+      ids: [input.id],
+      includeDeleted,
+    });
+
+    if (!existing) {
+      throw new DocumentServiceError("NOT_FOUND", "Document not found", {
+        collection: input.collection,
+        documentId: input.id,
+      });
+    }
+
+    return existing;
+  }
+
+  private async upsertRemoteProjection<TData extends JsonObject>(
+    input: { tenantId: string; collection: string },
+    projection: RemoteAdapterProjection<TData>,
+  ): Promise<StoredDocument<TData>> {
+    const [document] = await this.upsertRemoteProjections(input, [projection]);
+
+    if (!document) {
+      throw new Error("Remote projection upsert did not return a document");
+    }
+
+    return document;
+  }
+
+  private async upsertRemoteProjections<TData extends JsonObject>(
+    input: { tenantId: string; collection: string },
+    projections: RemoteAdapterProjection<TData>[],
+  ): Promise<StoredDocument<TData>[]> {
+    const collection = this.registry.get<TData>(input.collection);
+    const adapter = collection.remoteAdapter;
+
+    if (!adapter) {
+      throw new DocumentServiceError(
+        "UNSUPPORTED_OPERATION",
+        "Collection is not remote-backed",
+        {
+          collection: input.collection,
+        },
+      );
+    }
+
+    const parsedProjections = projections.map((projection) => ({
+      remoteId: projection.remoteId,
+      authScopeId: projection.authScopeId,
+      data: parseData<TData>(
+        collection.schema,
+        projection.data,
+        input.collection,
+      ),
+    }));
+
+    await this.validateAuthScopes({
+      tenantId: input.tenantId,
+      authScopeIds: parsedProjections.map(
+        (projection) => projection.authScopeId,
+      ),
+    });
+
+    return this.repository.upsertRemoteProjections<TData>({
+      tenantId: input.tenantId,
+      collection: input.collection,
+      schemaVersion: collection.schemaVersion,
+      remoteSource: adapter.remoteSource,
+      projections: parsedProjections,
+    });
   }
 
   private async assertVersionAndUpdate<TData extends JsonObject>(
@@ -921,13 +971,13 @@ export class DocumentService {
     }
 
     if (authScopeId !== undefined) {
-      const params = {
+      await this.validateAuthScopes({
         tenantId: input.tenantId,
         authScopeIds: [authScopeId],
-      };
+      });
     }
 
-    const updatedRows = await repository.updateMany<TData>({
+    const updatedRows = await this.repository.updateMany<TData>({
       tenantId: input.tenantId,
       records: [
         {
@@ -935,7 +985,7 @@ export class DocumentService {
           id: input.id,
           expectedVersion: input.expectedVersion,
           data,
-          schemaVersion: registry.get(input.collection).schemaVersion,
+          schemaVersion: this.registry.get(input.collection).schemaVersion,
           ...(authScopeId === undefined ? {} : { authScopeId }),
           ...(deletedAt === undefined ? {} : { deletedAt }),
           ...(remoteIdentity

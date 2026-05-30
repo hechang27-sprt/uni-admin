@@ -1,8 +1,9 @@
 /* oxlint-disable typescript/unbound-method -- Kysely expression-builder callback methods are used only to build SQL AST nodes. */
+import { inject, injectable } from "inversify";
 import { sql, type Selectable } from "kysely";
 
 import type { DocumentsTable } from "#server/db/schema";
-import type { DatabaseClient } from "#server/util/kysely";
+import { SERVER_DI_TYPES } from "#server/di/tokens";
 import type {
   JsonObject,
   NormalizedListDocumentsInput,
@@ -25,7 +26,6 @@ import {
   updateDocumentRecordSchema,
   upsertRemoteProjectionSchema,
 } from "./types";
-import { pivotToColumns } from "#server/util/db";
 
 type DocumentRow = Selectable<DocumentsTable>;
 type NullableDocumentRow = {
@@ -34,8 +34,12 @@ type NullableDocumentRow = {
 
 class BatchUpdateConflict extends Error {}
 
+@injectable()
 export class KyselyDocumentRepository implements DocumentRepository {
-  constructor(private readonly database: DatabaseClient) {}
+  constructor(
+    @inject(SERVER_DI_TYPES.DatabaseClient)
+    private readonly database: DatabaseClient,
+  ) {}
 
   async insertMany<TData extends JsonObject>(
     input: InsertManyDocumentsRecord<TData>,

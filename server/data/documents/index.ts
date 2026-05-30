@@ -39,7 +39,6 @@ export {
 export type {
   CreateManyDocumentInput,
   CreateDocumentInput,
-  DocumentServiceConfig,
   DocumentServiceOptions,
   GetDocumentsByIdsInput,
   GetDocumentInput,
@@ -76,6 +75,7 @@ export type {
   MetadataField,
   NormalizedListDocumentsInput,
   StoredDocument,
+  ActorContext,
   TenantActorContext,
   TenantContext,
 } from "./types";

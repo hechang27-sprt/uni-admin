@@ -1,5 +1,8 @@
-import type { TenantActorContext, TenantContext } from "#server/data/documents";
-import { ActorContext } from "../data/documents/types";
+import type {
+  ActorContext,
+  TenantActorContext,
+  TenantContext,
+} from "#server/data/documents";
 
 export interface AuthUser {
   userId: string;
@@ -116,8 +119,20 @@ export interface CheckAccessInput {
 }
 
 export type CapabilityAccessCheck = {
-  capability: string;
+  capabilities?: string[];
+  roleIds?: string[];
+  override?: string;
+  userId?: string;
   targetScopeId: string | null;
+};
+
+export type CapabilityEvaluation = {
+  userId: string;
+  targetScopeId: string;
+  capabilities: string[];
+  allowed: boolean;
+  hasCaps: boolean[];
+  hasOverride: boolean;
 };
 
 export interface CheckAccessManyInput
@@ -131,6 +146,8 @@ export interface CheckAccessManyInput
     documentId?: string[];
   };
   permissionKeys?: string[];
+
+  throw?: boolean;
 }
 
 export interface ListAccessibleScopesInput {
@@ -178,15 +195,5 @@ export type AccessCheckFailure =
 export interface AccessCheckEvaluation {
   allowed: boolean;
   failure: AccessCheckFailure | null;
-  capabilities?: boolean[];
-}
-
-export interface DocumentAuthorizer {
-  checkAccessMany(input: CheckAccessManyInput): Promise<boolean[]>;
-  listAccessibleDocumentScopeIds(
-    input: ListAccessibleScopesInput,
-  ): Promise<(string | null)[]>;
-  validateTenantAccess(
-    input: ValidateTenantAccessInput,
-  ): Promise<ValidateTenantAccessResult>;
+  capabilities?: CapabilityEvaluation[];
 }

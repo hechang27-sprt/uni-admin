@@ -12,18 +12,17 @@ import { sql } from "kysely";
 import { z } from "zod";
 
 import {
-  KyselyAuthRbacRepository,
-  AuthRbacService,
   builtInAdminPermissions,
+  type AuthRbacService,
+  type AuthRbacRepository,
 } from "#server/auth";
 import { migrateToLatest } from "#server/db/migrate";
-import { createInMemoryDb } from "#server/util/kysely";
 import {
-  KyselyDocumentRepository,
   createCollectionRegistry,
-  DocumentService,
+  type DocumentService,
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
+import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
 
 const taskSchema = z.object({
@@ -100,8 +99,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("filters and mutates documents through resource-scoped role assignments", async () => {
-    const auth = createTestAuthService();
-    const { service } = await createTaskServiceWithAuth(auth);
+    const { auth, service } = await createTaskServiceWithAuth();
     const root = await auth.ensureTenantRootScope(tenantA);
     const deptA = await auth.createScope({
       tenantId: tenantA,
@@ -127,12 +125,12 @@ describe("auth/RBAC service integration", () => {
       key: "dept-manager",
       name: "Department manager",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
       permissionKey: "collection:tasks:read",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
       permissionKey: "collection:tasks:update",
@@ -198,8 +196,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("checks create target scope and exposes creatable document scopes", async () => {
-    const auth = createTestAuthService();
-    const { service } = await createTaskServiceWithAuth(auth);
+    const { auth, service } = await createTaskServiceWithAuth();
     const root = await auth.ensureTenantRootScope(tenantA);
     const child = await auth.createScope({
       tenantId: tenantA,
@@ -213,7 +210,7 @@ describe("auth/RBAC service integration", () => {
       userId: user.userId,
     });
     const role = await auth.createRole({ tenantId: tenantA, key: "creator" });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
       permissionKey: "collection:tasks:create",
@@ -256,9 +253,8 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("authorizes protected document batches through one check per operation", async () => {
-    const auth = createTestAuthService();
-    const checkAccessMany = vi.spyOn(auth, "checkAccessMany");
-    const { service } = await createTaskServiceWithAuth(auth);
+    const { auth, service } = await createTaskServiceWithAuth();
+    const evaluateAccess = vi.spyOn(auth, "evaluateAccess");
     const root = await auth.ensureTenantRootScope(tenantA);
     const [childA, childB] = await Promise.all([
       auth.createScope({
@@ -289,7 +285,7 @@ describe("auth/RBAC service integration", () => {
         "collection:tasks:read",
         "collection:tasks:update",
       ].map((permissionKey) =>
-        auth.grantPermission({
+        auth.assignPermissionToRole({
           tenantId: tenantA,
           roleId: role.roleId,
           permissionKey,
@@ -304,7 +300,7 @@ describe("auth/RBAC service integration", () => {
     });
     const options = { actor: { userId: user.userId } };
 
-    checkAccessMany.mockClear();
+    evaluateAccess.mockClear();
     const created = await service.createMany<TaskDocument>(
       {
         tenantId: tenantA,
@@ -326,10 +322,10 @@ describe("auth/RBAC service integration", () => {
       },
       options,
     );
-    expect(checkAccessMany).toHaveBeenCalledTimes(1);
-    expect(checkAccessMany.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess).toHaveBeenCalledTimes(1);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
 
-    checkAccessMany.mockClear();
+    evaluateAccess.mockClear();
     await expect(
       service.getByIds<TaskDocument>(
         {
@@ -340,10 +336,10 @@ describe("auth/RBAC service integration", () => {
         options,
       ),
     ).resolves.toHaveLength(3);
-    expect(checkAccessMany).toHaveBeenCalledTimes(1);
-    expect(checkAccessMany.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess).toHaveBeenCalledTimes(1);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
 
-    checkAccessMany.mockClear();
+    evaluateAccess.mockClear();
     const updated = await service.updateMany<TaskDocument>(
       {
         tenantId: tenantA,
@@ -357,8 +353,8 @@ describe("auth/RBAC service integration", () => {
       options,
     );
     expect(updated).toHaveLength(3);
-    expect(checkAccessMany).toHaveBeenCalledTimes(1);
-    expect(checkAccessMany.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess).toHaveBeenCalledTimes(1);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
 
     const limitedUser = await auth.createUser();
     await auth.createTenantMembership({
@@ -371,7 +367,7 @@ describe("auth/RBAC service integration", () => {
       roleId: role.roleId,
       scopeId: childA.scopeId,
     });
-    checkAccessMany.mockClear();
+    evaluateAccess.mockClear();
     await expect(
       service.updateMany<TaskDocument>(
         {
@@ -386,13 +382,12 @@ describe("auth/RBAC service integration", () => {
         { actor: { userId: limitedUser.userId } },
       ),
     ).rejects.toMatchObject({ code: "AUTHORIZATION_DENIED" });
-    expect(checkAccessMany).toHaveBeenCalledTimes(1);
-    expect(checkAccessMany.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess).toHaveBeenCalledTimes(1);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
   });
 
   it("rejects trusted document writes with cross-tenant auth scopes", async () => {
-    const auth = createTestAuthService();
-    const { service } = await createTaskServiceWithAuth(auth);
+    const { auth, service } = await createTaskServiceWithAuth();
     await auth.ensureTenantRootScope(tenantA);
     const tenantBRoot = await auth.ensureTenantRootScope(tenantB);
 
@@ -473,7 +468,7 @@ describe("auth/RBAC service integration", () => {
     ).resolves.toEqual([
       expect.objectContaining({ authScopeId: null }),
       expect.objectContaining({ authScopeId: null }),
-      ]);
+    ]);
 
     const calls = { syncOne: 0 };
     const adapter: RemoteCollectionAdapter<
@@ -513,11 +508,14 @@ describe("auth/RBAC service integration", () => {
       },
     ]);
     await auth.syncCollectionPermissions(registry);
-    const remoteService = new DocumentService({
-      registry,
-      repository: new KyselyDocumentRepository(getTestDatabase()),
-      authorizer: auth,
-    });
+    const remoteContainer = createTestContainer(registry);
+    const remoteAuth = remoteContainer.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
+    await remoteAuth.syncCollectionPermissions(registry);
+    const remoteService = remoteContainer.get<DocumentService>(
+      SERVER_DI_TYPES.DocumentService,
+    );
     await expect(
       remoteService.syncRemoteOne<TaskDocument, Record<string, never>>({
         tenantId: tenantA,
@@ -535,10 +533,15 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("validates direct grants and assignments at the service boundary", async () => {
-    const repository = new KyselyAuthRbacRepository(getTestDatabase());
-    const grantPermissions = vi.spyOn(repository, "grantPermissions");
+    const container = createTestContainer();
+    const repository = container.get<AuthRbacRepository>(
+      SERVER_DI_TYPES.AuthRbacRepository,
+    );
+    const grantPermissions = vi.spyOn(repository, "assignPermissionsToRole");
     const assignRoles = vi.spyOn(repository, "assignRoles");
-    const auth = new AuthRbacService({ repository });
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     const [tenantARoot, tenantBRoot] = await Promise.all([
       auth.ensureTenantRootScope(tenantA),
       auth.ensureTenantRootScope(tenantB),
@@ -555,11 +558,13 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: member.userId,
     });
-    await auth.syncPermissions([{ key: "collection:tasks:read", source: "tasks" }]);
+    await auth.syncPermissions([
+      { key: "collection:tasks:read", source: "tasks" },
+    ]);
 
     grantPermissions.mockClear();
     await expect(
-      auth.grantPermission({
+      auth.assignPermissionToRole({
         tenantId: tenantA,
         roleId: tenantARole.roleId,
         permissionKey: "collection:tasks:write",
@@ -571,7 +576,7 @@ describe("auth/RBAC service integration", () => {
     expect(grantPermissions).not.toHaveBeenCalled();
 
     await expect(
-      auth.grantPermission({
+      auth.assignPermissionToRole({
         tenantId: tenantA,
         roleId: tenantBRole.roleId,
         permissionKey: "collection:tasks:read",
@@ -638,9 +643,14 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("validates delegated role assignee membership before repository assignment", async () => {
-    const repository = new KyselyAuthRbacRepository(getTestDatabase());
+    const container = createTestContainer();
+    const repository = container.get<AuthRbacRepository>(
+      SERVER_DI_TYPES.AuthRbacRepository,
+    );
     const assignRoles = vi.spyOn(repository, "assignRoles");
-    const auth = new AuthRbacService({ repository });
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     await auth.syncPermissions(builtInAdminPermissions);
     const root = await auth.ensureTenantRootScope(tenantA);
     const actor = await auth.createUser();
@@ -657,7 +667,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       key: "assigned-without-membership",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: admin.roleId,
       permissionKey: "admin:role-assignments:assign",
@@ -684,9 +694,14 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("bootstraps owner grants through one bulk repository operation", async () => {
-    const repository = new KyselyAuthRbacRepository(getTestDatabase());
-    const grantPermissions = vi.spyOn(repository, "grantPermissions");
-    const auth = new AuthRbacService({ repository });
+    const container = createTestContainer();
+    const repository = container.get<AuthRbacRepository>(
+      SERVER_DI_TYPES.AuthRbacRepository,
+    );
+    const grantPermissions = vi.spyOn(repository, "assignPermissionsToRole");
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     const owner = await auth.bootstrapTenantOwner({
       tenantId: tenantA,
       username: "owner",
@@ -698,24 +713,29 @@ describe("auth/RBAC service integration", () => {
       builtInAdminPermissions.map((permission) => permission.key),
     );
     await expect(
-      auth.checkAccessMany({
-        context: owner.context,
+      auth.evaluateAccess({
+        ...owner.context,
         checks: builtInAdminPermissions.map((permission) => ({
           capability: permission.key,
           targetScopeId: null,
         })),
       }),
-    ).resolves.toEqual(builtInAdminPermissions.map(() => true));
+    ).resolves.toHaveProperty("allowed", true);
   });
 
-  it("checks delegated assignment capabilities in SQL and rejects escalation", async () => {
-    const repository = new KyselyAuthRbacRepository(getTestDatabase());
+  it("checks delegated assignment capabilities through access evaluation", async () => {
+    const container = createTestContainer();
+    const repository = container.get<AuthRbacRepository>(
+      SERVER_DI_TYPES.AuthRbacRepository,
+    );
     const checkCapabilities = vi.spyOn(repository, "checkCapabilities");
     const findDeniedRolePermission = vi.spyOn(
       repository,
       "findDeniedRolePermission",
     );
-    const auth = new AuthRbacService({ repository });
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     await auth.syncPermissions([
       { key: "admin:tenant:owner", source: "admin" },
       { key: "admin:role-assignments:assign", source: "admin" },
@@ -743,22 +763,22 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       key: "escalated",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: delegator.roleId,
       permissionKey: "admin:role-assignments:assign",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: delegator.roleId,
       permissionKey: "collection:tasks:read",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: escalated.roleId,
       permissionKey: "collection:tasks:read",
     });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: escalated.roleId,
       permissionKey: "collection:tasks:delete",
@@ -781,27 +801,36 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_DENIED" });
-    expect(findDeniedRolePermission).toHaveBeenCalledOnce();
-    expect(findDeniedRolePermission).toHaveBeenCalledWith({
+    expect(findDeniedRolePermission).not.toHaveBeenCalled();
+    expect(checkCapabilities).toHaveBeenCalledWith({
       tenantId: tenantA,
-      roleId: escalated.roleId,
-      userId: actor.userId,
-      targetScopeId: child.scopeId,
+      checks: [
+        {
+          userId: actor.userId,
+          capabilities: ["admin:role-assignments:assign"],
+          roleIds: [escalated.roleId],
+          override: "admin:tenant:owner",
+          targetScopeId: child.scopeId,
+        },
+      ],
     });
     expect(
       checkCapabilities.mock.calls.some(([input]) =>
         input.checks.some((check) =>
-          check.capability.startsWith("collection:tasks:"),
+          check.capabilities?.some?.((key) =>
+            key.startsWith("collection:tasks:"),
+          ),
         ),
       ),
     ).toBe(false);
 
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: delegator.roleId,
       permissionKey: "collection:tasks:delete",
     });
     findDeniedRolePermission.mockClear();
+    checkCapabilities.mockClear();
     await expect(
       auth.assignRoleAsActor(
         { tenantId: tenantA, actor: { userId: actor.userId } },
@@ -812,11 +841,22 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).resolves.toBeUndefined();
-    expect(findDeniedRolePermission).toHaveBeenCalledOnce();
+    expect(findDeniedRolePermission).not.toHaveBeenCalled();
+    expect(checkCapabilities).toHaveBeenCalledWith({
+      tenantId: tenantA,
+      checks: [
+        {
+          userId: actor.userId,
+          capabilities: ["admin:role-assignments:assign"],
+          roleIds: [escalated.roleId],
+          override: "admin:tenant:owner",
+          targetScopeId: child.scopeId,
+        },
+      ],
+    });
   });
 
   it("denies remote writes before adapter side effects", async () => {
-    const auth = createTestAuthService();
     const calls = { updateRemote: 0 };
     const adapter: RemoteCollectionAdapter<
       TaskDocument,
@@ -856,12 +896,14 @@ describe("auth/RBAC service integration", () => {
         remoteAdapter: adapter,
       },
     ]);
+    const container = createTestContainer(registry);
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     await auth.syncCollectionPermissions(registry);
-    const service = new DocumentService({
-      registry,
-      repository: new KyselyDocumentRepository(getTestDatabase()),
-      authorizer: auth,
-    });
+    const service = container.get<DocumentService>(
+      SERVER_DI_TYPES.DocumentService,
+    );
     const root = await auth.ensureTenantRootScope(tenantA);
     const user = await auth.createUser();
     await auth.createTenantMembership({
@@ -869,7 +911,7 @@ describe("auth/RBAC service integration", () => {
       userId: user.userId,
     });
     const reader = await auth.createRole({ tenantId: tenantA, key: "reader" });
-    await auth.grantPermission({
+    await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: reader.roleId,
       permissionKey: "collection:tasks:read",
@@ -903,9 +945,10 @@ describe("auth/RBAC service integration", () => {
     expect(calls.updateRemote).toBe(0);
   });
 
-  async function createTaskServiceWithAuth(
-    auth: ReturnType<typeof createTestAuthService>,
-  ): Promise<{ service: DocumentService }> {
+  async function createTaskServiceWithAuth(): Promise<{
+    auth: AuthRbacService;
+    service: DocumentService;
+  }> {
     const registry = createCollectionRegistry([
       {
         name: "tasks",
@@ -913,20 +956,30 @@ describe("auth/RBAC service integration", () => {
         schemaVersion: 1,
       },
     ]);
+    const container = createTestContainer(registry);
+    const auth = container.get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
     await auth.syncCollectionPermissions(registry);
 
     return {
-      service: new DocumentService({
-        registry,
-        repository: new KyselyDocumentRepository(getTestDatabase()),
-        authorizer: auth,
-      }),
+      auth,
+      service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),
     };
   }
 
   function createTestAuthService() {
-    return new AuthRbacService({
-      repository: new KyselyAuthRbacRepository(getTestDatabase()),
+    return createTestContainer().get<AuthRbacService>(
+      SERVER_DI_TYPES.AuthRbacService,
+    );
+  }
+
+  function createTestContainer(
+    registry = createCollectionRegistry([]),
+  ): ReturnType<typeof createServerContainer> {
+    return createServerContainer({
+      database: getTestDatabase(),
+      registry,
     });
   }
 

@@ -3,10 +3,10 @@ import { z } from "zod";
 import {
   createCollectionRegistry,
   createRemoteProjectionMapper,
-  DocumentService,
-  type DocumentRepository,
+  type DocumentService,
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
+import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 
 export const tenantA = "00000000-0000-4000-8000-000000000001";
 export const tenantB = "00000000-0000-4000-8000-000000000002";
@@ -56,7 +56,7 @@ const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
   }),
 });
 
-export function createService(repository: DocumentRepository): DocumentService {
+export function createService(database: DatabaseClient): DocumentService {
   const registry = createCollectionRegistry([
     {
       name: "tasks",
@@ -64,11 +64,9 @@ export function createService(repository: DocumentRepository): DocumentService {
       schemaVersion: 1,
     },
   ]);
+  const container = createServerContainer({ database, registry });
 
-  return new DocumentService({
-    registry,
-    repository,
-  });
+  return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 }
 
 interface RemoteAdapterCalls {
@@ -87,7 +85,7 @@ export interface RemoteAdapterOutputs {
   delete: { requestId: string };
 }
 
-export function createRemoteService(repository: DocumentRepository): {
+export function createRemoteService(database: DatabaseClient): {
   service: DocumentService;
   calls: RemoteAdapterCalls;
   setRemoteFailure: (failure: Error | null) => void;
@@ -199,9 +197,10 @@ export function createRemoteService(repository: DocumentRepository): {
       remoteAdapter: adapter,
     },
   ]);
+  const container = createServerContainer({ database, registry });
 
   return {
-    service: new DocumentService({ registry, repository }),
+    service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),
     calls,
     setRemoteFailure: (failure) => {
       remoteFailure = failure;

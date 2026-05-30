@@ -1,6 +1,4 @@
-import type { CollectionRegistry } from "../registry";
 import type { JsonPatchOperation } from "../json-patch";
-import type { DocumentRepository } from "../repository";
 import type {
   JsonObject,
   ListDocumentsInput,
@@ -8,7 +6,6 @@ import type {
   TenantContext,
   TenantActorContext,
 } from "../types";
-import type { DocumentAuthorizer } from "#server/auth";
 
 export interface CreateDocumentInput<
   TData extends JsonObject = JsonObject,
@@ -162,10 +159,4 @@ export interface RemoteUpdateResult<
 export interface RemoteDeleteDocumentResult<TOutput = unknown> {
   document: StoredDocument;
   output?: TOutput;
-}
-
-export interface DocumentServiceConfig {
-  registry: CollectionRegistry;
-  repository: DocumentRepository;
-  authorizer?: DocumentAuthorizer;
 }

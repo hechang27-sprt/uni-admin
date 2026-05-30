@@ -10,11 +10,8 @@ import {
 import { sql } from "kysely";
 
 import { migrateToLatest } from "#server/db/migrate";
-import { createInMemoryDb } from "#server/util/kysely";
 import {
   DocumentServiceError,
-  KyselyDocumentRepository,
-  type DocumentRepository,
   type DocumentService,
 } from "#server/data/documents";
 import {
@@ -31,11 +28,9 @@ describe.each([{ name: "pgLite Kysely repository" }])(
   "local document service ($name)",
   () => {
     let database: ReturnType<typeof createInMemoryDb> | null = null;
-    let repository: DocumentRepository | null = null;
 
     beforeAll(() => {
       database = createInMemoryDb();
-      repository = new KyselyDocumentRepository(database);
     });
 
     beforeEach(async () => {
@@ -49,7 +44,6 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     afterAll(async () => {
       await database?.destroy();
       database = null;
-      repository = null;
     });
 
     async function prepareTestDatabase(): Promise<void> {
@@ -80,16 +74,8 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       return database;
     }
 
-    function createTestRepository(): DocumentRepository {
-      if (!repository) {
-        throw new Error("Test repository has not been initialized");
-      }
-
-      return repository;
-    }
-
     function createTestService(): DocumentService {
-      return createService(createTestRepository());
+      return createService(getTestDatabase());
     }
 
     it("rejects unknown collections and invalid data before persistence", async () => {
@@ -586,7 +572,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("syncs remote projections by remote identity without calling remotes during normal reads", async () => {
-      const { service, calls } = createRemoteService(createTestRepository());
+      const { service, calls } = createRemoteService(getTestDatabase());
 
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,
@@ -667,9 +653,8 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("keeps local projections unchanged when a remote create fails", async () => {
-      const { service, setRemoteFailure } = createRemoteService(
-        createTestRepository(),
-      );
+      const { service, setRemoteFailure } =
+        createRemoteService(getTestDatabase());
       setRemoteFailure(new Error("remote unavailable"));
 
       await expect(
@@ -695,9 +680,8 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("applies remote updates only after the remote mutation succeeds", async () => {
-      const { service, calls, setRemoteFailure } = createRemoteService(
-        createTestRepository(),
-      );
+      const { service, calls, setRemoteFailure } =
+        createRemoteService(getTestDatabase());
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,
         { remoteId: string }

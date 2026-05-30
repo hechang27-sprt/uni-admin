@@ -1,4 +1,5 @@
 /* oxlint-disable typescript/unbound-method -- Kysely expression-builder callback methods are used only to build SQL AST nodes. */
+import { inject, injectable } from "inversify";
 import { sql, type Selectable, type Transaction } from "kysely";
 
 import type {
@@ -10,20 +11,23 @@ import type {
   UserPasswordCredentialsTable,
   UsersTable,
 } from "#server/db/schema";
-import type { DatabaseClient } from "#server/util/kysely";
 import { AuthRbacError } from "./errors";
 import type {
   AuthScope,
   AuthUser,
+  CapabilityAccessCheck,
+  CapabilityEvaluation,
   Permission,
   PermissionDefinitionInput,
   Role,
   TenantMembership,
   UsernamePasswordCredential,
 } from "./types";
-import { pivotToColumns } from "../util/db";
+import { SERVER_DI_TYPES } from "#server/di/tokens";
+import { selectGrantedPermissions } from "../db/query";
 
 export const tenantRootScopeKey = "__tenant_root";
+export const ADMIN_TENANT_OVERRIDE_KEY = "admin:tenant:owner";
 
 type AuthTransaction = Transaction<Database>;
 type AuthDatabase = DatabaseClient | AuthTransaction;
@@ -78,7 +82,7 @@ export interface AuthRbacRepository {
   }): Promise<Role | null>;
   getRoleByKey(input: { tenantId: string; key: string }): Promise<Role | null>;
   upsertPermissions(input: PermissionDefinitionInput[]): Promise<Permission[]>;
-  grantPermissions(input: {
+  assignPermissionsToRole(input: {
     tenantId: string;
     roleId: string;
     permissionKeys: string[];
@@ -118,12 +122,8 @@ export interface AuthRbacRepository {
   }): Promise<string | null>;
   checkCapabilities(input: {
     tenantId: string;
-    userId: string;
-    checks: {
-      capability: string;
-      targetScopeId: string | null;
-    }[];
-  }): Promise<boolean[]>;
+    checks: CapabilityAccessCheck[];
+  }): Promise<CapabilityEvaluation[]>;
   listAccessibleScopeIds(input: {
     tenantId: string;
     userId: string;
@@ -136,8 +136,12 @@ export interface AuthRbacRepository {
   }): Promise<(string | null)[]>;
 }
 
+@injectable()
 export class KyselyAuthRbacRepository implements AuthRbacRepository {
-  constructor(private readonly database: DatabaseClient) {}
+  constructor(
+    @inject(SERVER_DI_TYPES.DatabaseClient)
+    private readonly database: DatabaseClient,
+  ) {}
 
   async createUser(input: { displayName?: string | null }): Promise<AuthUser> {
     const row = await this.database
@@ -471,7 +475,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => mapPermission(row));
   }
 
-  async grantPermissions(input: {
+  async assignPermissionsToRole(input: {
     tenantId: string;
     roleId: string;
     permissionKeys: string[];
@@ -543,57 +547,45 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     targetScopeId: string;
   }): Promise<string | null> {
     const denied = await this.database
-      .selectFrom("rolePermissions as targetRolePermission")
-      .innerJoin(
-        "permissions as targetPermission",
-        "targetPermission.permissionId",
-        "targetRolePermission.permissionId",
-      )
-      .select("targetPermission.key")
-      .where("targetRolePermission.tenantId", "=", input.tenantId)
-      .where("targetRolePermission.roleId", "=", input.roleId)
+      .selectFrom("rolePermissions as rp")
+      .innerJoin("permissions as p", "p.permissionId", "rp.permissionId")
+      .select("p.key")
+      .where("rp.tenantId", "=", input.tenantId)
+      .where("rp.roleId", "=", input.roleId)
       .where(({ exists, lit, not, selectFrom }) =>
         not(
           exists(
-            selectFrom("tenantMemberships as membership")
-              .innerJoin("userRoleAssignments as assignment", (join) =>
+            selectFrom("tenantMemberships as tu")
+              .innerJoin("userRoleAssignments as ur", (join) =>
                 join
-                  .onRef("assignment.tenantId", "=", "membership.tenantId")
-                  .onRef("assignment.userId", "=", "membership.userId"),
+                  .onRef("ur.tenantId", "=", "tu.tenantId")
+                  .onRef("ur.userId", "=", "tu.userId"),
               )
-              .innerJoin("rolePermissions as actorRolePermission", (join) =>
+              .innerJoin("rolePermissions as actorRp", (join) =>
                 join
-                  .onRef(
-                    "actorRolePermission.tenantId",
-                    "=",
-                    "assignment.tenantId",
-                  )
-                  .onRef(
-                    "actorRolePermission.roleId",
-                    "=",
-                    "assignment.roleId",
-                  ),
+                  .onRef("actorRp.tenantId", "=", "ur.tenantId")
+                  .onRef("actorRp.roleId", "=", "ur.roleId"),
               )
               .innerJoin(
-                "permissions as actorPermission",
-                "actorPermission.permissionId",
-                "actorRolePermission.permissionId",
+                "permissions as actorP",
+                "actorP.permissionId",
+                "actorRp.permissionId",
               )
               .innerJoin("authScopeClosure as closure", (join) =>
                 join
-                  .onRef("closure.tenantId", "=", "assignment.tenantId")
-                  .onRef("closure.ancestorId", "=", "assignment.scopeId"),
+                  .onRef("closure.tenantId", "=", "ur.tenantId")
+                  .onRef("ancestorId", "=", "ur.scopeId"),
               )
-              .where("membership.tenantId", "=", input.tenantId)
-              .where("membership.userId", "=", input.userId)
-              .where("membership.status", "=", "active")
-              .whereRef("actorPermission.key", "=", "targetPermission.key")
-              .where("closure.descendantId", "=", input.targetScopeId)
+              .where("tu.tenantId", "=", input.tenantId)
+              .where("tu.userId", "=", input.userId)
+              .where("tu.status", "=", "active")
+              .whereRef("actorP.key", "=", "p.key")
+              .where("descendantId", "=", input.targetScopeId)
               .select(lit(1).as("_")),
           ),
         ),
       )
-      .orderBy("targetPermission.key")
+      .orderBy("p.key")
       .executeTakeFirst();
     return denied?.key ?? null;
   }
@@ -745,55 +737,166 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
   async checkCapabilities(input: {
     tenantId: string;
-    userId: string;
-    checks: { capability: string; targetScopeId: string | null }[];
-  }): Promise<boolean[]> {
+    userId?: string;
+    checks: CapabilityAccessCheck[];
+  }): Promise<CapabilityEvaluation[]> {
     if (input.checks.length === 0) {
       return [];
     }
-    const rootScope = input.checks.some((check) => check.targetScopeId === null)
-      ? await this.ensureTenantRootScope(input.tenantId)
-      : null;
-    const rootScopeId = rootScope?.scopeId ?? null;
+    const { scopeId: rootScopeId } = await this.ensureTenantRootScope(
+      input.tenantId,
+    );
 
-    const { capability, targetScopeId } = pivotToColumns(input.checks);
-    type Check = (typeof input.checks)[number] & { inputOrder: number };
+    const checkInputs = input.checks.map((check) => {
+      const userId = check.userId ?? input.userId;
+      if (!userId) {
+        throw new Error("Capability checks require a userId");
+      }
+      return {
+        userId,
+        targetScopeId: check.targetScopeId,
+        override: check.override,
+        capabilities: JSON.stringify(check.capabilities ?? []),
+        roleIds: JSON.stringify(check.roleIds ?? []),
+      };
+    });
+    const { userId, targetScopeId, override, capabilities, roleIds } =
+      pivotToColumns(checkInputs);
 
     const accessResults = await this.database
+      .with("granted", () =>
+        selectGrantedPermissions().select([
+          "tu.tenantId",
+          "tu.userId",
+          "scopeId",
+          "descendantId",
+          "rp.roleId",
+          "p.permissionId",
+          "p.key as permissionKey",
+        ]),
+      )
       .selectFrom(
-        sql<Check>`unnest(${capability}::text[], ${targetScopeId}::uuid[]) with ordinality`.as<"input">(
-          sql`input(capability, target_scope_id, input_order)`,
+        unnest(
+          "input",
+          { userId, targetScopeId, override, capabilities, roleIds },
+          {
+            withOrdinality: "checkOrder",
+            types: {
+              targetScopeId: "uuid",
+              userId: "uuid",
+              capabilities: "jsonb",
+              roleIds: "jsonb",
+            },
+          },
         ),
       )
-      .innerJoin("permissions as p", "permissionId", "capability")
-      .leftJoin("rolePermissions as rp", (join) =>
+      .leftJoin("granted as g1", (join) =>
         join
-          .onRef("rp.permissionId", "=", "p.permissionId")
-          .on("rp.tenantId", "=", input.tenantId),
+          .on("g1.tenantId", "=", input.tenantId)
+          .onRef("g1.userId", "=", "input.userId")
+          .onRef("g1.permissionKey", "=", "input.override")
+          .on("g1.descendantId", "=", rootScopeId),
       )
-      .innerJoin("userRoleAssignments as rs", (join) =>
-        join
-          .onRef("rs.roleId", "=", "rp.roleId")
-          .on("rs.userId", "=", input.userId)
-          .on("rs.tenantId", "=", input.tenantId),
-      )
-      .innerJoin("tenantMemberships as m", (join) =>
-        join
-          .onRef("m.userId", "=", "rs.userId")
-          .onRef("m.tenantId", "=", "rs.tenantId"),
-      )
-      .innerJoin("authScopeClosure as closure", (join) =>
-        join
-          .onRef("ancestorId", "=", "rs.scopeId")
-          .onRef("descendantId", "=", ({ fn, val }) =>
-            fn.coalesce("targetScopeId", val(rootScopeId)),
+      .innerJoinLateral(
+        ({ selectFrom }) =>
+          selectFrom(() =>
+            selectFrom(
+              sql<{
+                capability: string;
+                capabilityOrder: number;
+              }>`
+                jsonb_array_elements_text(
+                  coalesce(input.capabilities, '[]'::jsonb)
+                ) with ordinality
+              `.as<"directCap">(sql`direct_cap(capability, capability_order)`),
+            )
+              .select(["directCap.capability", "directCap.capabilityOrder"])
+              .unionAll(() =>
+                selectFrom(
+                  sql<{
+                    roleId: string;
+                    roleOrder: number;
+                  }>`
+                      jsonb_array_elements_text(
+                        coalesce(input.role_ids, '[]'::jsonb)
+                      ) with ordinality
+                    `.as<"roleInput">(sql`role_input(role_id, role_order)`),
+                )
+                  .innerJoin("rolePermissions as rp", (join) =>
+                    join
+                      .on("rp.tenantId", "=", input.tenantId)
+                      .on(
+                        "rp.roleId",
+                        "=",
+                        sql<string>`role_input.role_id::uuid`,
+                      ),
+                  )
+                  .innerJoin(
+                    "permissions as p",
+                    "p.permissionId",
+                    "rp.permissionId",
+                  )
+                  .select([
+                    "p.key as capability",
+                    sql<number>`1000000 + role_input.role_order`.as(
+                      "capabilityOrder",
+                    ),
+                  ]),
+              )
+              .as("cap"),
           )
-          .on("closure.tenantId", "=", input.tenantId),
+            .leftJoin("granted as g2", (join) =>
+              join
+                .on("g2.tenantId", "=", input.tenantId)
+                .onRef("g2.userId", "=", "input.userId")
+                .onRef("g2.permissionKey", "=", "cap.capability")
+                .on(
+                  "g2.descendantId",
+                  "=",
+                  sql<string>`coalesce(input.target_scope_id, ${rootScopeId}::uuid)`,
+                ),
+            )
+            .select(() => [
+              sql<string[]>`
+                coalesce(
+                  array_agg(cap.capability order by cap.capability_order, cap.capability),
+                  array[]::text[]
+                )
+              `.as("capabilities"),
+              sql<boolean[]>`
+                coalesce(
+                  array_agg(g2.permission_id is not null order by cap.capability_order, cap.capability),
+                  array[]::boolean[]
+                )
+              `.as("hasCaps"),
+              sql<boolean>`
+                coalesce(
+                  bool_and(g2.permission_id is not null),
+                  true
+                )
+              `.as("hasAllCaps"),
+            ])
+            .as("caps"),
+        (join) => join.onTrue(),
       )
-      .select((eb) => eb("descendantId", "is not", null).as("allowed"))
+      .select(({ eb, or, ref }) => [
+        "input.userId",
+        sql<string>`coalesce(input.target_scope_id, ${rootScopeId}::uuid)`.as(
+          "targetScopeId",
+        ),
+        "caps.capabilities",
+        "caps.hasCaps",
+        eb("g1.permissionKey", "is not", null)
+          .$castTo<boolean>()
+          .as("hasOverride"),
+        or([eb("g1.permissionId", "is not", null), ref("caps.hasAllCaps")])
+          .$castTo<boolean>()
+          .as("allowed"),
+      ])
+      .orderBy("input.checkOrder")
       .execute();
 
-    return accessResults.map((access) => Boolean(access.allowed.valueOf()));
+    return accessResults;
   }
 
   async listAccessibleScopeIds(input: {
@@ -802,34 +905,18 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     capability: string;
   }): Promise<string[]> {
     const rows = await this.database
-      .selectFrom("userRoleAssignments as assignment")
-      .innerJoin("tenantMemberships as membership", (join) =>
-        join
-          .onRef("membership.tenantId", "=", "assignment.tenantId")
-          .onRef("membership.userId", "=", "assignment.userId"),
+      .selectFrom(() =>
+        selectGrantedPermissions()
+          .where("tu.tenantId", "=", input.tenantId)
+          .where("tu.userId", "=", input.userId)
+          .where("p.key", "=", input.capability)
+          .select("c.descendantId as scopeId")
+          .distinct()
+          .as("_"),
       )
-      .innerJoin("rolePermissions as rolePermission", (join) =>
-        join
-          .onRef("rolePermission.tenantId", "=", "assignment.tenantId")
-          .onRef("rolePermission.roleId", "=", "assignment.roleId"),
-      )
-      .innerJoin(
-        "permissions as permission",
-        "permission.permissionId",
-        "rolePermission.permissionId",
-      )
-      .innerJoin("authScopeClosure as closure", (join) =>
-        join
-          .onRef("closure.tenantId", "=", "assignment.tenantId")
-          .onRef("closure.ancestorId", "=", "assignment.scopeId"),
-      )
-      .select("closure.descendantId as scopeId")
-      .distinct()
-      .where("assignment.tenantId", "=", input.tenantId)
-      .where("assignment.userId", "=", input.userId)
-      .where("membership.status", "=", "active")
-      .where("permission.key", "=", input.capability)
+      .selectAll()
       .execute();
+
     return rows.map((row) => row.scopeId);
   }
 
@@ -868,7 +955,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .select(
         sql<string | null>`
           case when scope.key = ${tenantRootScopeKey}
-            then null else closure.descendant_id end
+            then null else scope.scope_id end
         `.as("scopeId"),
       )
       .distinct()
