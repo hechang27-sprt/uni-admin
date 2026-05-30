@@ -75,9 +75,10 @@ table:
 - `roles`, `permissions`, `role_permissions`, and `user_role_assignments`
   implement resource-scoped RBAC.
 
-The service API is exported from `#server/auth`. Projects create a
-`KyselyAuthRbacRepository`, then `AuthRbacService`, and pass that service as the
-`authorizer` option to `DocumentService` when they want actor-scoped document operations.
+The service API is exported from `#server/auth`. Projects bind
+`KyselyAuthRbacRepository`, `AuthRbacService`, and `DocumentService` through the
+server DI container; interface-typed dependencies use runtime symbols from
+`#server/di`.
 
 Existing document methods remain trusted/internal entrypoints when called
 without service options containing `actor`. Runtime code passes
@@ -115,9 +116,9 @@ version:
 import { z } from "zod";
 import {
   createCollectionRegistry,
-  DocumentService,
-  KyselyDocumentRepository,
+  type DocumentService,
 } from "../server/data/documents";
+import { createServerContainer, SERVER_DI_TYPES } from "../server/di";
 import { db } from "../server/util/kysely";
 
 const taskSchema = z.object({
@@ -135,10 +136,11 @@ const registry = createCollectionRegistry([
   },
 ]);
 
-const service = new DocumentService({
+const container = createServerContainer({
+  database: db,
   registry,
-  repository: new KyselyDocumentRepository(db),
 });
+const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 ```
 
 The service validates document data before persistence. Mutating methods that

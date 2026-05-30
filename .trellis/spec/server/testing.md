@@ -8,7 +8,8 @@ pgLite, not a fake repository.
 `test/unit/server/service.test.ts`:
 
 - creates one pgLite database with `createInMemoryDb()`;
-- wraps it in `KyselyDocumentRepository`;
+- resolves `DocumentService` through `createServerContainer(...)`, which binds
+  the real `KyselyDocumentRepository`;
 - runs `migrateToLatest()` before each test;
 - seeds test tenants through `database.insertInto("tenants")`;
 - drops and recreates schemas after each test;
@@ -41,7 +42,7 @@ Add or update tests when changing:
 - list filters, sorting, pagination, or soft-delete inclusion;
 - batch create/get/update behavior;
 - actor-protected batch create/get/update allow and deny behavior, including
-  one deduplicated `checkAccessMany` call per logical service operation;
+  one deduplicated `evaluateAccess` call per logical service operation;
 - bulk owner bootstrap grants and delegated multi-capability assignment denial;
 - cross-tenant auth-scope rejection when a batch contains mixed valid and
   invalid target scopes;

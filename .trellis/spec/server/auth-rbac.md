@@ -13,37 +13,25 @@
 ### 2. Signatures
 
 - Public auth surface: `server/auth/index.ts`.
-- Repository: `new KyselyAuthRbacRepository(db)`.
-- Service class: `new AuthRbacService({ repository })`.
+- Repository implementation: `KyselyAuthRbacRepository`.
+- Service class: `AuthRbacService`.
+- DI integration uses `createServerContainer` and `SERVER_DI_TYPES` from
+  `server/di`. Interface-typed dependencies must bind/inject by symbol because
+  TypeScript interfaces are erased at runtime.
 - Document integration:
 
 ```ts
-new DocumentService({
+const container = createServerContainer({
+  database: db,
   registry,
-  repository: new KyselyDocumentRepository(db),
-  authorizer: authRbacService,
 });
+const auth = container.get<AuthRbacService>(SERVER_DI_TYPES.AuthRbacService);
+const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 ```
 
 - Document authorization boundary:
 
 ```ts
-interface DocumentAuthorizer {
-  checkAccessMany(input: {
-    context: TenantActorContext;
-    checks: { capability: string; targetScopeId: string | null }[];
-    tenantAccess?: { scopeId?: string[] };
-  }): Promise<boolean[]>;
-  listAccessibleDocumentScopeIds(input: {
-    context: TenantActorContext;
-    capability: string;
-  }): Promise<(string | null)[]>;
-  validateTenantAccess(input: {
-    tenantId: string;
-    scopeIds?: string[];
-  }): Promise<{ invalidScopeId: string | null }>;
-}
-
 interface AuthRbacRepository {
   grantPermissions(input: {
     tenantId: string;
@@ -130,14 +118,14 @@ interface TenantActorContext {
 - Protected remote writes must authorize before calling a remote adapter.
   Adapter context receives `actor` only on protected calls.
 - Check results align with `checks` input order. Repeated service scope checks
-  must be deduplicated before calling the authorizer.
+  must be deduplicated before calling `AuthRbacService.evaluateAccess`.
 - `listAccessibleDocumentScopeIds` returns `null` for the tenant-root scope in
   its query; document filtering does not issue a second root lookup.
 - Scalar public service APIs such as `grantPermission`, `assignRole`, and
   `checkAccess` wrap one-element repository batches. Login, actor membership
   lookup, root-scope creation, scope-tree creation, and role resolution remain
   justified singular operations.
-- `AuthRbacService.checkAccessMany` owns omnibus orchestration for active
+- `AuthRbacService.evaluateAccess` owns omnibus orchestration for active
   membership, tenant-bound id validity, permission-key validity, and capability
   authorization. Repository helpers report database facts; they do not expose a
   service-policy omnibus method.
@@ -161,15 +149,12 @@ interface TenantActorContext {
 ### 4. Validation & Error Matrix
 
 - Unknown collection -> `DocumentServiceError` code `UNKNOWN_COLLECTION`.
-- Document method called with service options containing `actor` and protected
-  collection auth but without `authorizer` ->
-  `AUTHORIZER_REQUIRED`.
 - Actor-required service operation called without `actor` in its service
   options -> `AUTHORIZATION_DENIED`.
 - Missing capability or failed scope containment -> `AUTHORIZATION_DENIED`.
 - Cross-tenant `authScopeId` in trusted document writes ->
   `INVALID_AUTH_SCOPE`; document service performs this validation through the
-  configured `DocumentAuthorizer` before repository writes.
+  configured `AuthRbacService.evaluateAccess` before repository writes.
 - Missing or inactive tenant membership during actor resolution ->
   `AuthRbacError` code `AUTH_TENANT_MEMBERSHIP_REQUIRED`.
 - Missing role/scope/permission during RBAC setup -> `AUTH_ROLE_NOT_FOUND`,
@@ -202,8 +187,8 @@ interface TenantActorContext {
 - Authorized mutation allow/deny behavior.
 - Remote write denial before adapter side effects.
 - Trusted write rejection for cross-tenant `authScopeId`.
-- Protected batch create/read/update allow and deny paths with one authorizer
-  batch call per logical operation.
+- Protected batch create/read/update allow and deny paths with one
+  `evaluateAccess` batch call per logical operation.
 - Owner bootstrap bulk grant behavior and delegated role denial/allow behavior
   through `findDeniedRolePermission`.
 

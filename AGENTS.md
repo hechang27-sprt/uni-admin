@@ -23,7 +23,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **uni-admin** (742 symbols, 1932 relationships, 63 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **uni-admin** (739 symbols, 1936 relationships, 63 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

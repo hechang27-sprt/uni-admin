@@ -51,9 +51,9 @@ Create a registry and service:
 ```ts
 import {
   createCollectionRegistry,
-  DocumentService,
-  KyselyDocumentRepository,
+  type DocumentService,
 } from "../server/data/documents";
+import { createServerContainer, SERVER_DI_TYPES } from "../server/di";
 import { db } from "../server/util/kysely";
 
 const registry = createCollectionRegistry([
@@ -64,10 +64,11 @@ const registry = createCollectionRegistry([
   },
 ]);
 
-const service = new DocumentService({
+const container = createServerContainer({
+  database: db,
   registry,
-  repository: new KyselyDocumentRepository(db),
 });
+const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 ```
 
 Create and read a document:
@@ -316,16 +317,12 @@ routes, composables, or generated management UI yet.
 Create the auth/RBAC service beside the document service:
 
 ```ts
-import { AuthRbacService, KyselyAuthRbacRepository } from "#server/auth";
 import {
-  KyselyDocumentRepository,
-  DocumentService,
   createCollectionRegistry,
+  type DocumentService,
 } from "#server/data/documents";
-
-const auth = new AuthRbacService({
-  repository: new KyselyAuthRbacRepository(db),
-});
+import { AuthRbacService } from "#server/auth";
+import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 
 const registry = createCollectionRegistry([
   {
@@ -338,14 +335,15 @@ const registry = createCollectionRegistry([
   },
 ]);
 
+const container = createServerContainer({
+  database: db,
+  registry,
+});
+const auth = container.get<AuthRbacService>(SERVER_DI_TYPES.AuthRbacService);
 await auth.syncBuiltInAdminPermissions();
 await auth.syncCollectionPermissions(registry);
 
-const service = new DocumentService({
-  registry,
-  repository: new KyselyDocumentRepository(db),
-  authorizer: auth,
-});
+const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 ```
 
 Trusted setup code can create users, credentials, memberships, scopes, roles,

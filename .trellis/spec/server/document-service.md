@@ -23,10 +23,10 @@ methods.
 - Scalar item methods call repository batch primitives with one item; do not
   add scalar repository shortcuts.
 - `createMany`, `getByIds`, and `updateMany` collect distinct target auth
-  scopes and invoke `DocumentAuthorizer.checkAccessMany(...)` once per
+  scopes and invoke `AuthRbacService.evaluateAccess(...)` once per
   protected operation.
 - Document writes that receive non-null `authScopeId` values validate those
-  scope ids through `DocumentAuthorizer.validateTenantAccess(...)` before
+  scope ids through `AuthRbacService.evaluateAccess(...)` before
   repository persistence, including trusted writes without an actor and remote
   projection upserts.
 - `getByIds` maps denied documents to `null` in their original positions.
@@ -88,5 +88,5 @@ projection sync, and remote failure ordering. Add nearby tests when changing
 these service paths.
 
 `test/unit/server/auth-rbac.test.ts` additionally covers protected batch
-authorization allow/deny behavior and verifies one `checkAccessMany` call for
+authorization allow/deny behavior and verifies one `evaluateAccess` call for
 each collection-shaped operation.

@@ -91,8 +91,12 @@ Auth/RBAC repository methods expose database facts and set-shaped SQL helpers:
 active membership lookup, tenant-bound user/role/assignment/scope/document id
 validation, permission-key validation, capability checks, and delegated role
 permission denial lookup.
-Keep omnibus authorization policy in `AuthRbacService.checkAccessMany`; do not
+Keep omnibus authorization policy in `AuthRbacService.evaluateAccess`; do not
 reintroduce a repository-level `checkAccessMany` policy method.
+Repository classes that implement interfaces are `@injectable()` concrete
+classes, but the interfaces themselves are not injectable. Bind and inject them
+through `SERVER_DI_TYPES.AuthRbacRepository` and
+`SERVER_DI_TYPES.DocumentRepository`.
 
 Important patterns:
 
@@ -106,7 +110,7 @@ Important patterns:
 - Preserve input order for `findByIds` and `updateMany`.
 - Do not perform auth-scope tenant validation in
   `KyselyDocumentRepository`. Document service methods validate non-null
-  `authScopeId` values through the configured `DocumentAuthorizer` before
+  `authScopeId` values through the configured `AuthRbacService` before
   calling repository write methods.
 - Correlate ordered read, delete, and upsert output through SQL input
   relations with ordinality rather than building `Map` or `Set` instances
