@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { pivotToColumns } from "#server/util/db";
-
 describe("server database utilities", () => {
   it("pivots rows and normalizes undefined values to null", () => {
     const columns = pivotToColumns([
@@ -26,10 +24,7 @@ describe("server database utilities", () => {
     });
 
     const columns = pivotToColumns(
-      [
-        { id: "a" },
-        { id: "b", optional: "present", value: undefined },
-      ],
+      [{ id: "a" }, { id: "b", optional: "present", value: undefined }],
       rowSchema,
       "set",
     );

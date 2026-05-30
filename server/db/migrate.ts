@@ -4,7 +4,7 @@ import {
   type MigrationProvider,
 } from "kysely/migration";
 
-import type { DatabaseClient } from "../util/kysely";
+import type { DatabaseClient } from "../utils/kysely";
 import * as baseline from "./migrations/001-baseline";
 
 const migrations: Record<string, Migration> = { "001_baseline": baseline };
