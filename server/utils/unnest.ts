@@ -1,5 +1,16 @@
 import { sql, type AliasedRawBuilder, type Expression } from "kysely";
 
+type UnnestFunction =
+  | "unnest"
+  | "jsonb_array_elements"
+  | "jsonb_array_elements_text"
+  | "jsonb_array_elements_auto";
+
+type ResolvedUnnestFunction = Exclude<
+  UnnestFunction,
+  "jsonb_array_elements_auto"
+>;
+
 // 1. Hardened Type Extraction (Handles readonly arrays and nullable Kysely columns)
 type ExtractArrayElement<T> =
   NonNullable<T> extends readonly (infer V)[]
@@ -22,7 +33,7 @@ export type Unnested<T, O> = {
     : Record<never, never>);
 
 export interface UnnestOptions<T, O> {
-  fn?: "unnest" | "jsonb_array_elements" | "jsonb_array_elements_text";
+  fn?: UnnestFunction | Partial<Record<keyof T, UnnestFunction>>;
   types?: Partial<Record<keyof T, string>>;
   withOrdinality?: O;
 }
@@ -83,40 +94,18 @@ export function unnest<
   options?: UnnestOptions<T, O>,
 ): AliasedRawBuilder<Unnested<T, O>, TName> {
   const keys = Object.keys(input);
-  const functionName = options?.fn ?? "unnest";
-  const typeSuffix = functionName === "unnest" ? "[]" : "";
-  const nullFallback =
-    functionName === "unnest"
-      ? (pgType: string) => sql`array[]::${sql.raw(pgType + typeSuffix)}`
-      : () => sql`'[]'::jsonb`;
-
-  if (functionName !== "unnest" && keys.length !== 1) {
-    throw new Error(`${functionName} expects exactly one input expression`);
-  }
-
-  const args = keys.map((key) => {
-    const value = input[key];
-    const explicitType = options?.types?.[key];
-
-    if (isExpression(value)) {
-      if (explicitType) {
-        return sql`coalesce(${value}::${sql.raw(explicitType + typeSuffix)}, ${nullFallback(explicitType)})`;
-      }
-      if (functionName !== "unnest") {
-        return sql`coalesce(${value}::jsonb, ${nullFallback("jsonb")})`;
-      }
-      return value;
+  const functionGroups = buildFunctionGroups(input, keys, options);
+  const functionCalls = functionGroups.map((group) => {
+    if (group.fn === "unnest") {
+      return sql`unnest(${sql.join(group.args)})`;
     }
-
-    const pgType = explicitType ?? inferPgType(value);
-    const normalizedValue =
-      functionName === "unnest" && pgType === "jsonb"
-        ? normalizeJsonbArrayElements(value)
-        : value;
-    return sql`coalesce(${normalizedValue}::${sql.raw(pgType + typeSuffix)}, ${nullFallback(pgType)})`;
+    return group.args[0]!;
   });
 
-  let unnestExpr = sql<Unnested<T, O>>`${sql.raw(functionName)}(${sql.join(args)})`;
+  let unnestExpr =
+    functionCalls.length === 1
+      ? sql<Unnested<T, O>>`${functionCalls[0]!}`
+      : sql<Unnested<T, O>>`rows from (${sql.join(functionCalls)})`;
 
   if (options?.withOrdinality) {
     unnestExpr = sql<Unnested<T, O>>`${unnestExpr} with ordinality`;
@@ -133,4 +122,140 @@ export function unnest<
   const aliasExpr = sql`${sql.id(as)}(${sql.join(columnIdentifiers)})`;
 
   return unnestExpr.as<TName>(aliasExpr);
+}
+
+type FunctionGroup = {
+  fn: ResolvedUnnestFunction;
+  args: unknown[];
+};
+
+function buildFunctionGroups<T extends Record<string, unknown>, O>(
+  input: T,
+  keys: string[],
+  options: UnnestOptions<T, O> | undefined,
+): FunctionGroup[] {
+  const groups: FunctionGroup[] = [];
+
+  for (const key of keys) {
+    const typedKey = key as keyof T;
+    const value = input[key];
+    const explicitType = options?.types?.[typedKey];
+    const functionName = getFunctionName(
+      typedKey,
+      value,
+      explicitType,
+      options,
+    );
+    const arg =
+      functionName === "unnest"
+        ? buildUnnestArg(value, explicitType)
+        : buildJsonbArrayElementsCall(functionName, value);
+    const previousGroup = groups.at(-1);
+
+    if (previousGroup?.fn === "unnest" && functionName === "unnest") {
+      previousGroup.args.push(arg);
+    } else {
+      groups.push({ fn: functionName, args: [arg] });
+    }
+  }
+
+  return groups;
+}
+
+function getFunctionName<T, O>(
+  key: keyof T,
+  value: unknown,
+  explicitType: string | undefined,
+  options: UnnestOptions<T, O> | undefined,
+): ResolvedUnnestFunction {
+  const configuredFunction = options?.fn;
+
+  if (configuredFunction === undefined) {
+    return "unnest";
+  }
+
+  const functionName =
+    typeof configuredFunction === "string"
+      ? configuredFunction
+      : (configuredFunction[key] ?? "unnest");
+
+  if (functionName === "jsonb_array_elements_auto") {
+    return inferJsonbArrayElementsFunction(value, explicitType);
+  }
+
+  return functionName;
+}
+
+function inferJsonbArrayElementsFunction(
+  value: unknown,
+  explicitType: string | undefined,
+): Exclude<ResolvedUnnestFunction, "unnest"> {
+  if (explicitType && explicitType !== "jsonb" && explicitType !== "json") {
+    return "jsonb_array_elements_text";
+  }
+
+  const sample = getJsonArraySample(value);
+  return isPrimitiveJsonValue(sample)
+    ? "jsonb_array_elements_text"
+    : "jsonb_array_elements";
+}
+
+function getJsonArraySample(value: unknown): unknown {
+  const parsedValue =
+    typeof value === "string" && isJsonString(value)
+      ? JSON.parse(value)
+      : value;
+
+  if (!Array.isArray(parsedValue)) {
+    return undefined;
+  }
+
+  return parsedValue.find((item) => item !== null && item !== undefined);
+}
+
+function isPrimitiveJsonValue(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+function buildUnnestArg(value: unknown, explicitType: string | undefined) {
+  if (isExpression(value)) {
+    if (explicitType) {
+      return sql`coalesce(${value}::${sql.raw(explicitType + "[]")}, ${arrayFallback(explicitType)})`;
+    }
+    return value;
+  }
+
+  const pgType = explicitType ?? inferPgType(value);
+  const normalizedValue =
+    pgType === "jsonb" ? normalizeJsonbArrayElements(value) : value;
+  return sql`coalesce(${normalizedValue}::${sql.raw(pgType + "[]")}, ${arrayFallback(pgType)})`;
+}
+
+function buildJsonbArrayElementsCall(
+  functionName: Exclude<ResolvedUnnestFunction, "unnest">,
+  value: unknown,
+) {
+  const jsonbValue = isExpression(value) ? value : normalizeJsonbValue(value);
+  return sql`${sql.raw(functionName)}(coalesce(${jsonbValue}::jsonb, ${jsonbArrayFallback()}))`;
+}
+
+function arrayFallback(pgType: string) {
+  return sql`array[]::${sql.raw(pgType + "[]")}`;
+}
+
+function jsonbArrayFallback() {
+  return sql`'[]'::jsonb`;
+}
+
+function normalizeJsonbValue(value: unknown): string {
+  if (typeof value === "string" && isJsonString(value)) {
+    return value;
+  }
+  return JSON.stringify(value ?? []);
 }
