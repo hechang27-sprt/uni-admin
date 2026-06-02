@@ -783,8 +783,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
             {
               withOrdinality: "checkOrder",
               types: {
-                capabilities: "jsonb[]",
-                roleIds: "jsonb[]",
                 targetScopeId: "uuid",
                 userId: "uuid",
               },
@@ -818,12 +816,15 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                   capability: ref("input.capabilities"),
                 },
                 {
-                  types: { capability: "text" },
+                  jsonb: ["capability"],
                   withOrdinality: "capabilityOrder",
                 },
               ),
             )
-              .select(["directCap.capability", "directCap.capabilityOrder"])
+              .select([
+                sql<string>`direct_cap.capability #>> '{}'`.as("capability"),
+                "directCap.capabilityOrder",
+              ])
               .unionAll(() =>
                 selectFrom(
                   unnest(
@@ -832,7 +833,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       roleId: ref("input.roleIds"),
                     },
                     {
-                      types: { roleId: "text" },
+                      jsonb: ["roleId"],
                       withOrdinality: "roleOrder",
                     },
                   ),
@@ -843,7 +844,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       .on(
                         "rp.roleId",
                         "=",
-                        sql<string>`role_input.role_id::uuid`,
+                        sql<string>`(role_input.role_id #>> '{}')::uuid`,
                       ),
                   )
                   .innerJoin(

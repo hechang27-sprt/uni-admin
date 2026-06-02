@@ -18,10 +18,10 @@ describe("unnest", () => {
           "input",
           {
             id: ["first", "second"],
-            capability: sql<string[]>`'["read", "write"]'::jsonb`,
+            capability: sql`'["read", "write"]'::jsonb`,
           },
           {
-            types: { capability: "text" },
+            jsonb: ["capability"],
             withOrdinality: "inputOrder",
           },
         ),
@@ -41,11 +41,11 @@ describe("unnest", () => {
         unnest(
           "input",
           {
-            capability: sql<string[]>`'["read", "write"]'::jsonb`,
-            roleId: sql<string[]>`'["role-a"]'::jsonb`,
+            capability: sql`'["read", "write"]'::jsonb`,
+            roleId: sql`'["role-a"]'::jsonb`,
           },
           {
-            types: { capability: "text", roleId: "text" },
+            jsonb: ["capability", "roleId"],
             withOrdinality: "itemOrder",
           },
         ),
@@ -59,7 +59,7 @@ describe("unnest", () => {
     ]);
   });
 
-  it("expands JavaScript JSON array values", async () => {
+  it("unnests primitive JavaScript arrays as SQL arrays", async () => {
     const rows = await database
       .selectFrom(
         unnest(
@@ -68,14 +68,34 @@ describe("unnest", () => {
             value: [1, 2],
           },
           {
-            types: { value: "jsonb" },
+            types: { value: "int" },
           },
         ),
       )
       .selectAll()
       .execute();
 
-    expect(rows).toEqual([{ value: "1" }, { value: "2" }]);
+    expect(rows).toEqual([{ value: 1 }, { value: 2 }]);
+  });
+
+  it("can force primitive JavaScript arrays to JSONB expansion", async () => {
+    const rows = await database
+      .selectFrom(
+        unnest(
+          "input",
+          {
+            value: [1, 2],
+          },
+          {
+            jsonb: ["value"],
+            types: { value: "text" },
+          },
+        ),
+      )
+      .selectAll()
+      .execute();
+
+    expect(rows).toEqual([{ value: 1 }, { value: 2 }]);
   });
 
   it("keeps non-primitive JSON array values as jsonb", async () => {
@@ -94,7 +114,7 @@ describe("unnest", () => {
     ]);
   });
 
-  it("treats jsonb[] type hints as ordinary SQL array inputs", async () => {
+  it("keeps nested JavaScript arrays as JSONB row values", async () => {
     const rows = await database
       .selectFrom(
         unnest(
@@ -104,7 +124,6 @@ describe("unnest", () => {
             value: [["read"], ["write"]],
           },
           {
-            types: { value: "jsonb[]" },
             withOrdinality: "inputOrder",
           },
         ),

@@ -2,8 +2,7 @@ import { sql, type AliasedRawBuilder, type Expression } from "kysely";
 
 type SetReturningFunction =
   | "unnest"
-  | "jsonb_array_elements"
-  | "jsonb_array_elements_text";
+  | "jsonb_array_elements";
 
 // 1. Hardened Type Extraction (Handles readonly arrays and nullable Kysely columns)
 type ExtractArrayElement<T> =
@@ -28,6 +27,7 @@ export type Unnested<T, O> = {
 
 export interface UnnestOptions<T, O> {
   types?: Partial<Record<keyof T, string>>;
+  jsonb?: readonly (keyof T)[];
   withOrdinality?: O;
 }
 
@@ -128,16 +128,20 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
   options: UnnestOptions<T, O> | undefined,
 ): FunctionGroup[] {
   const groups: FunctionGroup[] = [];
+  const jsonbKeys = new Set<keyof T>(options?.jsonb ?? []);
 
   for (const key of keys) {
     const typedKey = key as keyof T;
     const value = input[key];
     const explicitType = options?.types?.[typedKey];
-    const functionName = inferSetReturningFunction(value, explicitType);
+    const functionName = inferSetReturningFunction(
+      value,
+      jsonbKeys.has(typedKey),
+    );
     const arg =
       functionName === "unnest"
         ? buildUnnestArg(value, explicitType)
-        : buildJsonbArrayElementsCall(functionName, value);
+        : buildJsonbArrayElementsCall(value);
     const previousGroup = groups.at(-1);
 
     if (previousGroup?.functionName === "unnest" && functionName === "unnest") {
@@ -152,50 +156,21 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
 
 function inferSetReturningFunction(
   value: unknown,
-  explicitType: string | undefined,
+  forceJsonb: boolean,
 ): SetReturningFunction {
-  if (!shouldExpandJsonbArray(value, explicitType)) {
-    return "unnest";
+  if (forceJsonb || shouldExpandJsonbArray(value)) {
+    return "jsonb_array_elements";
   }
 
-  return inferJsonbArrayElementsFunction(value, explicitType);
+  return "unnest";
 }
 
-function inferJsonbArrayElementsFunction(
-  value: unknown,
-  explicitType: string | undefined,
-): Exclude<SetReturningFunction, "unnest"> {
-  const type = parseTypeHint(explicitType);
-
-  if (type && type.base !== "jsonb" && type.base !== "json") {
-    return "jsonb_array_elements_text";
-  }
-
-  const sample = getJsonArraySample(value);
-  return isPrimitiveJsonValue(sample)
-    ? "jsonb_array_elements_text"
-    : "jsonb_array_elements";
-}
-
-function shouldExpandJsonbArray(
-  value: unknown,
-  explicitType: string | undefined,
-): boolean {
-  const type = parseTypeHint(explicitType);
-
-  if (type?.array) {
+function shouldExpandJsonbArray(value: unknown): boolean {
+  if (isExpression(value)) {
     return false;
   }
 
-  if (isExpression(value)) {
-    return type !== undefined;
-  }
-
-  if (type && (type.base === "jsonb" || type.base === "json")) {
-    return true;
-  }
-
-  if (!Array.isArray(value) || type) {
+  if (!Array.isArray(value)) {
     return false;
   }
 
@@ -225,16 +200,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
-function isPrimitiveJsonValue(value: unknown): boolean {
-  return (
-    value === undefined ||
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  );
-}
-
 function buildUnnestArg(value: unknown, explicitType: string | undefined) {
   const pgType = parseTypeHint(explicitType)?.base;
 
@@ -251,12 +216,8 @@ function buildUnnestArg(value: unknown, explicitType: string | undefined) {
   return sql`coalesce(${normalizedValue}::${sql.raw(inferredPgType + "[]")}, ${arrayFallback(inferredPgType)})`;
 }
 
-function buildJsonbArrayElementsCall(
-  functionName: Exclude<SetReturningFunction, "unnest">,
-  value: unknown,
-) {
-  const jsonbValue = isExpression(value) ? value : normalizeJsonbValue(value);
-  return sql`${sql.raw(functionName)}(coalesce(${jsonbValue}::jsonb, ${jsonbArrayFallback()}))`;
+function buildJsonbArrayElementsCall(value: unknown) {
+  return sql`jsonb_array_elements(${buildToJsonbArray(value)})`;
 }
 
 function arrayFallback(pgType: string) {
@@ -267,11 +228,16 @@ function jsonbArrayFallback() {
   return sql`'[]'::jsonb`;
 }
 
-function normalizeJsonbValue(value: unknown): string {
-  if (typeof value === "string" && isJsonString(value)) {
-    return value;
+function buildToJsonbArray(value: unknown) {
+  if (isExpression(value)) {
+    return sql`coalesce(to_jsonb(${value}), ${jsonbArrayFallback()})`;
   }
-  return JSON.stringify(value ?? []);
+
+  const pgType = inferPgType(value);
+  const normalizedValue =
+    pgType === "jsonb" ? normalizeJsonbArrayElements(value) : value;
+
+  return sql`to_jsonb(coalesce(${normalizedValue}::${sql.raw(pgType + "[]")}, ${arrayFallback(pgType)}))`;
 }
 
 function parseTypeHint(type: string | undefined):
