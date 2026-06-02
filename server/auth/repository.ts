@@ -747,17 +747,17 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       input.tenantId,
     );
 
+    if (!input.userId && input.checks.some(({ userId }) => !userId)) {
+      throw new Error("Capability checks require a userId");
+    }
+
     const checkInputs = input.checks.map((check) => {
-      const userId = check.userId ?? input.userId;
-      if (!userId) {
-        throw new Error("Capability checks require a userId");
-      }
       return {
-        userId,
+        userId: check.userId,
         targetScopeId: check.targetScopeId,
         override: check.override,
-        capabilities: JSON.stringify(check.capabilities ?? []),
-        roleIds: JSON.stringify(check.roleIds ?? []),
+        capabilities: check.capabilities ?? [],
+        roleIds: check.roleIds ?? [],
       };
     });
     const { userId, targetScopeId, override, capabilities, roleIds } =
@@ -775,20 +775,29 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           "p.key as permissionKey",
         ]),
       )
-      .selectFrom(
-        unnest(
-          "input",
-          { userId, targetScopeId, override, capabilities, roleIds },
-          {
-            withOrdinality: "checkOrder",
-            types: {
-              targetScopeId: "uuid",
-              userId: "uuid",
-              capabilities: "jsonb",
-              roleIds: "jsonb",
+      .selectFrom(({ selectFrom }) =>
+        selectFrom(
+          unnest(
+            "input",
+            { userId, targetScopeId, override, capabilities, roleIds },
+            {
+              withOrdinality: "checkOrder",
+              types: {
+                targetScopeId: "uuid",
+                userId: "uuid",
+              },
             },
-          },
-        ),
+          ),
+        )
+          .select(({ fn, val }) => [
+            fn.coalesce("userId", val(input.userId)).$notNull().as("userId"),
+            "targetScopeId",
+            "override",
+            "capabilities",
+            "roleIds",
+            "checkOrder",
+          ])
+          .as("input"),
       )
       .leftJoin("granted as g1", (join) =>
         join
@@ -798,29 +807,33 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .on("g1.descendantId", "=", rootScopeId),
       )
       .innerJoinLateral(
-        ({ selectFrom }) =>
+        ({ selectFrom, ref }) =>
           selectFrom(() =>
             selectFrom(
-              sql<{
-                capability: string;
-                capabilityOrder: number;
-              }>`
-                jsonb_array_elements_text(
-                  coalesce(input.capabilities, '[]'::jsonb)
-                ) with ordinality
-              `.as<"directCap">(sql`direct_cap(capability, capability_order)`),
+              unnest(
+                "directCap",
+                {
+                  capability: ref("input.capabilities"),
+                },
+                {
+                  fn: "jsonb_array_elements_text",
+                  withOrdinality: "capabilityOrder",
+                },
+              ),
             )
               .select(["directCap.capability", "directCap.capabilityOrder"])
               .unionAll(() =>
                 selectFrom(
-                  sql<{
-                    roleId: string;
-                    roleOrder: number;
-                  }>`
-                      jsonb_array_elements_text(
-                        coalesce(input.role_ids, '[]'::jsonb)
-                      ) with ordinality
-                    `.as<"roleInput">(sql`role_input(role_id, role_order)`),
+                  unnest(
+                    "roleInput",
+                    {
+                      roleId: ref("input.roleIds"),
+                    },
+                    {
+                      fn: "jsonb_array_elements_text",
+                      withOrdinality: "roleOrder",
+                    },
+                  ),
                 )
                   .innerJoin("rolePermissions as rp", (join) =>
                     join
