@@ -21,7 +21,6 @@ describe("unnest", () => {
             capability: sql<string[]>`'["read", "write"]'::jsonb`,
           },
           {
-            fn: { capability: "jsonb_array_elements_auto" },
             types: { capability: "text" },
             withOrdinality: "inputOrder",
           },
@@ -46,10 +45,6 @@ describe("unnest", () => {
             roleId: sql<string[]>`'["role-a"]'::jsonb`,
           },
           {
-            fn: {
-              capability: "jsonb_array_elements_auto",
-              roleId: "jsonb_array_elements_auto",
-            },
             types: { capability: "text", roleId: "text" },
             withOrdinality: "itemOrder",
           },
@@ -73,7 +68,7 @@ describe("unnest", () => {
             value: [1, 2],
           },
           {
-            fn: "jsonb_array_elements_auto",
+            types: { value: "jsonb" },
           },
         ),
       )
@@ -86,15 +81,9 @@ describe("unnest", () => {
   it("keeps non-primitive JSON array values as jsonb", async () => {
     const rows = await database
       .selectFrom(
-        unnest(
-          "input",
-          {
-            value: [{ key: "one" }, { key: "two" }],
-          },
-          {
-            fn: "jsonb_array_elements_auto",
-          },
-        ),
+        unnest("input", {
+          value: [{ key: "one" }, { key: "two" }],
+        }),
       )
       .selectAll()
       .execute();
@@ -102,6 +91,30 @@ describe("unnest", () => {
     expect(rows).toEqual([
       { value: { key: "one" } },
       { value: { key: "two" } },
+    ]);
+  });
+
+  it("treats jsonb[] type hints as ordinary SQL array inputs", async () => {
+    const rows = await database
+      .selectFrom(
+        unnest(
+          "input",
+          {
+            id: ["first", "second"],
+            value: [["read"], ["write"]],
+          },
+          {
+            types: { value: "jsonb[]" },
+            withOrdinality: "inputOrder",
+          },
+        ),
+      )
+      .selectAll()
+      .execute();
+
+    expect(rows).toEqual([
+      { id: "first", value: ["read"], inputOrder: 1 },
+      { id: "second", value: ["write"], inputOrder: 2 },
     ]);
   });
 });

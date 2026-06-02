@@ -783,6 +783,8 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
             {
               withOrdinality: "checkOrder",
               types: {
+                capabilities: "jsonb[]",
+                roleIds: "jsonb[]",
                 targetScopeId: "uuid",
                 userId: "uuid",
               },
@@ -816,7 +818,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                   capability: ref("input.capabilities"),
                 },
                 {
-                  fn: "jsonb_array_elements_text",
+                  types: { capability: "text" },
                   withOrdinality: "capabilityOrder",
                 },
               ),
@@ -830,7 +832,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       roleId: ref("input.roleIds"),
                     },
                     {
-                      fn: "jsonb_array_elements_text",
+                      types: { roleId: "text" },
                       withOrdinality: "roleOrder",
                     },
                   ),

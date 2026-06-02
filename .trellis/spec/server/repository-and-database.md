@@ -123,6 +123,13 @@ Important patterns:
   `.as<"input">(...)`. Do not wrap it in a nested `selectFrom` callback just
   to call `.selectAll().as("input")`; the direct alias is shorter and keeps
   Kysely's table alias typing intact.
+- Use the shared `unnest()` helper when a repository input relation needs to
+  combine SQL arrays with JSONB array expansion. Use `types` hints to
+  distinguish JSONB array values from ordinary SQL arrays: `jsonb[]` keeps a
+  column as a normal SQL array input, while a JSONB expression with an element
+  type such as `text` is expanded with `jsonb_array_elements_text`. The helper
+  emits `ROWS FROM(...)` when multiple set-returning functions must align by
+  ordinality and chooses text element expansion for primitive JSON arrays.
 - Use `onConflictDoUpdate` for remote projection upserts keyed by remote
   identity.
 

@@ -1,15 +1,9 @@
 import { sql, type AliasedRawBuilder, type Expression } from "kysely";
 
-type UnnestFunction =
+type SetReturningFunction =
   | "unnest"
   | "jsonb_array_elements"
-  | "jsonb_array_elements_text"
-  | "jsonb_array_elements_auto";
-
-type ResolvedUnnestFunction = Exclude<
-  UnnestFunction,
-  "jsonb_array_elements_auto"
->;
+  | "jsonb_array_elements_text";
 
 // 1. Hardened Type Extraction (Handles readonly arrays and nullable Kysely columns)
 type ExtractArrayElement<T> =
@@ -33,7 +27,6 @@ export type Unnested<T, O> = {
     : Record<never, never>);
 
 export interface UnnestOptions<T, O> {
-  fn?: UnnestFunction | Partial<Record<keyof T, UnnestFunction>>;
   types?: Partial<Record<keyof T, string>>;
   withOrdinality?: O;
 }
@@ -96,7 +89,7 @@ export function unnest<
   const keys = Object.keys(input);
   const functionGroups = buildFunctionGroups(input, keys, options);
   const functionCalls = functionGroups.map((group) => {
-    if (group.fn === "unnest") {
+    if (group.functionName === "unnest") {
       return sql`unnest(${sql.join(group.args)})`;
     }
     return group.args[0]!;
@@ -125,7 +118,7 @@ export function unnest<
 }
 
 type FunctionGroup = {
-  fn: ResolvedUnnestFunction;
+  functionName: SetReturningFunction;
   args: unknown[];
 };
 
@@ -140,57 +133,41 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
     const typedKey = key as keyof T;
     const value = input[key];
     const explicitType = options?.types?.[typedKey];
-    const functionName = getFunctionName(
-      typedKey,
-      value,
-      explicitType,
-      options,
-    );
+    const functionName = inferSetReturningFunction(value, explicitType);
     const arg =
       functionName === "unnest"
         ? buildUnnestArg(value, explicitType)
         : buildJsonbArrayElementsCall(functionName, value);
     const previousGroup = groups.at(-1);
 
-    if (previousGroup?.fn === "unnest" && functionName === "unnest") {
+    if (previousGroup?.functionName === "unnest" && functionName === "unnest") {
       previousGroup.args.push(arg);
     } else {
-      groups.push({ fn: functionName, args: [arg] });
+      groups.push({ functionName, args: [arg] });
     }
   }
 
   return groups;
 }
 
-function getFunctionName<T, O>(
-  key: keyof T,
+function inferSetReturningFunction(
   value: unknown,
   explicitType: string | undefined,
-  options: UnnestOptions<T, O> | undefined,
-): ResolvedUnnestFunction {
-  const configuredFunction = options?.fn;
-
-  if (configuredFunction === undefined) {
+): SetReturningFunction {
+  if (!shouldExpandJsonbArray(value, explicitType)) {
     return "unnest";
   }
 
-  const functionName =
-    typeof configuredFunction === "string"
-      ? configuredFunction
-      : (configuredFunction[key] ?? "unnest");
-
-  if (functionName === "jsonb_array_elements_auto") {
-    return inferJsonbArrayElementsFunction(value, explicitType);
-  }
-
-  return functionName;
+  return inferJsonbArrayElementsFunction(value, explicitType);
 }
 
 function inferJsonbArrayElementsFunction(
   value: unknown,
   explicitType: string | undefined,
-): Exclude<ResolvedUnnestFunction, "unnest"> {
-  if (explicitType && explicitType !== "jsonb" && explicitType !== "json") {
+): Exclude<SetReturningFunction, "unnest"> {
+  const type = parseTypeHint(explicitType);
+
+  if (type && type.base !== "jsonb" && type.base !== "json") {
     return "jsonb_array_elements_text";
   }
 
@@ -198,6 +175,32 @@ function inferJsonbArrayElementsFunction(
   return isPrimitiveJsonValue(sample)
     ? "jsonb_array_elements_text"
     : "jsonb_array_elements";
+}
+
+function shouldExpandJsonbArray(
+  value: unknown,
+  explicitType: string | undefined,
+): boolean {
+  const type = parseTypeHint(explicitType);
+
+  if (type?.array) {
+    return false;
+  }
+
+  if (isExpression(value)) {
+    return type !== undefined;
+  }
+
+  if (type && (type.base === "jsonb" || type.base === "json")) {
+    return true;
+  }
+
+  if (!Array.isArray(value) || type) {
+    return false;
+  }
+
+  const sample = getJsonArraySample(value);
+  return Array.isArray(sample) || isPlainObject(sample);
 }
 
 function getJsonArraySample(value: unknown): unknown {
@@ -213,6 +216,15 @@ function getJsonArraySample(value: unknown): unknown {
   return parsedValue.find((item) => item !== null && item !== undefined);
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Date)
+  );
+}
+
 function isPrimitiveJsonValue(value: unknown): boolean {
   return (
     value === undefined ||
@@ -224,21 +236,23 @@ function isPrimitiveJsonValue(value: unknown): boolean {
 }
 
 function buildUnnestArg(value: unknown, explicitType: string | undefined) {
+  const pgType = parseTypeHint(explicitType)?.base;
+
   if (isExpression(value)) {
-    if (explicitType) {
-      return sql`coalesce(${value}::${sql.raw(explicitType + "[]")}, ${arrayFallback(explicitType)})`;
+    if (pgType) {
+      return sql`coalesce(${value}::${sql.raw(pgType + "[]")}, ${arrayFallback(pgType)})`;
     }
     return value;
   }
 
-  const pgType = explicitType ?? inferPgType(value);
+  const inferredPgType = pgType ?? inferPgType(value);
   const normalizedValue =
-    pgType === "jsonb" ? normalizeJsonbArrayElements(value) : value;
-  return sql`coalesce(${normalizedValue}::${sql.raw(pgType + "[]")}, ${arrayFallback(pgType)})`;
+    inferredPgType === "jsonb" ? normalizeJsonbArrayElements(value) : value;
+  return sql`coalesce(${normalizedValue}::${sql.raw(inferredPgType + "[]")}, ${arrayFallback(inferredPgType)})`;
 }
 
 function buildJsonbArrayElementsCall(
-  functionName: Exclude<ResolvedUnnestFunction, "unnest">,
+  functionName: Exclude<SetReturningFunction, "unnest">,
   value: unknown,
 ) {
   const jsonbValue = isExpression(value) ? value : normalizeJsonbValue(value);
@@ -258,4 +272,22 @@ function normalizeJsonbValue(value: unknown): string {
     return value;
   }
   return JSON.stringify(value ?? []);
+}
+
+function parseTypeHint(type: string | undefined):
+  | {
+      base: string;
+      array: boolean;
+    }
+  | undefined {
+  if (!type) {
+    return undefined;
+  }
+
+  const trimmed = type.trim();
+  const array = trimmed.endsWith("[]");
+  return {
+    base: array ? trimmed.slice(0, -2) : trimmed,
+    array,
+  };
 }
