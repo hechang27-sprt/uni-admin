@@ -113,8 +113,8 @@ interface TenantActorContext {
 - Registered action capabilities default to `action:<collection>:<action>`.
 - `resourceScope: "document"` checks the document `auth_scope_id`; `null`
   normalizes to the tenant root scope.
-- `resourceScope: "none"` checks only tenant-root capability and skips document
-  containment.
+- `resourceScope: "tenant-root"` checks the capability at the tenant root
+  scope and skips document containment.
 - Protected remote writes must authorize before calling a remote adapter.
   Adapter context receives `actor` only on protected calls.
 - Check results align with `checks` input order. Repeated service scope checks
