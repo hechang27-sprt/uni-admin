@@ -123,16 +123,21 @@ export type CapabilityAccessCheck = {
   roleIds?: string[];
   override?: string;
   userId?: string;
-  targetScopeId: string | null;
+  // `null` means root scope here so having a permission in `null` scope would mean all scopes under the tenant
+  targetScopeIds: string[] | null;
 };
 
 export type CapabilityEvaluation = {
   userId: string;
-  targetScopeId: string;
-  capabilities: string[];
   allowed: boolean;
-  hasCaps: boolean[];
   hasOverride: boolean;
+  missingCaps: {
+    capability: string;
+    permissionId: string;
+    roleId?: string;
+    targetScopeId: string;
+    isRootScope: boolean;
+  }[];
 };
 
 export interface CheckAccessManyInput

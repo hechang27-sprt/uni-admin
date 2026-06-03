@@ -912,7 +912,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .orderBy("input.checkOrder")
       .execute();
 
-    return accessResults;
+    return accessResults satisfies CapabilityEvaluation[];
   }
 
   async listAccessibleScopeIds(input: {
