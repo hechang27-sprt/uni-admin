@@ -14,7 +14,7 @@ export type CollectionOperation =
   | "restore"
   | "hard-delete";
 
-export type CollectionResourceScopeMode = "document" | "none";
+export type CollectionResourceScopeMode = "document" | "tenant-root";
 
 export interface CollectionOperationAuthDeclaration {
   capability?: string;

@@ -41,6 +41,7 @@ import { isAuthRbacError, type AuthRbacService } from "#server/auth";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
+import { uniq } from "es-toolkit";
 
 @injectable()
 export class DocumentService {
@@ -159,22 +160,13 @@ export class DocumentService {
     const existingDocuments = documents.filter(
       (document): document is StoredDocument<TData> => document !== null,
     );
-    const accessResults = await this.checkDocumentAccesses(
+
+    return await this.filterAccessibleDocuments<TData>(
       input,
       options,
       "read",
       existingDocuments,
     );
-    let existingIndex = 0;
-
-    return documents.map((document) => {
-      if (!document) {
-        return null;
-      }
-      const allowed = accessResults[existingIndex];
-      existingIndex += 1;
-      return allowed ? document : null;
-    });
   }
 
   async list<TData extends JsonObject>(
@@ -187,7 +179,7 @@ export class DocumentService {
 
     if (hasActorOptions(options)) {
       const auth = resolveCollectionOperationAuth(collection, "read");
-      if (auth?.resourceScope === "none") {
+      if (auth?.resourceScope === "tenant-root") {
         await this.assertDocumentAccess({
           ...actorContext(input, options),
           checks: [
@@ -632,9 +624,7 @@ export class DocumentService {
       checks: [
         {
           capabilities: ["admin:documents:set-scope"],
-          targetScopeIds: [
-            ...new Set([existing.authScopeId, input.authScopeId]),
-          ],
+          targetScopeIds: uniq([existing.authScopeId, input.authScopeId]),
         },
       ],
     });
@@ -662,7 +652,7 @@ export class DocumentService {
     if (!auth) {
       return [];
     }
-    if (auth.resourceScope === "none") {
+    if (auth.resourceScope === "tenant-root") {
       await this.assertDocumentAccess({
         ...actorContext(input, authenticatedOptions),
         checks: [
@@ -702,9 +692,8 @@ export class DocumentService {
       checks: [
         {
           capabilities: [auth.capability],
-          targetScopeIds: [
-            ...new Set(auth.resourceScope === "none" ? [null] : authScopeIds),
-          ],
+          targetScopeIds:
+            auth.resourceScope === "tenant-root" ? [null] : uniq(authScopeIds),
         },
       ],
     });
@@ -731,58 +720,57 @@ export class DocumentService {
       checks: [
         {
           capabilities: [auth.capability],
-          targetScopeIds: [
-            ...new Set(
-              auth.resourceScope === "none"
-                ? [null]
-                : documents.map((document) => document.authScopeId),
-            ),
-          ],
+          targetScopeIds:
+            auth.resourceScope === "tenant-root"
+              ? [null]
+              : uniq(documents.map((document) => document.authScopeId)),
         },
       ],
     });
   }
 
-  private async checkDocumentAccesses(
+  private async filterAccessibleDocuments<TData extends JsonObject>(
     input: { tenantId: string; collection: string },
     options: DocumentServiceOptions | undefined,
     operation: CollectionOperation,
-    documents: StoredDocument[],
-  ): Promise<boolean[]> {
+    documents: StoredDocument<TData>[],
+  ): Promise<(StoredDocument<TData> | null)[]> {
     if (!hasActorOptions(options)) {
-      return documents.map(() => true);
+      return documents;
     }
 
     const collection = this.registry.get(input.collection);
     const auth = resolveCollectionOperationAuth(collection, operation);
     if (!auth) {
-      return documents.map(() => true);
+      return documents;
     }
 
-    const authScopeIds =
-      auth.resourceScope === "none"
-        ? documents.map(() => null)
-        : documents.map((document) => document.authScopeId);
-    const uniqueScopeIds = [...new Set(authScopeIds).values()];
-    const access = await this.authorizer.evaluateAccess({
-      ...actorContext(input, options),
-      checks: uniqueScopeIds.map((targetScopeId) => ({
-        capabilities: [auth.capability],
-        targetScopeIds: [targetScopeId],
-      })),
-    });
-    const allowed =
-      access.capabilities?.map((capEval) => capEval.missingCaps.length === 0) ??
-      uniqueScopeIds.map(() => access.allowed);
-    const allowedByScopeId = new Map(
-      uniqueScopeIds.map((scopeId, index): [string | null, boolean] => [
-        scopeId,
-        allowed[index] ?? false,
-      ]),
+    const authScopeIds = new Set(
+      auth.resourceScope === "tenant-root"
+        ? [null]
+        : documents.map((document) => document.authScopeId),
     );
 
-    return authScopeIds.map(
-      (scopeId) => allowedByScopeId.get(scopeId) ?? false,
+    const access = await this.authorizer.evaluateAccess({
+      ...actorContext(input, options),
+      checks: [
+        {
+          capabilities: [auth.capability],
+          targetScopeIds: [...authScopeIds],
+        },
+      ],
+    });
+
+    if (access.allowed) return documents;
+    else if (!access.capabilities) return [];
+
+    const deniedCaps = access.capabilities[0]!.missingCaps;
+    const approvedScopes = structuredClone(authScopeIds);
+    deniedCaps.forEach(({ targetScopeId }) =>
+      approvedScopes.delete(targetScopeId),
+    );
+    return documents.map((doc) =>
+      approvedScopes.has(doc.authScopeId) ? doc : null,
     );
   }
 

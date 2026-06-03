@@ -34,6 +34,7 @@ import type {
   ValidateTenantAccessResult,
   VerifyPasswordInput,
 } from "./types";
+import { uniq, flatten, without, flatMap } from "es-toolkit";
 
 export const builtInAdminPermissions: PermissionDefinitionInput[] = [
   { key: ADMIN_TENANT_OVERRIDE_KEY, source: "admin" },
@@ -416,16 +417,16 @@ export class AuthRbacService {
     const columns = pivotToColumns(checks ?? []);
     const capabilities = columns.capabilities ?? [];
     const targetScopeIds = columns.targetScopeIds ?? [];
-    const permissionKeysToValidate = [
-      ...new Set([
-        ...capabilities.flatMap((arr) => arr ?? []),
-        ...(permissionKeys ?? []),
-      ]),
-    ];
+
+    const permissionKeysToValidate = uniq(
+      flatMap([...capabilities, permissionKeys], (arr) => arr ?? []),
+    );
 
     const scopeIds = tenantAccess?.scopeId ?? [];
-    const scopeIdsToValidate = new Set([...targetScopeIds.flat(), ...scopeIds]);
-    scopeIdsToValidate.delete(null);
+    const scopeIdsToValidate = without(
+      uniq(flatten([...targetScopeIds, scopeIds])),
+      null,
+    ) as string[];
 
     const [
       invalidUserId,
@@ -449,7 +450,7 @@ export class AuthRbacService {
       }),
       this.repository.findInvalidScopeId({
         tenantId,
-        scopeIds: scopeIdsToValidate.values().toArray() as string[],
+        scopeIds: scopeIdsToValidate,
       }),
       this.repository.findInvalidDocumentId({
         tenantId,
@@ -546,44 +547,40 @@ export class AuthRbacService {
       };
     }
 
-    if (checks.length > 0) {
-      const accessEvals = await this.repository.checkCapabilities({
-        tenantId,
-        checks,
-        userId: actor?.userId,
-      });
-      const denied = accessEvals.find((check) => !check.allowed);
-      if (denied) {
-        const missingCap = denied.missingCaps[0];
-        const capability = missingCap?.capability ?? "auth:access";
-        const targetScopeId = missingCap
-          ? missingCap.isRootScope
-            ? null
-            : missingCap.targetScopeId
-          : null;
-        if (input.throw) {
-          throw permissionDenied(
-            { tenantId, actor },
-            capability,
-            targetScopeId,
-          );
-        }
-
-        return {
-          allowed: false,
-          failure: {
-            kind: "capability",
-            capability,
-            targetScopeId,
-          },
-          capabilities: accessEvals,
-        };
+    const accessEvals = await this.repository.checkCapabilities({
+      tenantId,
+      checks,
+      userId: actor?.userId,
+    });
+    const denied = accessEvals.find((check) => !check.allowed);
+    if (denied) {
+      const missingCap = denied.missingCaps[0];
+      const capability = missingCap?.capability ?? "auth:access";
+      const targetScopeId = missingCap
+        ? missingCap.isRootScope
+          ? null
+          : missingCap.targetScopeId
+        : null;
+      if (input.throw) {
+        throw permissionDenied({ tenantId, actor }, capability, targetScopeId);
       }
 
-      return { allowed: true, failure: null, capabilities: accessEvals };
+      return {
+        allowed: false,
+        failure: {
+          kind: "capability",
+          capability,
+          targetScopeId,
+        },
+        capabilities: accessEvals,
+      };
     }
 
-    return { allowed: true, failure: null };
+    return {
+      allowed: true,
+      failure: null,
+      capabilities: accessEvals ? accessEvals : undefined,
+    };
   }
 
   private async resolveRole(

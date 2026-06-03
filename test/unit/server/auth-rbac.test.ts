@@ -19,11 +19,14 @@ import {
 import { migrateToLatest } from "#server/db/migrate";
 import {
   createCollectionRegistry,
+  resolveCollectionActionAuth,
+  resolveCollectionOperationAuth,
   type DocumentService,
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
+import { uniq } from "es-toolkit";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -96,6 +99,33 @@ describe("auth/RBAC service integration", () => {
     await expect(
       auth.resolveActor({ tenantId: tenantB, userId: user.userId }),
     ).rejects.toMatchObject({ code: "AUTH_TENANT_MEMBERSHIP_REQUIRED" });
+  });
+  it("resolves tenant-root collection auth declarations explicitly", () => {
+    const registry = createCollectionRegistry([
+      {
+        name: "tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+        auth: {
+          resourceScope: "tenant-root",
+          actions: {
+            archive: {
+              resourceScope: "tenant-root",
+            },
+          },
+        },
+      },
+    ]);
+    const collection = registry.get("tasks");
+
+    expect(resolveCollectionOperationAuth(collection, "read")).toEqual({
+      capability: "collection:tasks:read",
+      resourceScope: "tenant-root",
+    });
+    expect(resolveCollectionActionAuth(collection, "archive")).toEqual({
+      capability: "action:tasks:archive",
+      resourceScope: "tenant-root",
+    });
   });
 
   it("filters and mutates documents through resource-scoped role assignments", async () => {
@@ -342,7 +372,12 @@ describe("auth/RBAC service integration", () => {
       ),
     ).resolves.toHaveLength(3);
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
-    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
+      {
+        capabilities: ["collection:tasks:read"],
+        targetScopeIds: uniq(created.map((doc) => doc.authScopeId)),
+      },
+    ]);
 
     evaluateAccess.mockClear();
     const updated = await service.updateMany<TaskDocument>(
