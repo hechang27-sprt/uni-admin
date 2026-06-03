@@ -716,8 +716,8 @@ describe("auth/RBAC service integration", () => {
       auth.evaluateAccess({
         ...owner.context,
         checks: builtInAdminPermissions.map((permission) => ({
-          capability: permission.key,
-          targetScopeId: null,
+          capabilities: [permission.key],
+          targetScopeIds: [null],
         })),
       }),
     ).resolves.toHaveProperty("allowed", true);
@@ -810,10 +810,38 @@ describe("auth/RBAC service integration", () => {
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
           override: "admin:tenant:owner",
-          targetScopeId: child.scopeId,
+          targetScopeIds: [child.scopeId],
         },
       ],
     });
+    const deniedEval = await repository.checkCapabilities({
+      tenantId: tenantA,
+      checks: [
+        {
+          userId: actor.userId,
+          capabilities: ["admin:role-assignments:assign"],
+          roleIds: [escalated.roleId],
+          override: "admin:tenant:owner",
+          targetScopeIds: [child.scopeId],
+        },
+      ],
+    });
+    expect(deniedEval).toEqual([
+      {
+        userId: actor.userId,
+        allowed: false,
+        hasOverride: false,
+        missingCaps: [
+          {
+            capability: "collection:tasks:delete",
+            permissionId: expect.any(String),
+            roleId: escalated.roleId,
+            targetScopeId: child.scopeId,
+            isRootScope: false,
+          },
+        ],
+      },
+    ]);
     expect(
       checkCapabilities.mock.calls.some(([input]) =>
         input.checks.some((check) =>
@@ -850,10 +878,30 @@ describe("auth/RBAC service integration", () => {
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
           override: "admin:tenant:owner",
-          targetScopeId: child.scopeId,
+          targetScopeIds: [child.scopeId],
         },
       ],
     });
+    const allowedEval = await repository.checkCapabilities({
+      tenantId: tenantA,
+      checks: [
+        {
+          userId: actor.userId,
+          capabilities: ["admin:role-assignments:assign"],
+          roleIds: [escalated.roleId],
+          override: "admin:tenant:owner",
+          targetScopeIds: [child.scopeId],
+        },
+      ],
+    });
+    expect(allowedEval).toEqual([
+      {
+        userId: actor.userId,
+        allowed: true,
+        hasOverride: false,
+        missingCaps: [],
+      },
+    ]);
   });
 
   it("denies remote writes before adapter side effects", async () => {

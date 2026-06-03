@@ -123,8 +123,8 @@ export type CapabilityAccessCheck = {
   roleIds?: string[];
   override?: string;
   userId?: string;
-  // `null` means root scope here so having a permission in `null` scope would mean all scopes under the tenant
-  targetScopeIds: string[] | null;
+  // `null` entries mean root scope here so a permission in `null` scope covers the tenant root.
+  targetScopeIds: (string | null)[];
 };
 
 export type CapabilityEvaluation = {

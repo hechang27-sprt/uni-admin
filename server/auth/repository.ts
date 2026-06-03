@@ -25,6 +25,7 @@ import type {
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import { selectGrantedPermissions } from "../db/query";
+import { unnest } from "../utils/unnest";
 
 export const tenantRootScopeKey = "__tenant_root";
 export const ADMIN_TENANT_OVERRIDE_KEY = "admin:tenant:owner";
@@ -754,13 +755,13 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     const checkInputs = input.checks.map((check) => {
       return {
         userId: check.userId,
-        targetScopeId: check.targetScopeId,
+        targetScopeIds: check.targetScopeIds,
         override: check.override,
         capabilities: check.capabilities ?? [],
         roleIds: check.roleIds ?? [],
       };
     });
-    const { userId, targetScopeId, override, capabilities, roleIds } =
+    const { userId, targetScopeIds, override, capabilities, roleIds } =
       pivotToColumns(checkInputs);
 
     const accessResults = await this.database
@@ -779,11 +780,11 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         selectFrom(
           unnest(
             "input",
-            { userId, targetScopeId, override, capabilities, roleIds },
+            { userId, targetScopeIds, override, capabilities, roleIds },
             {
               withOrdinality: "checkOrder",
+              jsonb: ["targetScopeIds", "capabilities", "roleIds"],
               types: {
-                targetScopeId: "uuid",
                 userId: "uuid",
               },
             },
@@ -791,7 +792,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         )
           .select(({ fn, val }) => [
             fn.coalesce("userId", val(input.userId)).$notNull().as("userId"),
-            "targetScopeId",
+            "targetScopeIds",
             "override",
             "capabilities",
             "roleIds",
@@ -807,7 +808,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .on("g1.descendantId", "=", rootScopeId),
       )
       .innerJoinLateral(
-        ({ selectFrom, ref }) =>
+        ({ selectFrom, ref, lit }) =>
           selectFrom(() =>
             selectFrom(
               unnest(
@@ -816,14 +817,17 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                   capability: ref("input.capabilities"),
                 },
                 {
-                  jsonb: ["capability"],
+                  jsonbText: ["capability"],
                   withOrdinality: "capabilityOrder",
                 },
               ),
             )
               .select([
-                sql<string>`direct_cap.capability #>> '{}'`.as("capability"),
+                "directCap.capability",
+                lit(null).$castTo<string>().as("permissionId"),
+                lit(null).$castTo<string>().as("roleId"),
                 "directCap.capabilityOrder",
+                lit<number>(0).as("sourceOrder"),
               ])
               .unionAll(() =>
                 selectFrom(
@@ -833,7 +837,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       roleId: ref("input.roleIds"),
                     },
                     {
-                      jsonb: ["roleId"],
+                      jsonbText: ["roleId"],
                       withOrdinality: "roleOrder",
                     },
                   ),
@@ -844,7 +848,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       .on(
                         "rp.roleId",
                         "=",
-                        sql<string>`(role_input.role_id #>> '{}')::uuid`,
+                        sql<string>`role_input.role_id::uuid`,
                       ),
                   )
                   .innerJoin(
@@ -854,37 +858,75 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                   )
                   .select([
                     "p.key as capability",
+                    "p.permissionId as permissionId",
+                    sql<string>`role_input.role_id::uuid`.as("roleId"),
                     sql<number>`1000000 + role_input.role_order`.as(
                       "capabilityOrder",
                     ),
+                    lit<number>(1).as("sourceOrder"),
                   ]),
               )
               .as("cap"),
           )
+            .innerJoinLateral(
+              ({ selectFrom, ref }) =>
+                selectFrom(
+                  unnest(
+                    "scopeInput",
+                    {
+                      targetScopeId: ref("input.targetScopeIds"),
+                    },
+                    {
+                      jsonbText: ["targetScopeId"],
+                      withOrdinality: "scopeOrder",
+                    },
+                  ),
+                )
+                  .select([
+                    sql<string>`coalesce(nullif(scope_input.target_scope_id, 'null')::uuid, ${rootScopeId}::uuid)`.as(
+                      "targetScopeId",
+                    ),
+                    sql<boolean>`scope_input.target_scope_id = 'null'`.as(
+                      "isRootScope",
+                    ),
+                    "scopeInput.scopeOrder",
+                  ])
+                  .as("scopeEval"),
+              (join) => join.onTrue(),
+            )
+            .leftJoin("permissions as directPermission", (join) =>
+              join.onRef("directPermission.key", "=", "cap.capability"),
+            )
             .leftJoin("granted as g2", (join) =>
               join
                 .on("g2.tenantId", "=", input.tenantId)
                 .onRef("g2.userId", "=", "input.userId")
                 .onRef("g2.permissionKey", "=", "cap.capability")
-                .on(
-                  "g2.descendantId",
-                  "=",
-                  sql<string>`coalesce(input.target_scope_id, ${rootScopeId}::uuid)`,
-                ),
+                .onRef("g2.descendantId", "=", "scopeEval.targetScopeId"),
             )
             .select(() => [
-              sql<string[]>`
+              sql<CapabilityEvaluation["missingCaps"]>`
                 coalesce(
-                  array_agg(cap.capability order by cap.capability_order, cap.capability),
-                  array[]::text[]
+                  jsonb_agg(
+                    jsonb_build_object(
+                      'capability', cap.capability,
+                      'permissionId', coalesce(cap.permission_id, direct_permission.permission_id),
+                      'roleId', cap.role_id,
+                      'targetScopeId', scope_eval.target_scope_id,
+                      'isRootScope', scope_eval.is_root_scope
+                    )
+                    order by
+                      cap.source_order,
+                      cap.capability_order,
+                      cap.capability,
+                      scope_eval.scope_order,
+                      scope_eval.target_scope_id
+                  ) filter (
+                    where g2.permission_id is null
+                  ),
+                  '[]'::jsonb
                 )
-              `.as("capabilities"),
-              sql<boolean[]>`
-                coalesce(
-                  array_agg(g2.permission_id is not null order by cap.capability_order, cap.capability),
-                  array[]::boolean[]
-                )
-              `.as("hasCaps"),
+              `.as("missingCaps"),
               sql<boolean>`
                 coalesce(
                   bool_and(g2.permission_id is not null),
@@ -897,14 +939,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       )
       .select(({ eb, or, ref }) => [
         "input.userId",
-        sql<string>`coalesce(input.target_scope_id, ${rootScopeId}::uuid)`.as(
-          "targetScopeId",
-        ),
-        "caps.capabilities",
-        "caps.hasCaps",
         eb("g1.permissionKey", "is not", null)
           .$castTo<boolean>()
           .as("hasOverride"),
+        ref("caps.missingCaps").as("missingCaps"),
         or([eb("g1.permissionId", "is not", null), ref("caps.hasAllCaps")])
           .$castTo<boolean>()
           .as("allowed"),

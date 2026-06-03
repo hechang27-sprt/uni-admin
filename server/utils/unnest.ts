@@ -2,8 +2,8 @@ import { sql, type AliasedRawBuilder, type Expression } from "kysely";
 
 type SetReturningFunction =
   | "unnest"
-  | "jsonb_array_elements";
-
+  | "jsonb_array_elements"
+  | "jsonb_array_elements_text";
 // 1. Hardened Type Extraction (Handles readonly arrays and nullable Kysely columns)
 type ExtractArrayElement<T> =
   NonNullable<T> extends readonly (infer V)[]
@@ -28,6 +28,7 @@ export type Unnested<T, O> = {
 export interface UnnestOptions<T, O> {
   types?: Partial<Record<keyof T, string>>;
   jsonb?: readonly (keyof T)[];
+  jsonbText?: readonly (keyof T)[];
   withOrdinality?: O;
 }
 
@@ -127,24 +128,30 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
   keys: string[],
   options: UnnestOptions<T, O> | undefined,
 ): FunctionGroup[] {
+  const jsonbKeys = new Set<string>((options?.jsonb ?? []) as string[]);
+  const jsonbTextKeys = new Set<string>((options?.jsonbText ?? []) as string[]);
+
   const groups: FunctionGroup[] = [];
-  const jsonbKeys = new Set<keyof T>(options?.jsonb ?? []);
 
   for (const key of keys) {
-    const typedKey = key as keyof T;
     const value = input[key];
-    const explicitType = options?.types?.[typedKey];
+    const forceJsonb = jsonbKeys.has(key);
+    const forceJsonbText = jsonbTextKeys.has(key);
     const functionName = inferSetReturningFunction(
       value,
-      jsonbKeys.has(typedKey),
+      forceJsonb,
+      forceJsonbText,
     );
+
     const arg =
       functionName === "unnest"
-        ? buildUnnestArg(value, explicitType)
-        : buildJsonbArrayElementsCall(value);
+        ? buildUnnestArg(value, options?.types?.[key as keyof T])
+        : functionName === "jsonb_array_elements_text"
+          ? buildJsonbArrayElementsTextCall(value)
+          : buildJsonbArrayElementsCall(value);
     const previousGroup = groups.at(-1);
 
-    if (previousGroup?.functionName === "unnest" && functionName === "unnest") {
+    if (previousGroup?.functionName === functionName && functionName === "unnest") {
       previousGroup.args.push(arg);
     } else {
       groups.push({ functionName, args: [arg] });
@@ -157,11 +164,14 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
 function inferSetReturningFunction(
   value: unknown,
   forceJsonb: boolean,
+  forceJsonbText: boolean,
 ): SetReturningFunction {
+  if (forceJsonbText) {
+    return "jsonb_array_elements_text";
+  }
   if (forceJsonb || shouldExpandJsonbArray(value)) {
     return "jsonb_array_elements";
   }
-
   return "unnest";
 }
 
@@ -218,6 +228,10 @@ function buildUnnestArg(value: unknown, explicitType: string | undefined) {
 
 function buildJsonbArrayElementsCall(value: unknown) {
   return sql`jsonb_array_elements(${buildToJsonbArray(value)})`;
+}
+
+function buildJsonbArrayElementsTextCall(value: unknown) {
+  return sql`jsonb_array_elements_text(${buildToJsonbArray(value)})`;
 }
 
 function arrayFallback(pgType: string) {

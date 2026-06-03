@@ -145,7 +145,7 @@ export class AuthRbacService {
       checks: [
         {
           userId: context.actor.userId,
-          targetScopeId: input.parentScopeId,
+          targetScopeIds: [input.parentScopeId],
           capabilities: ["admin:scopes:create"],
         },
       ],
@@ -206,13 +206,13 @@ export class AuthRbacService {
         {
           userId,
           capabilities: ["admin:role-permissions:grant"],
-          targetScopeId: null,
+          targetScopeIds: [null],
         },
         {
           userId,
           capabilities: [input.permissionKey],
           override: "admin:tenant:owner",
-          targetScopeId: null, // Must own permission at ROOT to assign to role, to be relaxed
+          targetScopeIds: [null], // Must own permission at ROOT to assign to role, to be relaxed
         },
       ],
       throw: true,
@@ -269,7 +269,7 @@ export class AuthRbacService {
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [role.roleId],
           override: ADMIN_TENANT_OVERRIDE_KEY,
-          targetScopeId: input.scopeId,
+          targetScopeIds: [input.scopeId],
         },
       ],
       throw: true,
@@ -416,7 +416,10 @@ export class AuthRbacService {
 
     const columns = pivotToColumns(accessChecks);
     const capabilities = columns.capabilities ?? [];
-    const targetScopeId = columns.targetScopeId ?? [];
+    const targetScopeIds = columns.targetScopeIds ?? [];
+    const scopeIdsToValidate = targetScopeIds.flatMap((scopeIds) =>
+      (scopeIds ?? []).filter((scopeId): scopeId is string => scopeId != null),
+    );
     const permissionKeysToValidate = [
       ...new Set([
         ...capabilities.flatMap((arr) => arr ?? []),
@@ -446,10 +449,7 @@ export class AuthRbacService {
       }),
       this.repository.findInvalidScopeId({
         tenantId,
-        scopeIds: union(
-          tenantAccess?.scopeId ?? [],
-          targetScopeId.filter((id) => id != null),
-        ),
+        scopeIds: union(tenantAccess?.scopeId ?? [], scopeIdsToValidate),
       }),
       this.repository.findInvalidDocumentId({
         tenantId,
@@ -553,16 +553,13 @@ export class AuthRbacService {
       });
       const denied = accessEvals.find((check) => !check.allowed);
       if (denied) {
-        const deniedCap = denied.capabilities.find(
-          (_, idx) => !denied.hasCaps[idx],
-        );
-        const capability = deniedCap ?? denied.capabilities[0] ?? "auth:access";
+        const missingCap = denied.missingCaps[0];
+        const capability = missingCap?.capability ?? "auth:access";
+        const targetScopeId = missingCap
+          ? (missingCap.isRootScope ? null : missingCap.targetScopeId)
+          : null;
         if (input.throw) {
-          throw permissionDenied(
-            { tenantId, actor },
-            capability,
-            denied.targetScopeId,
-          );
+          throw permissionDenied({ tenantId, actor }, capability, targetScopeId);
         }
 
         return {
@@ -570,7 +567,7 @@ export class AuthRbacService {
           failure: {
             kind: "capability",
             capability,
-            targetScopeId: denied.targetScopeId,
+            targetScopeId,
           },
           capabilities: accessEvals,
         };

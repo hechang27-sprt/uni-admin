@@ -792,7 +792,7 @@ export class DocumentService {
         (targetScopeId) =>
           ({
             capabilities: [capability],
-            targetScopeId,
+            targetScopeIds: [targetScopeId],
           }) satisfies CapabilityAccessCheck,
       )
       .toArray();
@@ -801,7 +801,7 @@ export class DocumentService {
       checks,
     });
     const allowed =
-      access.capabilities?.map((capEval) => capEval.allowed) ??
+      access.capabilities?.map((capEval) => capEval.missingCaps.length === 0) ??
       checks.map(() => access.allowed);
     const allowedByScopeId = new Map(
       uniqueScopeIds
