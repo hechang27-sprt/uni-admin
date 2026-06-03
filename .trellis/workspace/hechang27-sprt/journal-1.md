@@ -537,3 +537,35 @@ Centralized auth/document access validation at the service boundary, removed rep
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Finish capability evaluation batching
+
+**Date**: 2026-06-03
+**Task**: Finish capability evaluation batching
+
+### Summary
+
+Completed the capability evaluation batching contract change, simplified targetScopeIds to an array of nullable scope ids, and verified the auth RBAC unit suite.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1802c44` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
