@@ -1,0 +1,24 @@
+{
+  "servers": {
+    "typescript-language-server": {
+      "command": "bunx",
+      "args": ["typescript-language-server", "--stdio"],
+      "fileTypes": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "rootMarkers": ["package.json", "tsconfig.json", "jsconfig.json", "nuxt.config.ts", ".git"]
+    },
+    "vscode-eslint-language-server": {
+      "command": "bunx",
+      "args": ["vscode-eslint-language-server", "--stdio"],
+      "fileTypes": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue"],
+      "rootMarkers": ["eslint.config.mjs", "package.json", ".git"],
+      "isLinter": true
+    },
+    "tailwindcss": {
+      "command": "bunx",
+      "args": ["tailwindcss-language-server", "--stdio"],
+      "fileTypes": [".vue", ".ts", ".tsx", ".js", ".jsx", ".css", ".html"],
+      "rootMarkers": ["package.json", "nuxt.config.ts", ".git"],
+      "isLinter": true
+    }
+  }
+}
