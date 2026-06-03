@@ -178,10 +178,11 @@ export class AuthRbacService {
 
   async assignPermissionToRole(input: AssignPermissionInput) {
     const role = await this.resolveRole(input);
-    await this.validatePermissionGrant({
+    await this.evaluateAccess({
       tenantId: input.tenantId,
       permissionKeys: [input.permissionKey],
     });
+
     await this.repository.assignPermissionsToRole({
       tenantId: input.tenantId,
       roleId: role.roleId,
@@ -227,10 +228,10 @@ export class AuthRbacService {
 
   async assignRole(input: AssignRoleInput) {
     const role = await this.resolveRole(input);
-    await this.validateRoleAssignment({
+    await this.evaluateAccess({
       tenantId: input.tenantId,
-      userIds: [input.userId],
-      scopeIds: [input.scopeId],
+      tenantAccess: { userId: [input.userId], scopeId: [input.scopeId] },
+      throw: true,
     });
     await this.repository.assignRoles({
       tenantId: input.tenantId,
@@ -556,10 +557,16 @@ export class AuthRbacService {
         const missingCap = denied.missingCaps[0];
         const capability = missingCap?.capability ?? "auth:access";
         const targetScopeId = missingCap
-          ? (missingCap.isRootScope ? null : missingCap.targetScopeId)
+          ? missingCap.isRootScope
+            ? null
+            : missingCap.targetScopeId
           : null;
         if (input.throw) {
-          throw permissionDenied({ tenantId, actor }, capability, targetScopeId);
+          throw permissionDenied(
+            { tenantId, actor },
+            capability,
+            targetScopeId,
+          );
         }
 
         return {
@@ -586,30 +593,6 @@ export class AuthRbacService {
       ...input.context,
       checks: [],
       permissionKeys: [input.capability],
-      throw: true,
-    });
-  }
-
-  private async validatePermissionGrant(input: {
-    tenantId: string;
-    permissionKeys: string[];
-  }): Promise<void> {
-    const { tenantId, permissionKeys } = input;
-    await this.evaluateAccess({
-      tenantId,
-      permissionKeys,
-      throw: true,
-    });
-  }
-
-  private async validateRoleAssignment(input: {
-    tenantId: string;
-    userIds: string[];
-    scopeIds: string[];
-  }): Promise<void> {
-    await this.evaluateAccess({
-      tenantId: input.tenantId,
-      tenantAccess: { userId: input.userIds, scopeId: input.scopeIds },
       throw: true,
     });
   }

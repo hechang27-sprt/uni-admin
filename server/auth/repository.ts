@@ -96,12 +96,6 @@ export interface AuthRbacRepository {
       scopeId: string;
     }[];
   }): Promise<void>;
-  findDeniedRolePermission(input: {
-    tenantId: string;
-    roleId: string;
-    userId: string;
-    targetScopeId: string;
-  }): Promise<string | null>;
   findInvalidRoleId(input: {
     tenantId: string;
     roleIds: string[];
@@ -539,56 +533,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       )
       .onConflict((oc) => oc.doNothing())
       .execute();
-  }
-
-  async findDeniedRolePermission(input: {
-    tenantId: string;
-    roleId: string;
-    userId: string;
-    targetScopeId: string;
-  }): Promise<string | null> {
-    const denied = await this.database
-      .selectFrom("rolePermissions as rp")
-      .innerJoin("permissions as p", "p.permissionId", "rp.permissionId")
-      .select("p.key")
-      .where("rp.tenantId", "=", input.tenantId)
-      .where("rp.roleId", "=", input.roleId)
-      .where(({ exists, lit, not, selectFrom }) =>
-        not(
-          exists(
-            selectFrom("tenantMemberships as tu")
-              .innerJoin("userRoleAssignments as ur", (join) =>
-                join
-                  .onRef("ur.tenantId", "=", "tu.tenantId")
-                  .onRef("ur.userId", "=", "tu.userId"),
-              )
-              .innerJoin("rolePermissions as actorRp", (join) =>
-                join
-                  .onRef("actorRp.tenantId", "=", "ur.tenantId")
-                  .onRef("actorRp.roleId", "=", "ur.roleId"),
-              )
-              .innerJoin(
-                "permissions as actorP",
-                "actorP.permissionId",
-                "actorRp.permissionId",
-              )
-              .innerJoin("authScopeClosure as closure", (join) =>
-                join
-                  .onRef("closure.tenantId", "=", "ur.tenantId")
-                  .onRef("ancestorId", "=", "ur.scopeId"),
-              )
-              .where("tu.tenantId", "=", input.tenantId)
-              .where("tu.userId", "=", input.userId)
-              .where("tu.status", "=", "active")
-              .whereRef("actorP.key", "=", "p.key")
-              .where("descendantId", "=", input.targetScopeId)
-              .select(lit(1).as("_")),
-          ),
-        ),
-      )
-      .orderBy("p.key")
-      .executeTakeFirst();
-    return denied?.key ?? null;
   }
 
   async findInvalidRoleId(input: {
