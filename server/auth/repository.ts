@@ -118,6 +118,7 @@ export interface AuthRbacRepository {
   }): Promise<string | null>;
   checkCapabilities(input: {
     tenantId: string;
+    userId?: string;
     checks: CapabilityAccessCheck[];
   }): Promise<CapabilityEvaluation[]>;
   listAccessibleScopeIds(input: {
@@ -913,7 +914,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     return rows.map((row) => row.scopeId);
   }
-
 
   async findTenantRootScope(
     tenantId: string,

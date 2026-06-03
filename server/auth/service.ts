@@ -265,7 +265,6 @@ export class AuthRbacService {
       },
       checks: [
         {
-          userId: actor.userId,
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [role.roleId],
           override: ADMIN_TENANT_OVERRIDE_KEY,
@@ -387,11 +386,8 @@ export class AuthRbacService {
   async evaluateAccess(
     input: CheckAccessManyInput,
   ): Promise<AccessCheckEvaluation> {
-    const { tenantId, actor, checks, tenantAccess, permissionKeys } = input;
-    const accessChecks = (checks ?? []).map((check) => ({
-      ...check,
-      userId: check.userId ?? actor?.userId,
-    }));
+    const { tenantId, actor, tenantAccess, permissionKeys } = input;
+    const checks = input.checks ?? [];
 
     if (actor) {
       const membership = await this.repository.findActiveTenantMembership({
@@ -417,7 +413,7 @@ export class AuthRbacService {
       }
     }
 
-    const columns = pivotToColumns(accessChecks);
+    const columns = pivotToColumns(checks ?? []);
     const capabilities = columns.capabilities ?? [];
     const targetScopeIds = columns.targetScopeIds ?? [];
     const permissionKeysToValidate = [
@@ -550,10 +546,11 @@ export class AuthRbacService {
       };
     }
 
-    if (actor && accessChecks.length > 0) {
+    if (checks.length > 0) {
       const accessEvals = await this.repository.checkCapabilities({
         tenantId,
-        checks: accessChecks,
+        checks,
+        userId: actor?.userId,
       });
       const denied = accessEvals.find((check) => !check.allowed);
       if (denied) {

@@ -37,11 +37,10 @@ import type {
   SetDocumentAuthScopeInput,
 } from "./contracts";
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
-import type { AuthRbacService } from "#server/auth";
+import { isAuthRbacError, type AuthRbacService } from "#server/auth";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import type { CapabilityAccessCheck } from "~~/server/auth/types";
 
 @injectable()
 export class DocumentService {
@@ -189,7 +188,15 @@ export class DocumentService {
     if (hasActorOptions(options)) {
       const auth = resolveCollectionOperationAuth(collection, "read");
       if (auth?.resourceScope === "none") {
-        await this.assertScopeAccess(input, options, auth.capability, null);
+        await this.assertDocumentAccess({
+          ...actorContext(input, options),
+          checks: [
+            {
+              capabilities: [auth.capability],
+              targetScopeIds: [null],
+            },
+          ],
+        });
       } else if (auth) {
         scopeIds = await this.buildAccessibleDocumentScopeFilter(
           input,
@@ -620,12 +627,17 @@ export class DocumentService {
       tenantId: input.tenantId,
       authScopeIds: [input.authScopeId],
     });
-    await this.assertScopeAccesses(
-      input,
-      authenticatedOptions,
-      "admin:documents:set-scope",
-      [existing.authScopeId, input.authScopeId],
-    );
+    await this.assertDocumentAccess({
+      ...actorContext(input, authenticatedOptions),
+      checks: [
+        {
+          capabilities: ["admin:documents:set-scope"],
+          targetScopeIds: [
+            ...new Set([existing.authScopeId, input.authScopeId]),
+          ],
+        },
+      ],
+    });
 
     return this.assertVersionAndUpdate(
       input,
@@ -651,12 +663,15 @@ export class DocumentService {
       return [];
     }
     if (auth.resourceScope === "none") {
-      await this.assertScopeAccess(
-        input,
-        authenticatedOptions,
-        auth.capability,
-        null,
-      );
+      await this.assertDocumentAccess({
+        ...actorContext(input, authenticatedOptions),
+        checks: [
+          {
+            capabilities: [auth.capability],
+            targetScopeIds: [null],
+          },
+        ],
+      });
       return [null];
     }
 
@@ -682,12 +697,17 @@ export class DocumentService {
       return;
     }
 
-    await this.assertScopeAccesses(
-      input,
-      options,
-      auth.capability,
-      auth.resourceScope === "none" ? [null] : authScopeIds,
-    );
+    await this.assertDocumentAccess({
+      ...actorContext(input, options),
+      checks: [
+        {
+          capabilities: [auth.capability],
+          targetScopeIds: [
+            ...new Set(auth.resourceScope === "none" ? [null] : authScopeIds),
+          ],
+        },
+      ],
+    });
   }
 
   private async authorizeDocuments(
@@ -706,14 +726,21 @@ export class DocumentService {
       return;
     }
 
-    await this.assertScopeAccesses(
-      input,
-      options,
-      auth.capability,
-      auth.resourceScope === "none"
-        ? [null]
-        : documents.map((document) => document.authScopeId),
-    );
+    await this.assertDocumentAccess({
+      ...actorContext(input, options),
+      checks: [
+        {
+          capabilities: [auth.capability],
+          targetScopeIds: [
+            ...new Set(
+              auth.resourceScope === "none"
+                ? [null]
+                : documents.map((document) => document.authScopeId),
+            ),
+          ],
+        },
+      ],
+    });
   }
 
   private async checkDocumentAccesses(
@@ -732,89 +759,50 @@ export class DocumentService {
       return documents.map(() => true);
     }
 
-    return this.checkScopeAccesses(
-      input,
-      options,
-      auth.capability,
+    const authScopeIds =
       auth.resourceScope === "none"
         ? documents.map(() => null)
-        : documents.map((document) => document.authScopeId),
-    );
-  }
-
-  private async assertScopeAccess(
-    input: { tenantId: string },
-    options: AuthenticatedDocumentServiceOptions,
-    capability: string,
-    authScopeId: string | null,
-  ): Promise<void> {
-    await this.assertScopeAccesses(input, options, capability, [authScopeId]);
-  }
-
-  private async assertScopeAccesses(
-    input: { tenantId: string },
-    options: AuthenticatedDocumentServiceOptions,
-    capability: string,
-    authScopeIds: (string | null)[],
-  ): Promise<void> {
-    const accessResults = await this.checkScopeAccesses(
-      input,
-      options,
-      capability,
-      authScopeIds,
-    );
-    const deniedIndex = accessResults.findIndex((allowed) => !allowed);
-    if (deniedIndex !== -1) {
-      const authScopeId = authScopeIds[deniedIndex] ?? null;
-      throw new DocumentServiceError(
-        "AUTHORIZATION_DENIED",
-        "Permission denied",
-        {
-          capability,
-          authScopeId,
-          tenantId: input.tenantId,
-          userId: options.actor.userId,
-        },
-      );
-    }
-  }
-
-  private async checkScopeAccesses(
-    input: { tenantId: string },
-    options: AuthenticatedDocumentServiceOptions,
-    capability: string,
-    authScopeIds: (string | null)[],
-  ): Promise<boolean[]> {
-    const uniqueScopeIds = new Set(authScopeIds);
-    const checks = uniqueScopeIds
-      .values()
-      .map(
-        (targetScopeId) =>
-          ({
-            capabilities: [capability],
-            targetScopeIds: [targetScopeId],
-          }) satisfies CapabilityAccessCheck,
-      )
-      .toArray();
+        : documents.map((document) => document.authScopeId);
+    const uniqueScopeIds = [...new Set(authScopeIds).values()];
     const access = await this.authorizer.evaluateAccess({
       ...actorContext(input, options),
-      checks,
+      checks: uniqueScopeIds.map((targetScopeId) => ({
+        capabilities: [auth.capability],
+        targetScopeIds: [targetScopeId],
+      })),
     });
     const allowed =
       access.capabilities?.map((capEval) => capEval.missingCaps.length === 0) ??
-      checks.map(() => access.allowed);
+      uniqueScopeIds.map(() => access.allowed);
     const allowedByScopeId = new Map(
-      uniqueScopeIds
-        .values()
-        .map((scopeId, index): [string | null, boolean] => [
-          scopeId,
-          allowed[index] ?? false,
-        ]),
+      uniqueScopeIds.map((scopeId, index): [string | null, boolean] => [
+        scopeId,
+        allowed[index] ?? false,
+      ]),
     );
 
     return authScopeIds.map(
       (scopeId) => allowedByScopeId.get(scopeId) ?? false,
     );
+  }
+
+  private async assertDocumentAccess(
+    input: Parameters<AuthRbacService["evaluateAccess"]>[0],
+  ): Promise<void> {
+    try {
+      await this.authorizer.evaluateAccess({
+        ...input,
+        throw: true,
+      });
+    } catch (error) {
+      if (isAuthRbacError(error) && error.code === "AUTH_PERMISSION_DENIED") {
+        throw new DocumentServiceError("AUTHORIZATION_DENIED", error.message, {
+          ...error.details,
+        });
+      }
+
+      throw error;
+    }
   }
 
   private async buildAccessibleDocumentScopeFilter(

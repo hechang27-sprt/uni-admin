@@ -323,7 +323,12 @@ describe("auth/RBAC service integration", () => {
       options,
     );
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
-    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
+      {
+        capabilities: ["collection:tasks:create"],
+        targetScopeIds: [childA.scopeId, childB.scopeId],
+      },
+    ]);
 
     evaluateAccess.mockClear();
     await expect(
@@ -354,7 +359,12 @@ describe("auth/RBAC service integration", () => {
     );
     expect(updated).toHaveLength(3);
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
-    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
+      {
+        capabilities: ["collection:tasks:update"],
+        targetScopeIds: [childA.scopeId, childB.scopeId],
+      },
+    ]);
 
     const limitedUser = await auth.createUser();
     await auth.createTenantMembership({
@@ -383,7 +393,12 @@ describe("auth/RBAC service integration", () => {
       ),
     ).rejects.toMatchObject({ code: "AUTHORIZATION_DENIED" });
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
-    expect(evaluateAccess.mock.calls[0]![0].checks).toHaveLength(2);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
+      {
+        capabilities: ["collection:tasks:update"],
+        targetScopeIds: [updated[0]!.authScopeId, updated[2]!.authScopeId],
+      },
+    ]);
   });
 
   it("rejects trusted document writes with cross-tenant auth scopes", async () => {
@@ -646,7 +661,9 @@ describe("auth/RBAC service integration", () => {
 
   it("normalizes tenant-root scope ids only for document-facing list APIs", async () => {
     const auth = createTestAuthService();
-    await auth.syncPermissions([{ key: "collection:tasks:read", source: "tasks" }]);
+    await auth.syncPermissions([
+      { key: "collection:tasks:read", source: "tasks" },
+    ]);
     const root = await auth.ensureTenantRootScope(tenantA);
     const child = await auth.createScope({
       tenantId: tenantA,
@@ -852,9 +869,9 @@ describe("auth/RBAC service integration", () => {
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_DENIED" });
     expect(checkCapabilities).toHaveBeenCalledWith({
       tenantId: tenantA,
+      userId: actor.userId,
       checks: [
         {
-          userId: actor.userId,
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
           override: "admin:tenant:owner",
@@ -918,9 +935,9 @@ describe("auth/RBAC service integration", () => {
     ).resolves.toBeUndefined();
     expect(checkCapabilities).toHaveBeenCalledWith({
       tenantId: tenantA,
+      userId: actor.userId,
       checks: [
         {
-          userId: actor.userId,
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
           override: "admin:tenant:owner",
