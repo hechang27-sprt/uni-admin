@@ -61,6 +61,7 @@ export interface AuthRbacRepository {
     userIds: string[];
   }): Promise<string | null>;
   ensureTenantRootScope(tenantId: string): Promise<AuthScope>;
+  findTenantRootScope(tenantId: string): Promise<AuthScope | null>;
   getScope(input: {
     tenantId: string;
     scopeId: string;
@@ -124,11 +125,6 @@ export interface AuthRbacRepository {
     userId: string;
     capability: string;
   }): Promise<string[]>;
-  listAccessibleDocumentScopeIds(input: {
-    tenantId: string;
-    userId: string;
-    capability: string;
-  }): Promise<(string | null)[]>;
 }
 
 @injectable()
@@ -918,54 +914,8 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => row.scopeId);
   }
 
-  async listAccessibleDocumentScopeIds(input: {
-    tenantId: string;
-    userId: string;
-    capability: string;
-  }): Promise<(string | null)[]> {
-    const rows = await this.database
-      .selectFrom("userRoleAssignments as assignment")
-      .innerJoin("tenantMemberships as membership", (join) =>
-        join
-          .onRef("membership.tenantId", "=", "assignment.tenantId")
-          .onRef("membership.userId", "=", "assignment.userId"),
-      )
-      .innerJoin("rolePermissions as rolePermission", (join) =>
-        join
-          .onRef("rolePermission.tenantId", "=", "assignment.tenantId")
-          .onRef("rolePermission.roleId", "=", "assignment.roleId"),
-      )
-      .innerJoin(
-        "permissions as permission",
-        "permission.permissionId",
-        "rolePermission.permissionId",
-      )
-      .innerJoin("authScopeClosure as closure", (join) =>
-        join
-          .onRef("closure.tenantId", "=", "assignment.tenantId")
-          .onRef("closure.ancestorId", "=", "assignment.scopeId"),
-      )
-      .innerJoin("authScopes as scope", (join) =>
-        join
-          .onRef("scope.tenantId", "=", "closure.tenantId")
-          .onRef("scope.scopeId", "=", "closure.descendantId"),
-      )
-      .select(
-        sql<string | null>`
-          case when scope.key = ${tenantRootScopeKey}
-            then null else scope.scope_id end
-        `.as("scopeId"),
-      )
-      .distinct()
-      .where("assignment.tenantId", "=", input.tenantId)
-      .where("assignment.userId", "=", input.userId)
-      .where("membership.status", "=", "active")
-      .where("permission.key", "=", input.capability)
-      .execute();
-    return rows.map((row) => row.scopeId);
-  }
 
-  private async findTenantRootScope(
+  async findTenantRootScope(
     tenantId: string,
     database: AuthDatabase = this.database,
   ): Promise<AuthScope | null> {

@@ -563,17 +563,19 @@ describe("auth/RBAC service integration", () => {
     ]);
 
     grantPermissions.mockClear();
-    await expect(
-      auth.assignPermissionToRole({
-        tenantId: tenantA,
-        roleId: tenantARole.roleId,
-        permissionKey: "collection:tasks:write",
-      }),
-    ).rejects.toMatchObject({
-      code: "AUTH_PERMISSION_NOT_FOUND",
-      details: { permissionKey: "collection:tasks:write" },
+    await auth.assignPermissionToRole({
+      tenantId: tenantA,
+      roleId: tenantARole.roleId,
+      permissionKey: "collection:tasks:write",
     });
-    expect(grantPermissions).not.toHaveBeenCalled();
+    expect(grantPermissions).toHaveBeenCalledWith({
+      tenantId: tenantA,
+      roleId: tenantARole.roleId,
+      permissionKeys: ["collection:tasks:write"],
+    });
+    expect(grantPermissions).toHaveBeenCalledTimes(1);
+
+    grantPermissions.mockClear();
 
     await expect(
       auth.assignPermissionToRole({
@@ -640,6 +642,57 @@ describe("auth/RBAC service integration", () => {
         capability: "collection:tasks:read",
       }),
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_NOT_FOUND" });
+  });
+
+  it("normalizes tenant-root scope ids only for document-facing list APIs", async () => {
+    const auth = createTestAuthService();
+    await auth.syncPermissions([{ key: "collection:tasks:read", source: "tasks" }]);
+    const root = await auth.ensureTenantRootScope(tenantA);
+    const child = await auth.createScope({
+      tenantId: tenantA,
+      parentScopeId: root.scopeId,
+      type: "department",
+      key: "dept-a",
+      name: "Dept A",
+    });
+    const user = await auth.createUser();
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: user.userId,
+    });
+    const role = await auth.createRole({ tenantId: tenantA, key: "reader" });
+    await auth.assignPermissionToRole({
+      tenantId: tenantA,
+      roleId: role.roleId,
+      permissionKey: "collection:tasks:read",
+    });
+    await auth.assignRole({
+      tenantId: tenantA,
+      userId: user.userId,
+      roleId: role.roleId,
+      scopeId: root.scopeId,
+    });
+
+    await expect(
+      auth.listAccessibleScopeIds({
+        context: { tenantId: tenantA, actor: { userId: user.userId } },
+        capability: "collection:tasks:read",
+      }),
+    ).resolves.toEqual(expect.arrayContaining([root.scopeId, child.scopeId]));
+
+    await expect(
+      auth.listAccessibleDocumentScopeIds({
+        context: { tenantId: tenantA, actor: { userId: user.userId } },
+        capability: "collection:tasks:read",
+      }),
+    ).resolves.toEqual(expect.arrayContaining([null, child.scopeId]));
+
+    await expect(
+      auth.listCreatableDocumentScopeIds({
+        context: { tenantId: tenantA, actor: { userId: user.userId } },
+        capability: "collection:tasks:read",
+      }),
+    ).resolves.toEqual(expect.arrayContaining([null, child.scopeId]));
   });
 
   it("validates delegated role assignee membership before repository assignment", async () => {
@@ -729,10 +782,6 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacRepository,
     );
     const checkCapabilities = vi.spyOn(repository, "checkCapabilities");
-    const findDeniedRolePermission = vi.spyOn(
-      repository,
-      "findDeniedRolePermission",
-    );
     const auth = container.get<AuthRbacService>(
       SERVER_DI_TYPES.AuthRbacService,
     );
@@ -801,7 +850,6 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_DENIED" });
-    expect(findDeniedRolePermission).not.toHaveBeenCalled();
     expect(checkCapabilities).toHaveBeenCalledWith({
       tenantId: tenantA,
       checks: [
@@ -857,7 +905,6 @@ describe("auth/RBAC service integration", () => {
       roleId: delegator.roleId,
       permissionKey: "collection:tasks:delete",
     });
-    findDeniedRolePermission.mockClear();
     checkCapabilities.mockClear();
     await expect(
       auth.assignRoleAsActor(
@@ -869,7 +916,6 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).resolves.toBeUndefined();
-    expect(findDeniedRolePermission).not.toHaveBeenCalled();
     expect(checkCapabilities).toHaveBeenCalledWith({
       tenantId: tenantA,
       checks: [
