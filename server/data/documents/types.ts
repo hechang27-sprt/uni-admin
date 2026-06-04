@@ -85,6 +85,7 @@ export interface DocumentSort {
 }
 
 export interface ListDocumentsInput {
+  ids?: string[];
   filter?: DocumentFilter;
   sort?: DocumentSort[];
   limit?: number;
@@ -102,6 +103,7 @@ export interface ListDocumentsResult<TData extends JsonObject = JsonObject> {
 }
 
 export interface NormalizedListDocumentsInput {
+  ids?: string[];
   filter?: DocumentFilter;
   sort: DocumentSort[];
   limit: number;

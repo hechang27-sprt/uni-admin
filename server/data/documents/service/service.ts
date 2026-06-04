@@ -130,11 +130,13 @@ export class DocumentService {
   ): Promise<StoredDocument<TData> | null> {
     this.registry.get(input.collection);
 
-    const [document] = await this.repository.findByIds<TData>({
+    const [document] = await this.repository.list<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      ids: [input.id],
-      includeDeleted: input.includeDeleted,
+      query: {
+        ids: [input.id],
+        includeDeleted: input.includeDeleted,
+      },
     });
     if (!document) {
       return null;
@@ -147,7 +149,7 @@ export class DocumentService {
   async getByIds<TData extends JsonObject>(
     input: GetDocumentsByIdsInput,
     options?: DocumentServiceOptions,
-  ): Promise<(StoredDocument<TData> | null)[]> {
+  ): Promise<StoredDocument<TData>[]> {
     const collection = this.registry.get<TData>(input.collection);
     let accessibleScopeIds: string[] | null | undefined;
 
@@ -172,12 +174,14 @@ export class DocumentService {
       }
     }
 
-    return this.repository.findByIds<TData>({
+    return this.repository.list<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      ids: input.ids,
-      includeDeleted: input.includeDeleted,
-      accessibleScopeIds,
+      query: {
+        ids: input.ids,
+        includeDeleted: input.includeDeleted,
+        accessibleScopeIds,
+      },
     });
   }
 
@@ -253,21 +257,24 @@ export class DocumentService {
       ...item,
       data: parseData<TData>(collection.schema, item.data, input.collection),
     }));
-    const existingDocuments = await this.repository.findByIds<TData>({
+    const existingDocuments = await this.repository.list<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      ids: items.map((item) => item.id),
+      query: { ids: items.map((item) => item.id) },
     });
+    const existingDocumentsById = new Map(
+      existingDocuments.map((document) => [document.id, document] as const),
+    );
 
     const authorizedDocuments: StoredDocument<TData>[] = [];
 
-    for (const [index, item] of items.entries()) {
-      const existing = existingDocuments[index];
+    for (const item of items) {
+      const existing = existingDocumentsById.get(item.id);
 
-      if (!item || !existing) {
+      if (!existing) {
         throw new DocumentServiceError("NOT_FOUND", "Document not found", {
           collection: input.collection,
-          documentId: item?.id,
+          documentId: item.id,
         });
       }
 
@@ -380,11 +387,10 @@ export class DocumentService {
       );
     }
 
-    const [existing] = await this.repository.findByIds({
+    const [existing] = await this.repository.list({
       tenantId: input.tenantId,
       collection: input.collection,
-      ids: [input.id],
-      includeDeleted: true,
+      query: { ids: [input.id], includeDeleted: true },
     });
     if (!existing) {
       throw new DocumentServiceError("NOT_FOUND", "Document not found", {
@@ -871,11 +877,10 @@ export class DocumentService {
   ): Promise<StoredDocument<TData>> {
     this.registry.get(input.collection);
 
-    const [existing] = await this.repository.findByIds<TData>({
+    const [existing] = await this.repository.list<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      ids: [input.id],
-      includeDeleted,
+      query: { ids: [input.id], includeDeleted },
     });
 
     if (!existing) {

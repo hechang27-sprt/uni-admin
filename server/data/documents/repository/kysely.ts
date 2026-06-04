@@ -4,17 +4,14 @@ import { sql, type Selectable } from "kysely";
 
 import type { DocumentsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import type {
-  JsonObject,
-  NormalizedListDocumentsInput,
-  StoredDocument,
-} from "../types";
+import type { JsonObject, ListDocumentsInput, StoredDocument } from "../types";
 import {
+  buildAccessibleScopeCondition,
   buildAuthScopeCondition,
   buildFieldExpression,
   buildFilterCondition,
   hasAccessibleScopeFilter,
-  normalizeSort,
+  normalizeListInput,
 } from "./query";
 import type {
   DocumentRepository,
@@ -29,9 +26,6 @@ import {
 } from "./types";
 
 type DocumentRow = Selectable<DocumentsTable>;
-type NullableDocumentRow = {
-  [K in keyof DocumentRow]: DocumentRow[K] | null;
-};
 
 class BatchUpdateConflict extends Error {}
 
@@ -92,76 +86,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
     return rows.map((row) => mapDocumentRow<TData>(row));
   }
-
-  async findByIds<TData extends JsonObject>(input: {
-    tenantId: string;
-    collection: string;
-    ids: string[];
-    includeDeleted?: boolean;
-    accessibleScopeIds?: string[] | null;
-  }): Promise<(StoredDocument<TData> | null)[]> {
-    if (input.ids.length === 0) {
-      return [];
-    }
-
-    let query = this.database
-      .selectFrom(({ selectFrom }) =>
-        selectFrom(
-          sql<{
-            id: string;
-            inputOrder: number;
-          }>`unnest(${input.ids}::uuid[]) with ordinality`.as(
-            sql`t(id, input_order)`,
-          ),
-        )
-          .selectAll()
-          .as("input"),
-      )
-      .leftJoin("documents", (join) =>
-        join
-          .onRef("documents.id", "=", "input.id")
-          .on("documents.tenantId", "=", input.tenantId)
-          .on("documents.collection", "=", input.collection),
-      )
-      .selectAll("documents")
-      .orderBy("input.inputOrder");
-    if (!input.includeDeleted) {
-      query = query.where("documents.deletedAt", "is", null);
-    }
-    if (hasAccessibleScopeFilter(input.accessibleScopeIds)) {
-      if (input.accessibleScopeIds === null) {
-        // No scope-level filtering.
-      } else if (input.accessibleScopeIds.length === 0) {
-        query = query.where((eb) => eb.lit(false));
-      } else {
-        query = query.where((eb) =>
-          eb.and([
-            eb("documents.authScopeId", "is not", null),
-            eb.exists(
-              this.database
-                .selectFrom("authScopeClosure")
-                .select(sql`1`.as("one"))
-                .whereRef(
-                  "authScopeClosure.descendantId",
-                  "=",
-                  "documents.authScopeId",
-                )
-                .where(
-                  "authScopeClosure.ancestorId",
-                  "in",
-                  input.accessibleScopeIds,
-                ),
-            ),
-          ]),
-        );
-      }
-    }
-    const rows = await query.execute();
-    return rows.map((row) =>
-      mapNullableDocumentRow<TData>(row as NullableDocumentRow),
-    );
-  }
-
   async findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -186,52 +110,41 @@ export class KyselyDocumentRepository implements DocumentRepository {
   async list<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
-    query: NormalizedListDocumentsInput;
+    query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]> {
+    const normalized = normalizeListInput(input.query);
+
     let query = this.database
       .selectFrom("documents")
       .selectAll()
       .where("tenantId", "=", input.tenantId)
       .where("collection", "=", input.collection);
 
-    if (!input.query.includeDeleted) {
+    if (!normalized.includeDeleted) {
       query = query.where("deletedAt", "is", null);
     }
-    const { filter, authScopeIds, accessibleScopeIds } = input.query;
+
+    const { ids, filter, authScopeIds, accessibleScopeIds } = normalized;
+    if (ids) {
+      if (ids.length === 0) {
+        return [];
+      }
+      query = query.where("id", "in", ids);
+    }
+
     if (filter) {
       query = query.where((eb) => buildFilterCondition(eb, filter));
     }
+
     if (hasAccessibleScopeFilter(accessibleScopeIds)) {
-      if (accessibleScopeIds === null) {
-        // No scope-level filtering.
-      } else if (accessibleScopeIds.length === 0) {
-        query = query.where((eb) => eb.lit(false));
-      } else {
-        query = query.where((eb) =>
-          eb.and([
-            eb("documents.authScopeId", "is not", null),
-            eb.exists(
-              this.database
-                .selectFrom("authScopeClosure")
-                .select(sql`1`.as("one"))
-                .whereRef(
-                  "authScopeClosure.descendantId",
-                  "=",
-                  "documents.authScopeId",
-                )
-                .where(
-                  "authScopeClosure.ancestorId",
-                  "in",
-                  accessibleScopeIds,
-                ),
-            ),
-          ]),
-        );
-      }
-    } else if (authScopeIds) {
+      query = this.applyAccessibleScopeFilter(query, accessibleScopeIds);
+    }
+
+    if (authScopeIds) {
       query = query.where((eb) => buildAuthScopeCondition(eb, authScopeIds));
     }
-    for (const sort of normalizeSort(input.query.sort)) {
+
+    for (const sort of normalized.sort) {
       query = query.orderBy(
         (eb) => buildFieldExpression(eb, sort.field),
         sort.direction,
@@ -239,12 +152,32 @@ export class KyselyDocumentRepository implements DocumentRepository {
     }
 
     const rows = await query
-      .limit(input.query.limit)
-      .offset(input.query.offset)
+      .limit(normalized.limit)
+      .offset(normalized.offset)
       .execute();
     return rows.map((row) => mapDocumentRow<TData>(row));
   }
+  private applyAccessibleScopeFilter<
+    TQuery extends {
+      where(
+        callback: (
+          eb: Parameters<typeof buildAccessibleScopeCondition>[0],
+        ) => Exclude<ReturnType<typeof buildAccessibleScopeCondition>, null>,
+      ): TQuery;
+    },
+  >(query: TQuery, accessibleScopeIds: string[] | null): TQuery {
+    if (accessibleScopeIds === null) {
+      return query;
+    }
 
+    return query.where(
+      (eb) =>
+        buildAccessibleScopeCondition(eb, accessibleScopeIds) as Exclude<
+          ReturnType<typeof buildAccessibleScopeCondition>,
+          null
+        >,
+    );
+  }
   async updateMany<TData extends JsonObject>(
     input: UpdateManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[] | null> {
@@ -485,17 +418,6 @@ function mapDocumentRow<TData extends JsonObject>(
     updatedAt: toDate(row.updatedAt),
     deletedAt: row.deletedAt ? toDate(row.deletedAt) : null,
   };
-}
-
-function mapNullableDocumentRow<TData extends JsonObject>(
-  row: NullableDocumentRow,
-): StoredDocument<TData> | null {
-  if (!row.id) {
-    return null;
-  }
-
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The left join is fully populated whenever the document primary key exists.
-  return mapDocumentRow<TData>(row as DocumentRow);
 }
 
 function toDate(value: Date | string): Date {

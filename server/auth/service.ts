@@ -323,10 +323,6 @@ export class AuthRbacService {
     );
   }
 
-  async listAccessibleDocumentScopeIds(input: ListAccessibleScopesInput) {
-    return this.listGrantedScopeIdsForCapability(input);
-  }
-
   async listCreatableDocumentScopeIds(input: {
     context: TenantActorContext;
     capability: string;

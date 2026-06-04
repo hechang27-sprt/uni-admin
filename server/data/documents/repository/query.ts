@@ -22,6 +22,7 @@ export function normalizeListInput(
   const offset = Math.max(input.offset ?? 0, 0);
 
   return {
+    ids: input.ids,
     filter: input.filter,
     sort: normalizeSort(input.sort),
     limit,
@@ -112,6 +113,34 @@ export function buildAuthScopeCondition(
     conditions.push(eb("documents.authScopeId", "in", scopedIds));
   }
   return conditions.length === 1 ? conditions[0]! : eb.or(conditions);
+}
+
+export function buildAccessibleScopeCondition(
+  eb: DocumentsExpressionBuilder,
+  accessibleScopeIds: string[] | null,
+): DocumentsBooleanExpression | null {
+  if (accessibleScopeIds === null) {
+    return null;
+  }
+
+  if (accessibleScopeIds.length === 0) {
+    return eb.lit(false);
+  }
+
+  return eb.and([
+    eb("documents.authScopeId", "is not", null),
+    eb.exists(
+      eb
+        .selectFrom("authScopeClosure")
+        .select("authScopeClosure.descendantId")
+        .whereRef(
+          "authScopeClosure.descendantId",
+          "=",
+          "documents.authScopeId",
+        )
+        .where("authScopeClosure.ancestorId", "in", accessibleScopeIds),
+    ),
+  ]);
 }
 
 export function hasAccessibleScopeFilter(

@@ -123,13 +123,6 @@ export interface DocumentRepository {
   insertMany<TData extends JsonObject>(
     record: InsertManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[]>;
-  findByIds<TData extends JsonObject>(input: {
-    tenantId: string;
-    collection: string;
-    ids: string[];
-    includeDeleted?: boolean;
-    accessibleScopeIds?: string[] | null;
-  }): Promise<(StoredDocument<TData> | null)[]>;
   findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
@@ -140,7 +133,7 @@ export interface DocumentRepository {
   list<TData extends JsonObject>(input: {
     tenantId: string;
     collection: string;
-    query: NormalizedListDocumentsInput;
+    query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]>;
   updateMany<TData extends JsonObject>(
     record: UpdateManyDocumentsRecord<TData>,
