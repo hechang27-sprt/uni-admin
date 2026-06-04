@@ -279,7 +279,7 @@ describe("auth/RBAC service integration", () => {
         { tenantId: tenantA, collection: "tasks" },
         serviceOptions,
       ),
-    ).resolves.toEqual(expect.arrayContaining([null, child.scopeId]));
+    ).resolves.toEqual([null]);
   });
 
   it("authorizes protected document batches through one check per operation", async () => {
@@ -372,12 +372,7 @@ describe("auth/RBAC service integration", () => {
       ),
     ).resolves.toHaveLength(3);
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
-    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
-      {
-        capabilities: ["collection:tasks:read"],
-        targetScopeIds: uniq(created.map((doc) => doc.authScopeId)),
-      },
-    ]);
+    expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([]);
 
     evaluateAccess.mockClear();
     const updated = await service.updateMany<TaskDocument>(
@@ -737,14 +732,21 @@ describe("auth/RBAC service integration", () => {
         context: { tenantId: tenantA, actor: { userId: user.userId } },
         capability: "collection:tasks:read",
       }),
-    ).resolves.toEqual(expect.arrayContaining([null, child.scopeId]));
+    ).resolves.toEqual([null]);
+
+    await expect(
+      auth.listGrantedScopeIdsForCapability({
+        context: { tenantId: tenantA, actor: { userId: user.userId } },
+        capability: "collection:tasks:read",
+      }),
+    ).resolves.toEqual([null]);
 
     await expect(
       auth.listCreatableDocumentScopeIds({
         context: { tenantId: tenantA, actor: { userId: user.userId } },
         capability: "collection:tasks:read",
       }),
-    ).resolves.toEqual(expect.arrayContaining([null, child.scopeId]));
+    ).resolves.toEqual([null]);
   });
 
   it("validates delegated role assignee membership before repository assignment", async () => {

@@ -301,10 +301,20 @@ export class AuthRbacService {
       capability: input.capability,
     });
   }
+  async listGrantedScopeIdsForCapability(input: ListAccessibleScopesInput) {
+    await this.evaluateAccess({
+      ...input.context,
+      checks: [],
+      permissionKeys: [input.capability],
+      throw: true,
+    });
 
-  async listAccessibleDocumentScopeIds(input: ListAccessibleScopesInput) {
     const [scopeIds, tenantRootScope] = await Promise.all([
-      this.listAccessibleScopeIds(input),
+      this.repository.listGrantedScopeIdsForCapability({
+        tenantId: input.context.tenantId,
+        userId: input.context.actor.userId,
+        capability: input.capability,
+      }),
       this.repository.ensureTenantRootScope(input.context.tenantId),
     ]);
 
@@ -313,11 +323,15 @@ export class AuthRbacService {
     );
   }
 
+  async listAccessibleDocumentScopeIds(input: ListAccessibleScopesInput) {
+    return this.listGrantedScopeIdsForCapability(input);
+  }
+
   async listCreatableDocumentScopeIds(input: {
     context: TenantActorContext;
     capability: string;
   }) {
-    return this.listAccessibleDocumentScopeIds(input);
+    return this.listGrantedScopeIdsForCapability(input);
   }
 
   async validateTenantAccess(

@@ -28,6 +28,7 @@ export function normalizeListInput(
     offset,
     includeDeleted: input.includeDeleted ?? false,
     authScopeIds: input.authScopeIds,
+    accessibleScopeIds: input.accessibleScopeIds,
   };
 }
 
@@ -111,6 +112,12 @@ export function buildAuthScopeCondition(
     conditions.push(eb("documents.authScopeId", "in", scopedIds));
   }
   return conditions.length === 1 ? conditions[0]! : eb.or(conditions);
+}
+
+export function hasAccessibleScopeFilter(
+  accessibleScopeIds: string[] | null | undefined,
+): accessibleScopeIds is string[] | null {
+  return accessibleScopeIds === null || accessibleScopeIds !== undefined;
 }
 
 export function buildFieldExpression(

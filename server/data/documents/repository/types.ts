@@ -128,6 +128,7 @@ export interface DocumentRepository {
     collection: string;
     ids: string[];
     includeDeleted?: boolean;
+    accessibleScopeIds?: string[] | null;
   }): Promise<(StoredDocument<TData> | null)[]>;
   findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;

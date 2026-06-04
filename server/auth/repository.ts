@@ -126,6 +126,11 @@ export interface AuthRbacRepository {
     userId: string;
     capability: string;
   }): Promise<string[]>;
+  listGrantedScopeIdsForCapability(input: {
+    tenantId: string;
+    userId: string;
+    capability: string;
+  }): Promise<Array<string | null>>;
 }
 
 @injectable()
@@ -913,6 +918,30 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .execute();
 
     return rows.map((row) => row.scopeId);
+  }
+
+  async listGrantedScopeIdsForCapability(input: {
+    tenantId: string;
+    userId: string;
+    capability: string;
+  }): Promise<Array<string | null>> {
+    const rows = await this.database
+      .selectFrom(() =>
+        selectGrantedPermissions()
+          .where("tu.tenantId", "=", input.tenantId)
+          .where("tu.userId", "=", input.userId)
+          .where("p.key", "=", input.capability)
+          .select(({ eb, ref }) => [
+            ref("assigned.scopeId").as("scopeId"),
+            eb("assigned.scopeId", "is", null).as("isRootScope"),
+          ])
+          .distinct()
+          .as("_"),
+      )
+      .selectAll()
+      .execute();
+
+    return rows.map((row) => (row.isRootScope ? null : row.scopeId));
   }
 
   async findTenantRootScope(

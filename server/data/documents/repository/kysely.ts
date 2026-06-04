@@ -13,6 +13,7 @@ import {
   buildAuthScopeCondition,
   buildFieldExpression,
   buildFilterCondition,
+  hasAccessibleScopeFilter,
   normalizeSort,
 } from "./query";
 import type {
@@ -97,6 +98,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
     collection: string;
     ids: string[];
     includeDeleted?: boolean;
+    accessibleScopeIds?: string[] | null;
   }): Promise<(StoredDocument<TData> | null)[]> {
     if (input.ids.length === 0) {
       return [];
@@ -125,6 +127,34 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .orderBy("input.inputOrder");
     if (!input.includeDeleted) {
       query = query.where("documents.deletedAt", "is", null);
+    }
+    if (hasAccessibleScopeFilter(input.accessibleScopeIds)) {
+      if (input.accessibleScopeIds === null) {
+        // No scope-level filtering.
+      } else if (input.accessibleScopeIds.length === 0) {
+        query = query.where((eb) => eb.lit(false));
+      } else {
+        query = query.where((eb) =>
+          eb.and([
+            eb("documents.authScopeId", "is not", null),
+            eb.exists(
+              this.database
+                .selectFrom("authScopeClosure")
+                .select(sql`1`.as("one"))
+                .whereRef(
+                  "authScopeClosure.descendantId",
+                  "=",
+                  "documents.authScopeId",
+                )
+                .where(
+                  "authScopeClosure.ancestorId",
+                  "in",
+                  input.accessibleScopeIds,
+                ),
+            ),
+          ]),
+        );
+      }
     }
     const rows = await query.execute();
     return rows.map((row) =>
@@ -167,11 +197,38 @@ export class KyselyDocumentRepository implements DocumentRepository {
     if (!input.query.includeDeleted) {
       query = query.where("deletedAt", "is", null);
     }
-    const { filter, authScopeIds } = input.query;
+    const { filter, authScopeIds, accessibleScopeIds } = input.query;
     if (filter) {
       query = query.where((eb) => buildFilterCondition(eb, filter));
     }
-    if (authScopeIds) {
+    if (hasAccessibleScopeFilter(accessibleScopeIds)) {
+      if (accessibleScopeIds === null) {
+        // No scope-level filtering.
+      } else if (accessibleScopeIds.length === 0) {
+        query = query.where((eb) => eb.lit(false));
+      } else {
+        query = query.where((eb) =>
+          eb.and([
+            eb("documents.authScopeId", "is not", null),
+            eb.exists(
+              this.database
+                .selectFrom("authScopeClosure")
+                .select(sql`1`.as("one"))
+                .whereRef(
+                  "authScopeClosure.descendantId",
+                  "=",
+                  "documents.authScopeId",
+                )
+                .where(
+                  "authScopeClosure.ancestorId",
+                  "in",
+                  accessibleScopeIds,
+                ),
+            ),
+          ]),
+        );
+      }
+    } else if (authScopeIds) {
       query = query.where((eb) => buildAuthScopeCondition(eb, authScopeIds));
     }
     for (const sort of normalizeSort(input.query.sort)) {

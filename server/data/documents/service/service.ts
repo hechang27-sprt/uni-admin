@@ -148,34 +148,8 @@ export class DocumentService {
     input: GetDocumentsByIdsInput,
     options?: DocumentServiceOptions,
   ): Promise<(StoredDocument<TData> | null)[]> {
-    this.registry.get(input.collection);
-
-    const documents = await this.repository.findByIds<TData>({
-      tenantId: input.tenantId,
-      collection: input.collection,
-      ids: input.ids,
-      includeDeleted: input.includeDeleted,
-    });
-
-    const existingDocuments = documents.filter(
-      (document): document is StoredDocument<TData> => document !== null,
-    );
-
-    return await this.filterAccessibleDocuments<TData>(
-      input,
-      options,
-      "read",
-      existingDocuments,
-    );
-  }
-
-  async list<TData extends JsonObject>(
-    input: ListDocumentServiceInput,
-    options?: DocumentServiceOptions,
-  ): Promise<ListDocumentsResult<TData>> {
     const collection = this.registry.get<TData>(input.collection);
-    const query = normalizeListInput(input);
-    let scopeIds: (string | null)[] | undefined;
+    let accessibleScopeIds: string[] | null | undefined;
 
     if (hasActorOptions(options)) {
       const auth = resolveCollectionOperationAuth(collection, "read");
@@ -190,7 +164,45 @@ export class DocumentService {
           ],
         });
       } else if (auth) {
-        scopeIds = await this.buildAccessibleDocumentScopeFilter(
+        accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
+          input,
+          options,
+          auth.capability,
+        );
+      }
+    }
+
+    return this.repository.findByIds<TData>({
+      tenantId: input.tenantId,
+      collection: input.collection,
+      ids: input.ids,
+      includeDeleted: input.includeDeleted,
+      accessibleScopeIds,
+    });
+  }
+
+  async list<TData extends JsonObject>(
+    input: ListDocumentServiceInput,
+    options?: DocumentServiceOptions,
+  ): Promise<ListDocumentsResult<TData>> {
+    const collection = this.registry.get<TData>(input.collection);
+    const query = normalizeListInput(input);
+    let accessibleScopeIds: string[] | null | undefined;
+
+    if (hasActorOptions(options)) {
+      const auth = resolveCollectionOperationAuth(collection, "read");
+      if (auth?.resourceScope === "tenant-root") {
+        await this.assertDocumentAccess({
+          ...actorContext(input, options),
+          checks: [
+            {
+              capabilities: [auth.capability],
+              targetScopeIds: [null],
+            },
+          ],
+        });
+      } else if (auth) {
+        accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
           input,
           options,
           auth.capability,
@@ -201,7 +213,11 @@ export class DocumentService {
     const items = await this.repository.list<TData>({
       tenantId: input.tenantId,
       collection: input.collection,
-      query: { ...query, limit: query.limit + 1, authScopeIds: scopeIds },
+      query: {
+        ...query,
+        limit: query.limit + 1,
+        accessibleScopeIds,
+      },
     });
 
     return {
@@ -665,11 +681,10 @@ export class DocumentService {
       return [null];
     }
 
-    return this.buildAccessibleDocumentScopeFilter(
-      input,
-      authenticatedOptions,
-      auth.capability,
-    );
+    return this.authorizer.listCreatableDocumentScopeIds({
+      context: actorContext(input, authenticatedOptions),
+      capability: auth.capability,
+    });
   }
 
   private async authorizeCreate(
@@ -745,18 +760,15 @@ export class DocumentService {
       return documents;
     }
 
-    const authScopeIds = new Set(
-      auth.resourceScope === "tenant-root"
-        ? [null]
-        : documents.map((document) => document.authScopeId),
-    );
-
     const access = await this.authorizer.evaluateAccess({
       ...actorContext(input, options),
       checks: [
         {
           capabilities: [auth.capability],
-          targetScopeIds: [...authScopeIds],
+          targetScopeIds:
+            auth.resourceScope === "tenant-root"
+              ? [null]
+              : uniq(documents.map((document) => document.authScopeId)),
         },
       ],
     });
@@ -765,7 +777,11 @@ export class DocumentService {
     else if (!access.capabilities) return [];
 
     const deniedCaps = access.capabilities[0]!.missingCaps;
-    const approvedScopes = structuredClone(authScopeIds);
+    const approvedScopes = new Set(
+      auth.resourceScope === "tenant-root"
+        ? [null]
+        : documents.map((document) => document.authScopeId),
+    );
     deniedCaps.forEach(({ targetScopeId }) =>
       approvedScopes.delete(targetScopeId),
     );
@@ -797,11 +813,14 @@ export class DocumentService {
     input: { tenantId: string },
     options: AuthenticatedDocumentServiceOptions,
     capability: string,
-  ): Promise<(string | null)[]> {
-    return this.authorizer.listAccessibleDocumentScopeIds({
+  ): Promise<string[] | null> {
+    const scopeIds = await this.authorizer.listGrantedScopeIdsForCapability({
       context: actorContext(input, options),
       capability,
     });
+
+    if (scopeIds.includes(null)) return null;
+    return scopeIds as string[];
   }
 
   private async validateAuthScopes(input: {

@@ -91,6 +91,7 @@ export interface ListDocumentsInput {
   offset?: number;
   includeDeleted?: boolean;
   authScopeIds?: (string | null)[];
+  accessibleScopeIds?: string[] | null;
 }
 
 export interface ListDocumentsResult<TData extends JsonObject = JsonObject> {
@@ -107,4 +108,5 @@ export interface NormalizedListDocumentsInput {
   offset: number;
   includeDeleted: boolean;
   authScopeIds?: (string | null)[];
+  accessibleScopeIds?: string[] | null;
 }
