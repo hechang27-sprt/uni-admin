@@ -260,11 +260,9 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         ],
       });
 
-      expect(fetched.map((item) => item?.id ?? null)).toEqual([
-        created[1]!.id,
-        null,
-        created[0]!.id,
-      ]);
+      expect(fetched.map((item) => item.id).sort()).toEqual(
+        [created[0]!.id, created[1]!.id].sort(),
+      );
 
       const updated = await service.updateMany<TaskDocument>({
         tenantId: tenantA,

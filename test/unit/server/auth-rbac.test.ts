@@ -26,7 +26,6 @@ import {
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
-import { uniq } from "es-toolkit";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -671,7 +670,7 @@ describe("auth/RBAC service integration", () => {
     const user = await auth.createUser();
 
     await expect(
-      auth.listAccessibleDocumentScopeIds({
+      auth.listGrantedScopeIdsForCapability({
         context: { tenantId: tenantA, actor: { userId: user.userId } },
         capability: "collection:tasks:read",
       }),
@@ -728,7 +727,7 @@ describe("auth/RBAC service integration", () => {
     ).resolves.toEqual(expect.arrayContaining([root.scopeId, child.scopeId]));
 
     await expect(
-      auth.listAccessibleDocumentScopeIds({
+      auth.listGrantedScopeIdsForCapability({
         context: { tenantId: tenantA, actor: { userId: user.userId } },
         capability: "collection:tasks:read",
       }),
