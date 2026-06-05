@@ -12,4 +12,5 @@ export default defineConfig({
     "unicorn/no-useless-iterator-to-array": "error",
     "unicorn/no-useless-spread": "error",
   },
+  ignorePatterns: [".codex", ".claude", ".omp"],
 });
