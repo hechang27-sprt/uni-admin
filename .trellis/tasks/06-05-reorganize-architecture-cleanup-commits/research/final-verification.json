@@ -1,0 +1,48 @@
+{
+  "duplicate_tip": "@-",
+  "source_tip": "ktv",
+  "source_excluding_task": {
+    "rev": "ktv",
+    "count": 297,
+    "sha256": "6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1"
+  },
+  "duplicate_tip_excluding_task": {
+    "rev": "@-",
+    "count": 297,
+    "sha256": "6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1"
+  },
+  "working_copy_excluding_task": {
+    "rev": "@",
+    "count": 297,
+    "sha256": "6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1"
+  },
+  "current_task_dir_files": [
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/check.jsonl",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/design.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.jsonl",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/prd.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/baseline-hashes.json",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/final-verification.json",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/source-log-summary.txt",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/wwz-diff-summary.txt",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/wwz-to-ktv-stat.txt",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/task.json"
+  ],
+  "current_task_dir_hash_excluding_report": {
+    "excluded": ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/research/final-verification.json",
+    "rev": "@",
+    "count": 10,
+    "sha256": "513a654d54d3543b6096ca4059eaae295618c1b80283f0686ae92d5306fb3898"
+  },
+  "refined_duplicate_commits": [
+    "docs(auth): capture omnibus auth-access checks -> refactor: centralize auth access validation",
+    "chore(server): add DI dependencies and ignore coverage output -> refactor(auth): prepare DI-friendly auth service -> refactor(documents): prepare DI-friendly document service",
+    "docs(server): document auth, document, and db module split -> refactor(server): extract db, di, and utility modules -> refactor(server): separate auth and documents modules",
+    "docs: sync agent context for capability grants -> refactor(auth): add capability grant typing",
+    "chore(task): capture 06-03 capability-eval batching -> refactor(auth): batch capability evaluation",
+    "docs(auth): record resourceScope none handling -> fix(auth): treat resourceScope none consistently",
+    "chore(task): capture 06-04 scope-root document auth filtering -> fix(documents): filter reads by granted scope roots",
+    "refactor(documents): simplify scope-root filtering queries -> test(documents): cover scope-root filtering end to end"
+  ]
+}

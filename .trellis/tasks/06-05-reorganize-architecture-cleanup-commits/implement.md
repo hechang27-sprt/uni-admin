@@ -2,62 +2,81 @@
 
 ## Goal
 
-Replace the checkpoint-heavy jj history from `xnz` through `ssu` with a reviewable stack whose commit boundaries match the actual architectural, tooling, and behavior-change concerns.
+Recreate `xnz..ktv` as a duplicated, reviewable stack after `wwz`, while preserving exact source content outside `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**` and preserving the active task directory separately.
 
 ## Ordered Checklist
 
-1. Confirm planning baseline
-   - Keep `xnz` as the fixed lower bound and `ssu` as the content tip to preserve.
-   - Treat the current empty working change above `ssu` as scratch space only.
-   - Use the planning default unless user requests otherwise: drop journal-only and archive-only churn.
+1. Establish hash guards
+   - Compute the active task directory to exclude from source-equivalence hashing: `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`.
+   - Record the baseline hash for the current task directory at the working copy.
+   - Record source hashes for `ktv` and for each source checkpoint with the active task directory excluded.
 
-2. Map current mixed commits onto target groups
-   - Identify which existing changes contribute primarily to:
-     - tooling / Trellis / OMP bootstrap
-     - server boundary refactor
-     - utility/query extraction
-     - auth semantic fixes
-     - document scope-root filtering
-   - Note any files that appear in multiple conceptual groups and choose the least-surprising home for them.
+2. Duplicate the source chain onto `wwz`
+   - Duplicate `xnz` after `wwz`.
+   - Duplicate each next source revision after `@-` so the new stack grows linearly beneath the empty working-copy commit.
+   - After each duplication:
+     - check for conflicts in `wwz::@`
+     - verify normalized hash equality with the source revision just duplicated
+     - verify the active task-directory hash is unchanged
 
-3. Rewrite history with jj
-   - Use `jj edit`, `jj split`, `jj new`, and `jj rebase` to carve mixed checkpoint commits into the target groups.
-   - Use `jj describe -m` to replace WIP messages.
-   - Use `jj abandon` to remove bookkeeping-only commits from the cleaned stack.
-   - Preserve descendants by restacking rather than reapplying diffs manually.
+3. Stabilize the duplicated chain
+   - Ensure the top duplicated revision corresponds to `ktv`.
+   - Confirm the duplicated tip matches `ktv` on all paths outside the active task directory.
+   - If any step introduced conflicts, resolve them before further refinement.
 
-4. Normalize final stack
-   - Ensure each resulting commit has one primary concern.
-   - Ensure commit order is understandable from bottom to top.
-   - Keep LSP/tooling changes separate if they remain independently reviewable.
+4. Refine commit boundaries on the duplicated branch
+   - Rename duplicated checkpoint commits to descriptive titles.
+   - Split only the duplicated commits that are still too broad.
+   - Prefer isolating bookkeeping, tooling, refactor, and semantic-fix concerns when the split can be made without breaking the hash invariant.
+   - Re-run hash guards after every split, rebase, or squash.
 
-5. Verify equivalence and reviewability
-   - Compare rewritten tip against `ssu`.
-   - Inspect `jj log` / `jj log --summary` for the rewritten range.
-   - If the rewrite required content edits beyond regrouping, run the narrowest relevant tests for the touched behavior.
+5. Final verification
+   - Inspect `jj log -r 'wwz::@'`
+   - Inspect `jj log -r 'wwz::@' --summary`
+   - Compare `<duplicated-tip>` against `ktv`
+   - Confirm only the expected current-task files differ from `ktv`
 
+
+## Current refinement status
+
+- Split `xzvuywmk` into `docs(auth): capture omnibus auth-access checks` and `refactor: centralize auth access validation`.
+- Split `nlxqorxu` into `chore(server): add DI dependencies and ignore coverage output`, `refactor(auth): prepare DI-friendly auth service`, and `refactor(documents): prepare DI-friendly document service`.
+- Split `sumovrzx` into `docs(server): document auth, document, and db module split`, `refactor(server): extract db, di, and utility modules`, and `refactor(server): separate auth and documents modules`.
+- Split `svsxywts` into `docs: sync agent context for capability grants` and `refactor(auth): add capability grant typing`.
+- Split `nvnvxpmu` into `chore(task): capture 06-03 capability-eval batching` and `refactor(auth): batch capability evaluation`.
+- Split `wrmootnl` into `docs(auth): record resourceScope none handling` and `fix(auth): treat resourceScope none consistently`.
+- Split `umxqrtwm` into `chore(task): capture 06-04 scope-root document auth filtering` and `fix(documents): filter reads by granted scope roots`.
+- Split `qlvmmszn` into `refactor(documents): simplify scope-root filtering queries` and `test(documents): cover scope-root filtering end to end`.
+- Kept the parity model unchanged: `ktv` still remains untouched, and source-equivalence continues to exclude only `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`.
+
+The stable task-directory guard now excludes `research/final-verification.json` itself. Including the verification report in the hash made the value self-referential and unstable every time the report was refreshed.
 ## Validation Commands
 
-- `jj log -r 'xnz::<rewritten-tip>'`
-- `jj log -r 'xnz::<rewritten-tip>' --summary`
-- `jj diff --from ssu --to <rewritten-tip>`
-- `jj diff --from xnz --to <rewritten-tip> --stat`
-- Optional only if content changed during rewrite: narrow `bun run vitest --project unit ...` commands for affected tests
+- `jj log -r 'wwz::@'`
+- `jj log -r 'wwz::@' --summary`
+- `jj log -r 'conflicts() & wwz::@'`
+- `jj diff --from ktv --to <duplicated-tip> --summary`
+- Hash helper over:
+  - all files except `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`
+  - only `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`
 
 ## Review Gates
 
-Before `task.py start` / before execution:
-- Confirm the target stack shape separates structural refactor, tooling bootstrap, and semantic fixes.
-- Confirm pure bookkeeping-only commits are intentionally dropped rather than accidentally lost.
-- Confirm the task is a history rewrite, not a fresh implementation task.
+Before mutating history:
+- Confirm the source revision order and the `wwz`-only path set.
+- Confirm the working copy is still the empty change above `wwz`.
 
-Before final handoff:
-- Confirm rewritten tip matches `ssu` or document every intentional difference.
-- Confirm no commit message is still checkpoint/WIP style.
-- Confirm reviewers can understand each commit without cross-reading unrelated diffs.
+Before any split/rename cleanup:
+- Confirm the duplicate stack already reproduces the source content.
+- Confirm conflicts are resolved so later cleanup is about reviewability, not repair.
+
+Before handoff:
+- Confirm no commit before `wwz` changed.
+- Confirm normalized hash equality at the duplicated tip.
+- Confirm every duplicated checkpoint commit has a readable description or was intentionally kept because it is already specific enough.
 
 ## Rollback Points
 
-- After every major split or rebase cluster, `jj log` the range before continuing.
-- If a split or rebase groups files incorrectly, use `jj undo` immediately.
-- If the rewrite path becomes harder than reconstructing the stack from `ssu`, stop and re-plan rather than layering more corrective rebases on top.
+- After every duplicate: `jj undo` immediately on hash mismatch.
+- After every split/rebase/squash cleanup step: re-run both hash guards before continuing.
+- If a refinement step makes the branch harder to reason about, revert that step and keep the simpler duplicated version.

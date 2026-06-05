@@ -1,0 +1,9 @@
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/check.jsonl
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/design.md
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.jsonl
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.md
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/prd.md
+A .trellis/tasks/06-05-reorganize-architecture-cleanup-commits/task.json
+
+
+Wall time: 0.10 seconds

@@ -2,50 +2,46 @@
 
 ## Goal
 
-Rewrite the jj history from `xnz` (`refactor: centralize auth access validation`) through `ssu` (`WIP: checkpoint 12`) into a small, coherent stack that reflects the intended architecture cleanup, boundary enforcement, tooling setup, and follow-up auth/document fixes.
+Create a new reviewable jj stack **after `wwz`** by duplicating the changes from `xnz` through `ktv` onto descendants of `wwz`, while leaving the original `xnz..ktv` history untouched.
 
-## What I already know
+## What changed since the first plan
 
-- The current range spans 21 changes, most labeled `WIP: checkpoint*`.
-- The final tree at `ssu` includes three broad categories of work:
-  - server refactors in `server/auth/**`, `server/data/documents/**`, `server/db/**`, `server/di/**`, and `server/utils/**`
-  - tooling / workflow setup in `.omp/**`, `.trellis/**`, `.omp/lsp.json`, `package.json`, `bun.lock`, `nuxt.config.ts`
-  - behavior fixes and test updates around auth/resource-scope handling and document read filtering
-- Pure bookkeeping changes are mixed into the same range: journal updates and archived task-directory moves.
-- The working copy is currently clean and sits on a new empty change above `ssu`.
+- The previous move-based regrouping was reverted because it was conflict-prone and too easy to perturb real content.
+- The repo was restored to the original source stack.
+- A new checkpoint commit, `wwz` (`meta: start working from here`), now sits on a sibling branch from `rtn` and contains only the current Trellis task files.
+- The rewrite must now be **duplicate-only**: do not move or empty the original source commits.
 
 ## Requirements
 
-- Preserve the intended end-state content represented by `ssu`, except for pure bookkeeping changes that are intentionally dropped from the rewritten public stack.
-- Replace checkpoint-style history with commit groups that each have one clear concern and a durable commit message.
-- Separate unrelated concerns instead of mixing them inside the same commit:
-  - architecture / module-boundary refactors
-  - shared utility extraction / query helpers
-  - tooling / Trellis / local OMP setup
-  - auth and document behavior fixes with their tests
-- Keep the rewritten stack reviewable: each commit should have a readable diff and an explanation that matches the files it changes.
-- Avoid introducing new code changes beyond what is already present at `ssu`, unless required to make the regrouped commits internally consistent.
+- Modify only commits **after `wwz`**. Do not rewrite or otherwise alter any revision in the original `xnz..ktv` range.
+- Duplicate the source history from `xnz` through `ktv` onto a new stack after `wwz`.
+- Preserve the current task directory on the working branch:
+  - `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`
+- Preserve the source content exactly on every path outside that active task directory. The duplicated stack's tip must match `ktv` for all non-task paths.
+- Keep the new stack **finer-grained** than the previous coarse grouping. Reuse original checkpoint boundaries where that is already reviewable; split duplicated commits further when a checkpoint mixes unrelated concerns.
+- Resolve conflicts immediately on the duplicated branch only. Never solve a conflict by editing the original branch.
+- Calculate content hashes throughout the rewrite so content drift is caught as soon as it happens.
 
 ## Acceptance Criteria
 
-- [ ] `jj log -r 'xnz::<rewritten-tip>'` shows a coherent rewritten stack with descriptive commit messages instead of WIP checkpoints.
-- [ ] `jj diff --from ssu --to <rewritten-tip>` is empty, or any intentional difference is explicitly documented before handoff.
-- [ ] Pure bookkeeping-only history (journal / archive churn) is either dropped or isolated from product/tooling commits.
-- [ ] Architecture, tooling, and auth/document behavior changes are grouped into separate commits with no major unrelated spillover.
-- [ ] The final rewritten stack is ready for normal review without requiring reviewers to reconstruct intent from checkpoint commits.
-
-## Open Question
-
-- Default recommendation: drop journal-only and archive-only changes from the cleaned stack, and keep only repo-affecting tooling/task artifacts when they materially support the code changes.
+- [ ] `jj log -r 'wwz::@'` shows a new duplicated stack above `wwz`; the original `xnz..ktv` range is still present and unchanged.
+- [ ] No commit before `wwz` was modified.
+- [ ] The duplicated tip hash over all paths outside `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**` matches `ktv` exactly.
+- [ ] The hash over the active task directory remains unchanged throughout duplication unless this task intentionally edits its own artifacts.
+- [ ] `jj diff --from ktv --to <duplicated-tip> --summary` is limited to the expected current-task files, or any additional difference is explicitly documented before handoff.
+- [ ] The duplicated stack uses descriptive commit messages instead of `WIP`/checkpoint names.
+- [ ] Any conflicts introduced while duplicating or splitting are resolved before handoff.
 
 ## Out of Scope
 
-- Changing behavior beyond the `ssu` tree.
-- Re-designing the code again while rewriting history.
-- Squashing everything into one mega-commit.
+- Cleaning up or deleting the original `xnz..ktv` source stack.
+- Re-designing the code beyond what already exists in the source tip.
+- Reworking unrelated history outside the `rtn` / `wwz` / `xnz..ktv` neighborhood.
 
 ## Technical Notes
 
-- Range inspected with `jj log -r 'xnz::ssu'`, `jj log -r 'xnz::ssu' --summary`, and `jj diff --from xnz --to ssu --stat`.
-- Major touched paths include `server/auth/**`, `server/data/documents/**`, `server/db/**`, `server/di/**`, `server/utils/**`, `.omp/**`, `.trellis/**`, and unit tests under `test/unit/server/**`.
-- Likely rewrite tools: `jj split`, `jj rebase`, `jj describe`, `jj abandon`, `jj new`, and `jj undo` as rollback.
+- Observed source chain: `xnz -> ssozvols -> qtrkpvqv -> uqlwpsuk -> kxmnywsn -> swoktlnl -> qzwyuwry -> unztxqlp -> rxpnurol -> wmvtspqm -> uonwpysk -> ktmzsmov -> nytkkxmr -> zooqvnpp -> xnkprunt -> ykwuunwx -> opxtyxky -> purwkwmo -> sptnknvq -> wsworlsu -> ssuqwkky -> ktv`.
+- `wwz` is a sibling branch from `rtn`, not an ancestor of `ktv`.
+- Initial normalized hash observations:
+  - `ktv` SHA-256 excluding `.trellis/tasks/06-05-reorganize-architecture-cleanup-commits/**`: `6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1`
+  - current task-directory SHA-256 at the working copy: `9f9dae16902d9c9b98e2341cdb5ce10390ad0ebf4219130c65afa626e676deb6`

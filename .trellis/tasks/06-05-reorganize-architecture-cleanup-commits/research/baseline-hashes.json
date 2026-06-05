@@ -1,0 +1,54 @@
+{
+  "source_revs": [
+    "xnz",
+    "ssozvols",
+    "qtrkpvqv",
+    "uqlwpsuk",
+    "kxmnywsn",
+    "swoktlnl",
+    "qzwyuwry",
+    "unztxqlp",
+    "rxpnurol",
+    "wmvtspqm",
+    "uonwpysk",
+    "ktmzsmov",
+    "nytkkxmr",
+    "zooqvnpp",
+    "xnkprunt",
+    "ykwuunwx",
+    "opxtyxky",
+    "purwkwmo",
+    "sptnknvq",
+    "wsworlsu",
+    "ssuqwkky",
+    "ktv"
+  ],
+  "wwz_only": [
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/check.jsonl",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/design.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.jsonl",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/implement.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/prd.md",
+    ".trellis/tasks/06-05-reorganize-architecture-cleanup-commits/task.json"
+  ],
+  "wwz_guard_hash": {
+    "rev": "wwz",
+    "count": 6,
+    "sha256": "376dec1fcd3e75df02299a6f4fe7cc8d7d7e617f0f50e559257517e8bd0002f3"
+  },
+  "source_tip_hash": {
+    "rev": "ktv",
+    "count": 297,
+    "sha256": "6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1"
+  },
+  "source_tip_no_wwz_hash": {
+    "rev": "ktv",
+    "count": 297,
+    "sha256": "6c3c52bab4f6b9de194e30d5b05cecad853f12f1bbe8d50270ce62c60cbd9dd1"
+  },
+  "current_no_wwz_hash": {
+    "rev": "@",
+    "count": 232,
+    "sha256": "2d07e08538277a462251669ad0a88bc14f90ea86c9a268f5ed78853661e0c639"
+  }
+}
