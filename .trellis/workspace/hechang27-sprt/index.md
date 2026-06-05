@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
-- **Last Active**: 2026-06-03
+- **Total Sessions**: 18
+- **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~571 | Active |
+| `journal-1.md` | ~603 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-06-05 | Finish history reorganization stack | `cfb51dd9` | `-` |
 | 17 | 2026-06-03 | Finish capability evaluation batching | `1802c44` | `-` |
 | 16 | 2026-05-29 | Omnibus auth access checks | `5a100b1` | `-` |
 | 15 | 2026-05-29 | Refactor document list Kysely builders | `8d0e3bc4` | `dev` |

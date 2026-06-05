@@ -569,3 +569,35 @@ Completed the capability evaluation batching contract change, simplified targetS
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Finish history reorganization stack
+
+**Date**: 2026-06-05
+**Task**: Finish history reorganization stack
+
+### Summary
+
+Split the duplicated wwz stack into clearer docs/task/code/test commits, verified ktv parity outside the active task directory, and archived the related Trellis tasks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cfb51dd9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
