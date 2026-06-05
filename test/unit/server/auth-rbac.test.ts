@@ -26,7 +26,7 @@ import {
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
-import { ADMIN_TENANT_OVERRIDE_KEY } from "~~/server/auth/repository";
+import { ADMIN_TENANT_OVERRIDE_KEY } from "#server/auth/repository";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -904,18 +904,20 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "AUTH_PERMISSION_DENIED" });
-    expect(checkCapabilities).toHaveBeenCalledWith({
-      tenantId: tenantA,
-      userId: actor.userId,
-      checks: [
-        {
-          capabilities: ["admin:role-assignments:assign"],
-          roleIds: [escalated.roleId],
-          override: ADMIN_TENANT_OVERRIDE_KEY,
-          targetScopeIds: [child.scopeId],
-        },
-      ],
-    });
+    expect(checkCapabilities).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: tenantA,
+        userId: actor.userId,
+        checks: [
+          {
+            capabilities: ["admin:role-assignments:assign"],
+            roleIds: [escalated.roleId],
+            override: ADMIN_TENANT_OVERRIDE_KEY,
+            targetScopeIds: [child.scopeId],
+          },
+        ],
+      }),
+    );
     const deniedEval = await repository.checkCapabilities({
       tenantId: tenantA,
       checks: [
@@ -970,18 +972,20 @@ describe("auth/RBAC service integration", () => {
         },
       ),
     ).resolves.toBeUndefined();
-    expect(checkCapabilities).toHaveBeenCalledWith({
-      tenantId: tenantA,
-      userId: actor.userId,
-      checks: [
-        {
-          capabilities: ["admin:role-assignments:assign"],
-          roleIds: [escalated.roleId],
-          override: ADMIN_TENANT_OVERRIDE_KEY,
-          targetScopeIds: [child.scopeId],
-        },
-      ],
-    });
+    expect(checkCapabilities).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: tenantA,
+        userId: actor.userId,
+        checks: [
+          {
+            capabilities: ["admin:role-assignments:assign"],
+            roleIds: [escalated.roleId],
+            override: ADMIN_TENANT_OVERRIDE_KEY,
+            targetScopeIds: [child.scopeId],
+          },
+        ],
+      }),
+    );
     const allowedEval = await repository.checkCapabilities({
       tenantId: tenantA,
       checks: [
