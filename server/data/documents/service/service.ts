@@ -41,7 +41,7 @@ import { isAuthRbacError, type AuthRbacService } from "#server/auth";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import { uniq } from "es-toolkit";
+import { isNotNil, uniq } from "es-toolkit";
 
 @injectable()
 export class DocumentService {
@@ -788,9 +788,8 @@ export class DocumentService {
         ? [null]
         : documents.map((document) => document.authScopeId),
     );
-    deniedCaps.forEach(({ targetScopeId }) =>
-      approvedScopes.delete(targetScopeId),
-    );
+    for (const { targetScopeId } of deniedCaps)
+      approvedScopes.delete(targetScopeId);
     return documents.map((doc) =>
       approvedScopes.has(doc.authScopeId) ? doc : null,
     );
@@ -825,8 +824,8 @@ export class DocumentService {
       capability,
     });
 
-    if (scopeIds.includes(null)) return null;
-    return scopeIds as string[];
+    if (!scopeIds.every(isNotNil)) return null;
+    return scopeIds;
   }
 
   private async validateAuthScopes(input: {

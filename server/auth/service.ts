@@ -34,7 +34,7 @@ import type {
   ValidateTenantAccessResult,
   VerifyPasswordInput,
 } from "./types";
-import { uniq, flatten, without, flatMap } from "es-toolkit";
+import { uniq, flatten, flatMap, isNotNil } from "es-toolkit";
 
 export const builtInAdminPermissions: PermissionDefinitionInput[] = [
   { key: ADMIN_TENANT_OVERRIDE_KEY, source: "admin" },
@@ -212,7 +212,7 @@ export class AuthRbacService {
         {
           userId,
           capabilities: [input.permissionKey],
-          override: "admin:tenant:owner",
+          override: ADMIN_TENANT_OVERRIDE_KEY,
           targetScopeIds: [null], // Must own permission at ROOT to assign to role, to be relaxed
         },
       ],
@@ -433,10 +433,9 @@ export class AuthRbacService {
     );
 
     const scopeIds = tenantAccess?.scopeId ?? [];
-    const scopeIdsToValidate = without(
-      uniq(flatten([...targetScopeIds, scopeIds])),
-      null,
-    ) as string[];
+    const scopeIdsToValidate = uniq(
+      flatten([...targetScopeIds, scopeIds]),
+    ).filter(isNotNil);
 
     const [
       invalidUserId,
@@ -563,14 +562,13 @@ export class AuthRbacService {
       userId: actor?.userId,
     });
     const denied = accessEvals.find((check) => !check.allowed);
-    if (denied) {
-      const missingCap = denied.missingCaps[0];
+    const missingCap = denied?.missingCaps[0];
+
+    if (denied && missingCap) {
       const capability = missingCap?.capability ?? "auth:access";
-      const targetScopeId = missingCap
-        ? missingCap.isRootScope
-          ? null
-          : missingCap.targetScopeId
-        : null;
+      const targetScopeId = missingCap.isRootScope
+        ? null
+        : missingCap.targetScopeId;
       if (input.throw) {
         throw permissionDenied({ tenantId, actor }, capability, targetScopeId);
       }
@@ -589,7 +587,7 @@ export class AuthRbacService {
     return {
       allowed: true,
       failure: null,
-      capabilities: accessEvals ? accessEvals : undefined,
+      capabilities: accessEvals || undefined,
     };
   }
 

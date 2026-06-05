@@ -1,4 +1,5 @@
 import { sql, type AliasedRawBuilder, type Expression } from "kysely";
+import { match } from "ts-pattern";
 
 type SetReturningFunction =
   | "unnest"
@@ -26,9 +27,9 @@ export type Unnested<T, O> = {
     : Record<never, never>);
 
 export interface UnnestOptions<T, O> {
-  types?: Partial<Record<keyof T, string>>;
-  jsonb?: readonly (keyof T)[];
-  jsonbText?: readonly (keyof T)[];
+  types?: Partial<Record<Extract<keyof T, string>, string>>;
+  jsonb?: readonly Extract<keyof T, string>[];
+  jsonbText?: readonly Extract<keyof T, string>[];
   withOrdinality?: O;
 }
 
@@ -128,8 +129,8 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
   keys: string[],
   options: UnnestOptions<T, O> | undefined,
 ): FunctionGroup[] {
-  const jsonbKeys = new Set<string>((options?.jsonb ?? []) as string[]);
-  const jsonbTextKeys = new Set<string>((options?.jsonbText ?? []) as string[]);
+  const jsonbKeys = new Set<string>(options?.jsonb);
+  const jsonbTextKeys = new Set<string>(options?.jsonbText);
 
   const groups: FunctionGroup[] = [];
 
@@ -143,15 +144,21 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
       forceJsonbText,
     );
 
-    const arg =
-      functionName === "unnest"
-        ? buildUnnestArg(value, options?.types?.[key as keyof T])
-        : functionName === "jsonb_array_elements_text"
-          ? buildJsonbArrayElementsTextCall(value)
-          : buildJsonbArrayElementsCall(value);
+    const arg = match(functionName)
+      .with("unnest", () =>
+        buildUnnestArg(value, options?.types?.[key as keyof T]),
+      )
+      .with("jsonb_array_elements_text", () =>
+        buildJsonbArrayElementsTextCall(value),
+      )
+      .with("jsonb_array_elements", () => buildJsonbArrayElementsCall(value))
+      .exhaustive();
     const previousGroup = groups.at(-1);
 
-    if (previousGroup?.functionName === functionName && functionName === "unnest") {
+    if (
+      previousGroup?.functionName === functionName &&
+      functionName === "unnest"
+    ) {
       previousGroup.args.push(arg);
     } else {
       groups.push({ functionName, args: [arg] });

@@ -815,7 +815,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
               .as("cap"),
           )
             .innerJoinLateral(
-              ({ selectFrom, ref }) =>
+              () =>
                 selectFrom(
                   unnest(
                     "scopeInput",

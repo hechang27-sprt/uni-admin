@@ -31,6 +31,7 @@
     "pinia": "^3.0.4",
     "reflect-metadata": "^0.2.2",
     "tailwindcss": "^4.3.0",
+    "ts-pattern": "^5.9.0",
     "vue": "^3.5.34",
     "vue-router": "^5.0.6",
     "zod": "^4.4.3"

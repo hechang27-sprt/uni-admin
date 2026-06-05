@@ -26,6 +26,7 @@ import {
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
+import { ADMIN_TENANT_OVERRIDE_KEY } from "~~/server/auth/repository";
 
 const taskSchema = z.object({
   title: z.string(),
@@ -839,7 +840,7 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await auth.syncPermissions([
-      { key: "admin:tenant:owner", source: "admin" },
+      { key: ADMIN_TENANT_OVERRIDE_KEY, source: "admin" },
       { key: "admin:role-assignments:assign", source: "admin" },
       { key: "collection:tasks:read", source: "tasks" },
       { key: "collection:tasks:delete", source: "tasks" },
@@ -910,7 +911,7 @@ describe("auth/RBAC service integration", () => {
         {
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
-          override: "admin:tenant:owner",
+          override: ADMIN_TENANT_OVERRIDE_KEY,
           targetScopeIds: [child.scopeId],
         },
       ],
@@ -922,7 +923,7 @@ describe("auth/RBAC service integration", () => {
           userId: actor.userId,
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
-          override: "admin:tenant:owner",
+          override: ADMIN_TENANT_OVERRIDE_KEY,
           targetScopeIds: [child.scopeId],
         },
       ],
@@ -976,7 +977,7 @@ describe("auth/RBAC service integration", () => {
         {
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
-          override: "admin:tenant:owner",
+          override: ADMIN_TENANT_OVERRIDE_KEY,
           targetScopeIds: [child.scopeId],
         },
       ],
@@ -988,7 +989,7 @@ describe("auth/RBAC service integration", () => {
           userId: actor.userId,
           capabilities: ["admin:role-assignments:assign"],
           roleIds: [escalated.roleId],
-          override: "admin:tenant:owner",
+          override: ADMIN_TENANT_OVERRIDE_KEY,
           targetScopeIds: [child.scopeId],
         },
       ],

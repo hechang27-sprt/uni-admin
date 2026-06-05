@@ -3,7 +3,7 @@ import { z } from "zod";
 import type {
   JsonObject,
   JsonValue,
-  NormalizedListDocumentsInput,
+  ListDocumentsInput,
   StoredDocument,
 } from "../types";
 
@@ -52,11 +52,10 @@ type InsertManyDocumentsRecordBase = z.infer<
   typeof insertManyDocumentsRecordSchema
 >;
 
-export type InsertManyDocumentsRecord<
-  TData extends JsonObject = JsonObject,
-> = Omit<InsertManyDocumentsRecordBase, "items"> & {
-  items: Array<Omit<InsertManyDocumentsItem, "data"> & { data: TData }>;
-};
+export type InsertManyDocumentsRecord<TData extends JsonObject = JsonObject> =
+  Omit<InsertManyDocumentsRecordBase, "items"> & {
+    items: Array<Omit<InsertManyDocumentsItem, "data"> & { data: TData }>;
+  };
 
 export const updateDocumentRecordSchema = z.object({
   collection: z.string(),
@@ -70,7 +69,9 @@ export const updateDocumentRecordSchema = z.object({
   remoteId: z.string().nullable().optional(),
 });
 
-export type UpdateDocumentRecordBase = z.infer<typeof updateDocumentRecordSchema>;
+export type UpdateDocumentRecordBase = z.infer<
+  typeof updateDocumentRecordSchema
+>;
 
 export type UpdateDocumentRecord<TData extends JsonObject = JsonObject> = Omit<
   UpdateDocumentRecordBase,
@@ -88,11 +89,10 @@ type UpdateManyDocumentsRecordBase = z.infer<
   typeof updateManyDocumentsRecordSchema
 >;
 
-export type UpdateManyDocumentsRecord<
-  TData extends JsonObject = JsonObject,
-> = Omit<UpdateManyDocumentsRecordBase, "records"> & {
-  records: UpdateDocumentRecord<TData>[];
-};
+export type UpdateManyDocumentsRecord<TData extends JsonObject = JsonObject> =
+  Omit<UpdateManyDocumentsRecordBase, "records"> & {
+    records: UpdateDocumentRecord<TData>[];
+  };
 
 export const upsertRemoteProjectionSchema = z.object({
   remoteId: z.string(),

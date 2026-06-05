@@ -8,7 +8,6 @@ export default withNuxt(
     plugins: {
       unicorn,
     },
-    ignores: [".codex", ".claude", ".omp"],
   },
   unicorn.configs.recommended,
   ...oxlint.configs["flat/recommended"],
@@ -30,5 +29,8 @@ export default withNuxt(
         },
       ],
     },
+  },
+  {
+    ignores: [".codex/*", ".claude/*", ".omp/*"],
   },
 );

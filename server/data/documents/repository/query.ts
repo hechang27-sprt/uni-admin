@@ -117,12 +117,8 @@ export function buildAuthScopeCondition(
 
 export function buildAccessibleScopeCondition(
   eb: DocumentsExpressionBuilder,
-  accessibleScopeIds: string[] | null,
-): DocumentsBooleanExpression | null {
-  if (accessibleScopeIds === null) {
-    return null;
-  }
-
+  accessibleScopeIds: string[],
+): DocumentsBooleanExpression {
   if (accessibleScopeIds.length === 0) {
     return eb.lit(false);
   }
@@ -133,11 +129,7 @@ export function buildAccessibleScopeCondition(
       eb
         .selectFrom("authScopeClosure")
         .select("authScopeClosure.descendantId")
-        .whereRef(
-          "authScopeClosure.descendantId",
-          "=",
-          "documents.authScopeId",
-        )
+        .whereRef("authScopeClosure.descendantId", "=", "documents.authScopeId")
         .where("authScopeClosure.ancestorId", "in", accessibleScopeIds),
     ),
   ]);

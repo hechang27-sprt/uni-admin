@@ -162,7 +162,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
       where(
         callback: (
           eb: Parameters<typeof buildAccessibleScopeCondition>[0],
-        ) => Exclude<ReturnType<typeof buildAccessibleScopeCondition>, null>,
+        ) => ReturnType<typeof buildAccessibleScopeCondition>,
       ): TQuery;
     },
   >(query: TQuery, accessibleScopeIds: string[] | null): TQuery {
@@ -170,12 +170,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
       return query;
     }
 
-    return query.where(
-      (eb) =>
-        buildAccessibleScopeCondition(eb, accessibleScopeIds) as Exclude<
-          ReturnType<typeof buildAccessibleScopeCondition>,
-          null
-        >,
+    return query.where((eb) =>
+      buildAccessibleScopeCondition(eb, accessibleScopeIds),
     );
   }
   async updateMany<TData extends JsonObject>(
