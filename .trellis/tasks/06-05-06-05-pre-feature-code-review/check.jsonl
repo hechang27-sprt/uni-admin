@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Cross-check redundancy and ownership-related findings."}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Verify findings against current auth/RBAC contracts."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Verify repository/schema findings against documented invariants."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/design.md", "reason": "Check whether review findings invalidate or constrain the archived design."}

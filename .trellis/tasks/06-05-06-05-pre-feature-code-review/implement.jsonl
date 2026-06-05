@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking guides for cross-layer and reuse review."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review focus includes redundant logic and ownership drift."}
+{"file": ".trellis/spec/server/index.md", "reason": "Server package review scope and source references."}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Current auth/RBAC service and repository contracts."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Database and repository invariants relevant to auth/session groundwork."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/prd.md", "reason": "Prior feature assumptions to cross-check against current code."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/design.md", "reason": "Prior auth-session architecture to compare with the current codebase."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/implement.md", "reason": "Prior execution assumptions and checkpoints for reactivation readiness."}
