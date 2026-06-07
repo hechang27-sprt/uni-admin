@@ -100,6 +100,32 @@ describe("auth/RBAC service integration", () => {
       auth.resolveActor({ tenantId: tenantB, userId: user.userId }),
     ).rejects.toMatchObject({ code: "AUTH_TENANT_MEMBERSHIP_REQUIRED" });
   });
+  it("rejects actor resolution after the user becomes inactive", async () => {
+    const auth = createTestAuthService();
+    const db = getTestDatabase();
+    const user = await auth.createUser({ displayName: "Ada" });
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: user.userId,
+    });
+
+    await expect(
+      auth.resolveActor({ tenantId: tenantA, userId: user.userId }),
+    ).resolves.toEqual({
+      tenantId: tenantA,
+      actor: { userId: user.userId },
+    });
+
+    await db
+      .updateTable("users")
+      .set({ status: "inactive" })
+      .where("userId", "=", user.userId)
+      .execute();
+
+    await expect(
+      auth.resolveActor({ tenantId: tenantA, userId: user.userId }),
+    ).rejects.toMatchObject({ code: "AUTH_TENANT_MEMBERSHIP_REQUIRED" });
+  });
   it("resolves tenant-root collection auth declarations explicitly", () => {
     const registry = createCollectionRegistry([
       {

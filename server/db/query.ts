@@ -1,15 +1,37 @@
 import { expressionBuilder } from "kysely";
 import type { Database } from "./schema";
 
-export function selectGrantedPermissions() {
+export function selectTenantUsers(input?: {
+  activeUser?: boolean;
+  activeMember?: boolean;
+}) {
+  const { activeUser = true, activeMember: activeTenant = true } = input ?? {};
+
   const eb = expressionBuilder<Database>();
   return eb
     .selectFrom("tenantMemberships as tu")
+
+    .innerJoin("users", (join) => {
+      let jb = join.onRef("users.userId", "=", "tu.userId");
+
+      if (activeTenant) {
+        jb = jb.on("tu.status", "=", "active");
+      }
+
+      if (activeUser) {
+        jb = jb.on("users.status", "=", "active");
+      }
+
+      return jb;
+    });
+}
+
+export function selectGrantedPermissions() {
+  return selectTenantUsers()
     .innerJoin("userRoleAssignments as assigned", (join) =>
       join
         .onRef("assigned.userId", "=", "tu.userId")
-        .onRef("assigned.tenantId", "=", "tu.tenantId")
-        .on("tu.status", "=", "active"),
+        .onRef("assigned.tenantId", "=", "tu.tenantId"),
     )
     .innerJoin("rolePermissions as rp", (join) =>
       join

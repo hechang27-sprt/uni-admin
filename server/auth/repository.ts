@@ -24,7 +24,7 @@ import type {
   UsernamePasswordCredential,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import { selectGrantedPermissions } from "../db/query";
+import { selectGrantedPermissions, selectTenantUsers } from "../db/query";
 import { unnest } from "../utils/unnest";
 
 export const tenantRootScopeKey = "__tenant_root";
@@ -51,10 +51,8 @@ export interface AuthRbacRepository {
   findTenantMembership(input: {
     tenantId: string;
     userId: string;
-  }): Promise<TenantMembership | null>;
-  findActiveTenantMembership(input: {
-    tenantId: string;
-    userId: string;
+    activeUser?: boolean;
+    activeMember?: boolean;
   }): Promise<TenantMembership | null>;
   findInvalidActiveMembershipUserId(input: {
     tenantId: string;
@@ -214,24 +212,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     userId: string;
   }): Promise<TenantMembership | null> {
     const row = await this.database
-      .selectFrom("tenantMemberships")
+      .selectFrom(selectTenantUsers().selectAll("tu").as("member"))
       .selectAll()
       .where("tenantId", "=", input.tenantId)
       .where("userId", "=", input.userId)
-      .executeTakeFirst();
-    return row ? mapMembership(row) : null;
-  }
-
-  async findActiveTenantMembership(input: {
-    tenantId: string;
-    userId: string;
-  }): Promise<TenantMembership | null> {
-    const row = await this.database
-      .selectFrom("tenantMemberships")
-      .selectAll()
-      .where("tenantId", "=", input.tenantId)
-      .where("userId", "=", input.userId)
-      .where("status", "=", "active")
       .executeTakeFirst();
     return row ? mapMembership(row) : null;
   }
@@ -253,14 +237,15 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           sql`input(user_id, input_order)`,
         ),
       )
-      .leftJoin("tenantMemberships", (join) =>
-        join
-          .on("tenantMemberships.tenantId", "=", input.tenantId)
-          .onRef("tenantMemberships.userId", "=", "input.userId")
-          .on("tenantMemberships.status", "=", "active"),
+      .leftJoin(
+        selectTenantUsers().select(["tu.tenantId", "tu.userId"]).as("tu"),
+        (join) =>
+          join
+            .on("tu.tenantId", "=", input.tenantId)
+            .onRef("tu.userId", "=", "input.userId"),
       )
       .select("input.userId")
-      .where("tenantMemberships.userId", "is", null)
+      .where("tu.userId", "is", null)
       .orderBy("input.inputOrder")
       .executeTakeFirst();
 

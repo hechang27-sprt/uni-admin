@@ -35,6 +35,7 @@ import type {
   VerifyPasswordInput,
 } from "./types";
 import { uniq, flatten, flatMap, isNotNil } from "es-toolkit";
+import type { Param0 } from "tsafe";
 
 export const builtInAdminPermissions: PermissionDefinitionInput[] = [
   { key: ADMIN_TENANT_OVERRIDE_KEY, source: "admin" },
@@ -480,9 +481,7 @@ export class AuthRbacService {
   }
 
   private async assertTenantMembership(
-    input: Parameters<
-      AuthRbacRepository["findInvalidActiveMembershipUserId"]
-    >[0] &
+    input: Param0<AuthRbacRepository["findInvalidActiveMembershipUserId"]> &
       ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid =
@@ -510,7 +509,7 @@ export class AuthRbacService {
   }
 
   private async assertTenantRoles(
-    input: Parameters<AuthRbacRepository["findInvalidRoleId"]>[0] & ThrowError,
+    input: Param0<AuthRbacRepository["findInvalidRoleId"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid = await this.repository.findInvalidRoleId(input);
 
@@ -532,8 +531,7 @@ export class AuthRbacService {
   }
 
   private async assertTenantRoleAssignments(
-    input: Parameters<AuthRbacRepository["findInvalidAssignmentId"]>[0] &
-      ThrowError,
+    input: Param0<AuthRbacRepository["findInvalidAssignmentId"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid = await this.repository.findInvalidAssignmentId(input);
 
@@ -556,7 +554,7 @@ export class AuthRbacService {
   }
 
   private async assertTenantScopes(
-    input: Parameters<AuthRbacRepository["findInvalidScopeId"]>[0] & ThrowError,
+    input: Param0<AuthRbacRepository["findInvalidScopeId"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid = await this.repository.findInvalidScopeId(input);
 
@@ -578,8 +576,7 @@ export class AuthRbacService {
   }
 
   private async assertTenantDocuments(
-    input: Parameters<AuthRbacRepository["findInvalidDocumentId"]>[0] &
-      ThrowError,
+    input: Param0<AuthRbacRepository["findInvalidDocumentId"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid = await this.repository.findInvalidDocumentId(input);
 
@@ -602,8 +599,7 @@ export class AuthRbacService {
   }
 
   private async assertValidPermissionKeys(
-    input: Parameters<AuthRbacRepository["findInvalidPermissionKey"]>[0] &
-      ThrowError,
+    input: Param0<AuthRbacRepository["findInvalidPermissionKey"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const invalid = await this.repository.findInvalidPermissionKey(input);
 
@@ -628,7 +624,7 @@ export class AuthRbacService {
   }
 
   private async assertCapabilities(
-    input: Parameters<AuthRbacRepository["checkCapabilities"]>[0] & ThrowError,
+    input: Param0<AuthRbacRepository["checkCapabilities"]> & ThrowError,
   ): Promise<AccessCheckEvaluation> {
     const { tenantId, userId, throwError } = input;
     const accessEvals = await this.repository.checkCapabilities(input);

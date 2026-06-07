@@ -126,7 +126,7 @@ type FunctionGroup = {
 
 function buildFunctionGroups<T extends Record<string, unknown>, O>(
   input: T,
-  keys: string[],
+  keys: Array<keyof T & string>,
   options: UnnestOptions<T, O> | undefined,
 ): FunctionGroup[] {
   const jsonbKeys = new Set<string>(options?.jsonb);
@@ -145,9 +145,7 @@ function buildFunctionGroups<T extends Record<string, unknown>, O>(
     );
 
     const arg = match(functionName)
-      .with("unnest", () =>
-        buildUnnestArg(value, options?.types?.[key as keyof T]),
-      )
+      .with("unnest", () => buildUnnestArg(value, options?.types?.[key]))
       .with("jsonb_array_elements_text", () =>
         buildJsonbArrayElementsTextCall(value),
       )
