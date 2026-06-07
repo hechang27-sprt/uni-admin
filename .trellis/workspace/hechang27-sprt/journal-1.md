@@ -633,3 +633,35 @@ Reviewed the codebase before auth-session endpoint work, confirmed current archi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: Auth module refactor to auth um
+
+**Date**: 2026-06-07
+**Task**: Auth module refactor to auth um
+
+### Summary
+
+Moved the auth/RBAC module from server/auth to server/auth/um, updated imports and auth specs, and re-ran targeted unit tests plus typecheck.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e99a7256` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
