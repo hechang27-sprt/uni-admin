@@ -12,7 +12,9 @@
 
 ### 2. Signatures
 
-- Public auth surface: `server/auth/index.ts`.
+- Public user-management auth surface: `server/auth/um/index.ts`. Reserve sibling
+  modules under `server/auth/` for distinct auth areas such as future
+  `server/auth/session/` work.
 - Repository implementation: `KyselyAuthRbacRepository`.
 - Service class: `AuthRbacService`.
 - DI integration uses `createServerContainer` and `SERVER_DI_TYPES` from

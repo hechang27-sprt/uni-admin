@@ -24,8 +24,8 @@ import type {
   UsernamePasswordCredential,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import { selectGrantedPermissions, selectTenantUsers } from "../db/query";
-import { unnest } from "../utils/unnest";
+import { selectGrantedPermissions, selectTenantUsers } from "../../db/query";
+import { unnest } from "../../utils/unnest";
 
 export const tenantRootScopeKey = "__tenant_root";
 export const ADMIN_TENANT_OVERRIDE_KEY = "admin:tenant:owner";

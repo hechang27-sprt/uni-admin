@@ -15,7 +15,7 @@ import {
   builtInAdminPermissions,
   type AuthRbacService,
   type AuthRbacRepository,
-} from "#server/auth";
+} from "#server/auth/um";
 import { migrateToLatest } from "#server/db/migrate";
 import {
   createCollectionRegistry,
@@ -26,7 +26,7 @@ import {
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
-import { ADMIN_TENANT_OVERRIDE_KEY } from "#server/auth/repository";
+import { ADMIN_TENANT_OVERRIDE_KEY } from "#server/auth/um/repository";
 
 const taskSchema = z.object({
   title: z.string(),

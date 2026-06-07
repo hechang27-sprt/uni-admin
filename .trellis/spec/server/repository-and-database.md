@@ -86,7 +86,7 @@ plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })];
 `server/data/documents/repository/kysely.ts` implements
 `KyselyDocumentRepository`.
 
-`server/auth/repository.ts` implements `KyselyAuthRbacRepository`.
+`server/auth/um/repository.ts` implements `KyselyAuthRbacRepository`.
 Auth/RBAC repository methods expose database facts and set-shaped SQL helpers:
 active membership lookup, tenant-bound user/role/assignment/scope/document id
 validation, permission-key validation, capability checks, and delegated role

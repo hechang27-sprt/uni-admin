@@ -21,7 +21,7 @@ pgLite-backed tests.
 - `server/data/documents/service/service.ts` implements `DocumentService`.
 - `server/data/documents/repository/kysely.ts` implements
   `KyselyDocumentRepository`.
-- `server/auth/index.ts` is the public auth/RBAC barrel.
+- `server/auth/um/index.ts` is the public user-management auth/RBAC barrel.
 - `server/db/schema.ts` defines the `tenants` and `documents` tables.
 - `test/unit/server/service.test.ts` is the executable behavior reference.
 

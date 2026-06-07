@@ -37,7 +37,7 @@ import type {
   SetDocumentAuthScopeInput,
 } from "./contracts";
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
-import { isAuthRbacError, type AuthRbacService } from "#server/auth";
+import { isAuthRbacError, type AuthRbacService } from "#server/auth/um";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";

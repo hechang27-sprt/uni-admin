@@ -6,7 +6,7 @@ import {
   AuthRbacService,
   KyselyAuthRbacRepository,
   type AuthRbacRepository,
-} from "#server/auth";
+} from "#server/auth/um";
 import {
   DocumentService,
   KyselyDocumentRepository,
