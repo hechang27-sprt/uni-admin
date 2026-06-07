@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
-- **Last Active**: 2026-06-05
+- **Total Sessions**: 19
+- **Last Active**: 2026-06-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~603 | Active |
+| `journal-1.md` | ~635 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-06-07 | Pre-feature auth review and membership regression | `85d0a757` | `-` |
 | 18 | 2026-06-05 | Finish history reorganization stack | `cfb51dd9` | `-` |
 | 17 | 2026-06-03 | Finish capability evaluation batching | `1802c44` | `-` |
 | 16 | 2026-05-29 | Omnibus auth access checks | `5a100b1` | `-` |

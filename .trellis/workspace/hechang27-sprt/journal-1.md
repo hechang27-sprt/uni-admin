@@ -601,3 +601,35 @@ Split the duplicated wwz stack into clearer docs/task/code/test commits, verifie
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Pre-feature auth review and membership regression
+
+**Date**: 2026-06-07
+**Task**: Pre-feature auth review and membership regression
+
+### Summary
+
+Reviewed the codebase before auth-session endpoint work, confirmed current architecture gaps, verified active-user membership validation, and added a regression test covering actor resolution after user deactivation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `85d0a757` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
