@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
-- **Last Active**: 2026-06-07
+- **Total Sessions**: 21
+- **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~667 | Active |
+| `journal-1.md` | ~700 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-06-08 | Baseline migration and collection permission invariants | `ca3c8394`, `2f923b1f` | `-` |
 | 20 | 2026-06-07 | Auth module refactor to auth um | `e99a7256` | `-` |
 | 19 | 2026-06-07 | Pre-feature auth review and membership regression | `85d0a757` | `-` |
 | 18 | 2026-06-05 | Finish history reorganization stack | `cfb51dd9` | `-` |

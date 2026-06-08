@@ -665,3 +665,36 @@ Moved the auth/RBAC module from server/auth to server/auth/um, updated imports a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: Baseline migration and collection permission invariants
+
+**Date**: 2026-06-08
+**Task**: Baseline migration and collection permission invariants
+
+### Summary
+
+Rewrote the baseline database migration with Kysely schema builders, reviewed/remodeled redundant indexes, installed missing dependency state, added red regression tests for duplicate collection names and unsafe permission-key namespace collisions, and opened GitHub issues for tenant-owned collections and permission identity follow-up.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ca3c8394` | (see git log) |
+| `2f923b1f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
