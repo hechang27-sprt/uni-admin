@@ -730,3 +730,35 @@ Validated collection registrations with Zod-derived runtime contracts, rejected 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: App catalog schema slice 1
+
+**Date**: 2026-06-08
+**Task**: App catalog schema slice 1
+
+### Summary
+
+Implemented the first app catalog identity migration slice: added apps, tenant_apps, and collections table types and baseline migration DDL; covered pgLite migration, uniqueness boundaries, named indexes, lint, typecheck, and GitNexus change detection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b222fc3d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
