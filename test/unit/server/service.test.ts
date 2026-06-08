@@ -578,7 +578,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         RemoteAdapterOutputs["syncOne"]
       >({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         input: { remoteId: "remote-1" },
       });
       const synced = syncedResult.document;
@@ -599,7 +599,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         RemoteAdapterOutputs["create"]
       >({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         input: {
           remote_id: "remote-1",
           name: "Remote submitted",
@@ -626,7 +626,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         RemoteAdapterOutputs["syncList"]
       >({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         input: {},
       });
 
@@ -637,13 +637,13 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       await expect(
         service.getById({
           tenantId: tenantA,
-          collection: "remoteTasks",
+          collection: "remote-tasks",
           id: syncedAgain.id,
         }),
       ).resolves.toMatchObject({ id: syncedAgain.id });
       const listed = await service.list<TaskDocument>({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
       });
 
       expect(listed.items).toHaveLength(1);
@@ -658,7 +658,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       await expect(
         service.remoteCreate<TaskDocument, RemoteTask>({
           tenantId: tenantA,
-          collection: "remoteTasks",
+          collection: "remote-tasks",
           input: {
             remote_id: "remote-2",
             name: "Failed",
@@ -672,7 +672,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
 
       const listed = await service.list<TaskDocument>({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
       });
       expect(listed.items).toHaveLength(0);
     });
@@ -685,7 +685,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         { remoteId: string }
       >({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         input: { remoteId: "remote-1" },
       });
       const synced = syncedResult.document;
@@ -697,7 +697,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         RemoteAdapterOutputs["update"]
       >({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         id: synced!.id,
         expectedVersion: synced!.version,
         input: {
@@ -721,7 +721,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       await expect(
         service.remoteUpdate<TaskDocument, Partial<RemoteTask>>({
           tenantId: tenantA,
-          collection: "remoteTasks",
+          collection: "remote-tasks",
           id: updated.id,
           expectedVersion: updated.version,
           input: { phase: "submitted", name: "Should not project" },
@@ -731,7 +731,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       await expect(
         service.getById<TaskDocument>({
           tenantId: tenantA,
-          collection: "remoteTasks",
+          collection: "remote-tasks",
           id: updated.id,
         }),
       ).resolves.toMatchObject({

@@ -171,22 +171,45 @@ describe("auth/RBAC service integration", () => {
       ]),
     ).toThrow(/collection/i);
   });
-  it("rejects derived permission key collisions from unsafe collection names", () => {
+  it("rejects unsafe collection and action names before deriving permissions", () => {
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 1,
+          auth: {
+            actions: {
+              "archive:read": {},
+            },
+          },
+        },
+      ]),
+    ).toThrow(/action/i);
+
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks:archive",
+          schema: taskSchema,
+          schemaVersion: 1,
+        },
+      ]),
+    ).toThrow(/collection/i);
+  });
+
+  it("rejects duplicate derived permission keys", () => {
     const registry = createCollectionRegistry([
       {
         name: "tasks",
         schema: taskSchema,
         schemaVersion: 1,
         auth: {
+          read: { capability: "custom:duplicate" },
           actions: {
-            "archive:read": true,
+            archive: { capability: "custom:duplicate" },
           },
         },
-      },
-      {
-        name: "tasks:archive",
-        schema: taskSchema,
-        schemaVersion: 1,
       },
     ]);
 
@@ -613,7 +636,7 @@ describe("auth/RBAC service integration", () => {
     };
     const registry = createCollectionRegistry([
       {
-        name: "remoteTasks",
+        name: "remote-tasks",
         schema: taskSchema,
         schemaVersion: 1,
         remoteAdapter: adapter,
@@ -631,7 +654,7 @@ describe("auth/RBAC service integration", () => {
     await expect(
       remoteService.syncRemoteOne<TaskDocument, Record<string, never>>({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
         input: {},
       }),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
@@ -639,7 +662,7 @@ describe("auth/RBAC service integration", () => {
     await expect(
       remoteService.list<TaskDocument>({
         tenantId: tenantA,
-        collection: "remoteTasks",
+        collection: "remote-tasks",
       }),
     ).resolves.toMatchObject({ items: [] });
   });

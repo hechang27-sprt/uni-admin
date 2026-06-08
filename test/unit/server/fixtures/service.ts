@@ -191,7 +191,7 @@ export function createRemoteService(database: DatabaseClient): {
 
   const registry = createCollectionRegistry([
     {
-      name: "remoteTasks",
+      name: "remote-tasks",
       schema: taskSchema,
       schemaVersion: 1,
       remoteAdapter: adapter,

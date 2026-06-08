@@ -11,7 +11,7 @@ export async function migrateToLatest(database: DatabaseClient): Promise<void> {
     provider: new FileMigrationProvider({
       fs,
       path,
-      migrationFolder: path.join(__dirname, "migrations"),
+      migrationFolder: path.join(import.meta.dirname, "migrations"),
     }),
   });
   const { error } = await migrator.migrateToLatest();

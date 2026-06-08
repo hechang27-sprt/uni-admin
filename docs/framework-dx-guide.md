@@ -258,7 +258,7 @@ Attach the adapter to the collection registration:
 ```ts
 const registry = createCollectionRegistry([
   {
-    name: "remoteTasks",
+    name: "remote-tasks",
     schema: taskSchema,
     schemaVersion: 1,
     remoteAdapter: adapter,
@@ -271,7 +271,7 @@ Refresh a projection explicitly:
 ```ts
 const synced = await service.syncRemoteOne<TaskDocument, { remoteId: string }>({
   tenantId,
-  collection: "remoteTasks",
+  collection: "remote-tasks",
   input: { remoteId: "remote-1" },
 });
 const syncedDocument = synced.document;
@@ -282,7 +282,7 @@ Read from the local projection:
 ```ts
 const rows = await service.list<TaskDocument>({
   tenantId,
-  collection: "remoteTasks",
+  collection: "remote-tasks",
 });
 ```
 
@@ -296,7 +296,7 @@ if (!syncedDocument) throw new Error("Document was not synced");
 
 const updated = await service.remoteUpdate<TaskDocument, Partial<RemoteTask>>({
   tenantId,
-  collection: "remoteTasks",
+  collection: "remote-tasks",
   id: syncedDocument.id,
   expectedVersion: syncedDocument.version,
   input: {

@@ -1,64 +1,116 @@
-import type { z } from "zod";
+import { z } from "zod";
 import { injectable } from "inversify";
 
 import { DocumentServiceError } from "./errors";
 import type { RemoteCollectionAdapter } from "./remote";
 import type { JsonObject } from "./types";
 
-export type CollectionOperation =
-  | "read"
-  | "create"
-  | "update"
-  | "patch"
-  | "delete"
-  | "restore"
-  | "hard-delete";
+const safePermissionSegmentSchema = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9-]*$/,
+    "Must start with a lowercase letter and contain only lowercase letters, digits, or hyphens",
+  );
 
-export type CollectionResourceScopeMode = "document" | "tenant-root";
+const collectionOperationValues = [
+  "read",
+  "create",
+  "update",
+  "patch",
+  "delete",
+  "restore",
+  "hard-delete",
+] as const;
 
-export interface CollectionOperationAuthDeclaration {
-  capability?: string;
-  resourceScope?: CollectionResourceScopeMode;
-}
+const permissionSourceValues = ["collection", "action", "admin"] as const;
 
-export type CollectionOperationAuthInput =
-  | string
-  | false
-  | CollectionOperationAuthDeclaration;
+const collectionOperationSchema = z.enum(collectionOperationValues);
+
+const collectionResourceScopeModeSchema = z.enum(["document", "tenant-root"]);
+
+const collectionOperationAuthDeclarationSchema = z.object({
+  capability: z.string().optional(),
+  resourceScope: collectionResourceScopeModeSchema.optional(),
+});
+
+const collectionOperationAuthInputSchema = z.union([
+  z.string(),
+  z.literal(false),
+  collectionOperationAuthDeclarationSchema,
+]);
+
+const collectionAuthDeclarationSchema = z.object({
+  resourceScope: collectionResourceScopeModeSchema.optional(),
+  read: collectionOperationAuthInputSchema.optional(),
+  create: collectionOperationAuthInputSchema.optional(),
+  update: collectionOperationAuthInputSchema.optional(),
+  patch: collectionOperationAuthInputSchema.optional(),
+  delete: collectionOperationAuthInputSchema.optional(),
+  restore: collectionOperationAuthInputSchema.optional(),
+  hardDelete: collectionOperationAuthInputSchema.optional(),
+  actions: z
+    .record(
+      safePermissionSegmentSchema,
+      z.union([collectionOperationAuthDeclarationSchema, z.literal(false)]),
+    )
+    .optional(),
+});
+
+const _resolvedCollectionOperationAuthSchema = z.object({
+  capability: z.string(),
+  resourceScope: collectionResourceScopeModeSchema,
+});
+
+const permissionDefinitionSchema = z.object({
+  key: z.string(),
+  source: z.enum(permissionSourceValues),
+  description: z.string().optional(),
+});
+
+const collectionRegistrationSchema = z.object({
+  name: safePermissionSegmentSchema,
+  schema: z.custom<z.ZodType<JsonObject>>(
+    (value) => value instanceof z.ZodType,
+  ),
+  schemaVersion: z.number().int().positive(),
+  auth: collectionAuthDeclarationSchema.optional(),
+  remoteAdapter: z.custom<RemoteCollectionAdapter>().optional(),
+});
+
+export type CollectionOperation = z.infer<typeof collectionOperationSchema>;
+
+export type CollectionResourceScopeMode = z.infer<
+  typeof collectionResourceScopeModeSchema
+>;
+
+export type CollectionOperationAuthDeclaration = z.infer<
+  typeof collectionOperationAuthDeclarationSchema
+>;
+
+export type CollectionOperationAuthInput = z.infer<
+  typeof collectionOperationAuthInputSchema
+>;
 
 export type CollectionActionAuthDeclaration =
   CollectionOperationAuthDeclaration;
 
-export interface CollectionAuthDeclaration {
-  resourceScope?: CollectionResourceScopeMode;
-  read?: CollectionOperationAuthInput;
-  create?: CollectionOperationAuthInput;
-  update?: CollectionOperationAuthInput;
-  patch?: CollectionOperationAuthInput;
-  delete?: CollectionOperationAuthInput;
-  restore?: CollectionOperationAuthInput;
-  hardDelete?: CollectionOperationAuthInput;
-  actions?: Record<string, CollectionActionAuthDeclaration | false>;
-}
+export type CollectionAuthDeclaration = z.infer<
+  typeof collectionAuthDeclarationSchema
+>;
 
-export interface ResolvedCollectionOperationAuth {
-  capability: string;
-  resourceScope: CollectionResourceScopeMode;
-}
+export type ResolvedCollectionOperationAuth = z.infer<
+  typeof _resolvedCollectionOperationAuthSchema
+>;
 
-export interface PermissionDefinition {
-  key: string;
-  source: "collection" | "action" | "admin";
-  description?: string;
-}
+export type PermissionDefinition = z.infer<typeof permissionDefinitionSchema>;
 
-export interface CollectionRegistration<TData extends JsonObject = JsonObject> {
-  name: string;
-  schema: z.ZodType<TData>;
-  schemaVersion: number;
-  auth?: CollectionAuthDeclaration;
-  remoteAdapter?: RemoteCollectionAdapter<TData>;
-}
+type CollectionRegistrationBase = z.infer<typeof collectionRegistrationSchema>;
+
+export type CollectionRegistration<TData extends JsonObject = JsonObject> =
+  Omit<CollectionRegistrationBase, "schema" | "remoteAdapter"> & {
+    schema: z.ZodType<TData>;
+    remoteAdapter?: RemoteCollectionAdapter<TData>;
+  };
 
 @injectable()
 export class CollectionRegistry {
@@ -67,20 +119,12 @@ export class CollectionRegistry {
   register<TData extends JsonObject>(
     registration: CollectionRegistration<TData>,
   ): this {
-    if (!registration.name.trim()) {
-      throw new DocumentServiceError(
-        "VALIDATION_FAILED",
-        "Collection name is required",
-      );
-    }
+    validateRegistration(registration);
 
-    if (
-      !Number.isInteger(registration.schemaVersion) ||
-      registration.schemaVersion < 1
-    ) {
+    if (this.collections.has(registration.name)) {
       throw new DocumentServiceError(
         "VALIDATION_FAILED",
-        "Collection schema version must be a positive integer",
+        `Duplicate collection name: ${registration.name}`,
         {
           collection: registration.name,
         },
@@ -199,7 +243,7 @@ export function deriveCollectionPermissionDefinitions(
     for (const operation of collectionOperations) {
       const auth = resolveCollectionOperationAuth(collection, operation);
       if (auth) {
-        permissions.set(auth.capability, {
+        addPermissionDefinition(permissions, {
           key: auth.capability,
           source: "collection",
         });
@@ -209,7 +253,7 @@ export function deriveCollectionPermissionDefinitions(
     for (const action of Object.keys(collection.auth?.actions ?? {})) {
       const auth = resolveCollectionActionAuth(collection, action);
       if (auth) {
-        permissions.set(auth.capability, {
+        addPermissionDefinition(permissions, {
           key: auth.capability,
           source: "action",
         });
@@ -220,15 +264,48 @@ export function deriveCollectionPermissionDefinitions(
   return permissions.values().toArray();
 }
 
-const collectionOperations: CollectionOperation[] = [
-  "read",
-  "create",
-  "update",
-  "patch",
-  "delete",
-  "restore",
-  "hard-delete",
-];
+function addPermissionDefinition(
+  permissions: Map<string, PermissionDefinition>,
+  definition: PermissionDefinition,
+): void {
+  permissionDefinitionSchema.parse(definition);
+
+  const existing = permissions.get(definition.key);
+
+  if (existing) {
+    throw new DocumentServiceError(
+      "VALIDATION_FAILED",
+      `Duplicate derived permission key: ${definition.key}`,
+      {
+        capability: definition.key,
+        operation: `${existing.source}->${definition.source}`,
+      },
+    );
+  }
+
+  permissions.set(definition.key, definition);
+}
+
+function validateRegistration(registration: CollectionRegistration): void {
+  const result = collectionRegistrationSchema.safeParse(registration);
+
+  if (result.success) {
+    return;
+  }
+
+  const invalidPath = result.error.issues[0]?.path.join(".");
+  const message = invalidPath
+    ? `Collection registration is invalid at ${invalidPath}`
+    : "Collection registration is invalid";
+
+  throw new DocumentServiceError("VALIDATION_FAILED", message, {
+    collection: registration.name,
+    issues: result.error.issues,
+  });
+}
+
+const collectionOperations: CollectionOperation[] =
+  collectionOperationSchema.options;
 
 function getOperationDeclaration(
   auth: CollectionAuthDeclaration | undefined,

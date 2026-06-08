@@ -11,6 +11,7 @@ export default defineConfig({
   rules: {
     "unicorn/no-useless-iterator-to-array": "error",
     "unicorn/no-useless-spread": "error",
+    "eslint/no-underscore-dangle": "allow",
   },
   ignorePatterns: [".codex", ".claude", ".omp"],
 });
