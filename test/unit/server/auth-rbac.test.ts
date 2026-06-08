@@ -19,6 +19,7 @@ import {
 import { migrateToLatest } from "#server/db/migrate";
 import {
   createCollectionRegistry,
+  deriveCollectionPermissionDefinitions,
   resolveCollectionActionAuth,
   resolveCollectionOperationAuth,
   type DocumentService,
@@ -152,6 +153,46 @@ describe("auth/RBAC service integration", () => {
       capability: "action:tasks:archive",
       resourceScope: "tenant-root",
     });
+  });
+
+  it("rejects duplicate collection names", () => {
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 1,
+        },
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 2,
+        },
+      ]),
+    ).toThrow(/collection/i);
+  });
+  it("rejects derived permission key collisions from unsafe collection names", () => {
+    const registry = createCollectionRegistry([
+      {
+        name: "tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+        auth: {
+          actions: {
+            "archive:read": true,
+          },
+        },
+      },
+      {
+        name: "tasks:archive",
+        schema: taskSchema,
+        schemaVersion: 1,
+      },
+    ]);
+
+    expect(() => deriveCollectionPermissionDefinitions(registry)).toThrow(
+      /permission/i,
+    );
   });
 
   it("filters and mutates documents through resource-scoped role assignments", async () => {
