@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~700 | Active |
+| `journal-1.md` | ~732 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-06-08 | Fix duplicate unsafe collection permissions | `fe429c4b` | `-` |
 | 21 | 2026-06-08 | Baseline migration and collection permission invariants | `ca3c8394`, `2f923b1f` | `-` |
 | 20 | 2026-06-07 | Auth module refactor to auth um | `e99a7256` | `-` |
 | 19 | 2026-06-07 | Pre-feature auth review and membership regression | `85d0a757` | `-` |

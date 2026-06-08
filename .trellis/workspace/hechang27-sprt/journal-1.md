@@ -698,3 +698,35 @@ Rewrote the baseline database migration with Kysely schema builders, reviewed/re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: Fix duplicate unsafe collection permissions
+
+**Date**: 2026-06-08
+**Task**: Fix duplicate unsafe collection permissions
+
+### Summary
+
+Validated collection registrations with Zod-derived runtime contracts, rejected duplicate/unsafe collection permission registrations, updated fixtures/docs to safe slugs, and covered duplicate permission derivation failures.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fe429c4b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
