@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Database and Kysely repository migration rules"}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Auth/RBAC permission identity and evaluation rules"}
+{"file": ".trellis/spec/server/data-layer-boundaries.md", "reason": "Document service and repository boundary rules"}
