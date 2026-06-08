@@ -3,157 +3,350 @@ import { sql, type Kysely } from "kysely";
 import type { Database } from "../schema";
 
 export async function up(db: Kysely<Database>): Promise<void> {
-  await sql`
-    create table tenants (
-      id uuid primary key default gen_random_uuid() not null,
-      name text
+  await db.schema
+    .createTable("tenants")
+    .addColumn("id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
     )
-  `.execute(db);
-  await sql`
-    create table users (
-      user_id uuid primary key default gen_random_uuid() not null,
-      display_name text,
-      status text default 'active' not null,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table user_password_credentials (
-      user_id uuid primary key not null references users(user_id) on delete cascade,
-      username text not null,
-      password_hash text not null,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table tenant_memberships (
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      user_id uuid not null references users(user_id) on delete cascade,
-      status text default 'active' not null,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null,
-      constraint tenant_memberships_pk primary key (tenant_id, user_id)
-    )
-  `.execute(db);
-  await sql`
-    create table auth_scopes (
-      scope_id uuid primary key default gen_random_uuid() not null,
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      parent_id uuid references auth_scopes(scope_id) on delete restrict,
-      type text not null,
-      key text,
-      name text,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table auth_scope_closure (
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      ancestor_id uuid not null references auth_scopes(scope_id) on delete cascade,
-      descendant_id uuid not null references auth_scopes(scope_id) on delete cascade,
-      depth integer not null,
-      constraint auth_scope_closure_pk primary key (
-        tenant_id,
-        ancestor_id,
-        descendant_id
-      )
-    )
-  `.execute(db);
-  await sql`
-    create table roles (
-      role_id uuid primary key default gen_random_uuid() not null,
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      key text not null,
-      name text,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table permissions (
-      permission_id uuid primary key default gen_random_uuid() not null,
-      key text not null,
-      source text not null,
-      description text,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table role_permissions (
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      role_id uuid not null references roles(role_id) on delete cascade,
-      permission_id uuid not null references permissions(permission_id) on delete cascade,
-      created_at timestamp with time zone default now() not null,
-      constraint role_permissions_pk primary key (
-        tenant_id,
-        role_id,
-        permission_id
-      )
-    )
-  `.execute(db);
-  await sql`
-    create table user_role_assignments (
-      assignment_id uuid primary key default gen_random_uuid() not null,
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      user_id uuid not null references users(user_id) on delete cascade,
-      role_id uuid not null references roles(role_id) on delete cascade,
-      scope_id uuid not null references auth_scopes(scope_id) on delete cascade,
-      created_at timestamp with time zone default now() not null
-    )
-  `.execute(db);
-  await sql`
-    create table documents (
-      id uuid primary key default gen_random_uuid() not null,
-      tenant_id uuid not null references tenants(id) on delete cascade,
-      collection text not null,
-      schema_version integer not null,
-      data jsonb not null,
-      auth_scope_id uuid references auth_scopes(scope_id) on delete restrict,
-      remote_source text,
-      remote_id text,
-      version integer default 1 not null,
-      created_at timestamp with time zone default now() not null,
-      updated_at timestamp with time zone default now() not null,
-      deleted_at timestamp with time zone
-    )
-  `.execute(db);
+    .addColumn("name", "text")
+    .execute();
 
-  await sql`create unique index user_password_credentials_username_unique on user_password_credentials (username)`.execute(db);
-  await sql`create unique index auth_scopes_tenant_scope_unique on auth_scopes (tenant_id, scope_id)`.execute(db);
-  await sql`create unique index auth_scopes_tenant_key_unique on auth_scopes (tenant_id, key) where key is not null`.execute(db);
-  await sql`create index auth_scopes_tenant_parent_idx on auth_scopes (tenant_id, parent_id)`.execute(db);
-  await sql`create index auth_scope_closure_descendant_idx on auth_scope_closure (tenant_id, descendant_id)`.execute(db);
-  await sql`create unique index roles_tenant_key_unique on roles (tenant_id, key)`.execute(db);
-  await sql`create unique index roles_tenant_role_unique on roles (tenant_id, role_id)`.execute(db);
-  await sql`create unique index permissions_key_unique on permissions (key)`.execute(db);
-  await sql`create unique index user_role_assignments_unique on user_role_assignments (tenant_id, user_id, role_id, scope_id)`.execute(db);
-  await sql`create index user_role_assignments_user_idx on user_role_assignments (tenant_id, user_id)`.execute(db);
-  await sql`create index documents_tenant_collection_idx on documents (tenant_id, collection)`.execute(db);
-  await sql`create index documents_tenant_collection_deleted_idx on documents (tenant_id, collection, deleted_at)`.execute(db);
-  await sql`create index documents_tenant_collection_auth_scope_idx on documents (tenant_id, collection, auth_scope_id)`.execute(db);
-  await sql`create index documents_tenant_auth_scope_idx on documents (tenant_id, auth_scope_id)`.execute(db);
-  await sql`create index documents_data_gin_idx on documents using gin (data)`.execute(db);
-  await sql`
-    create unique index documents_remote_identity_unique
-    on documents (tenant_id, collection, remote_source, remote_id)
-    where remote_source is not null and remote_id is not null
-  `.execute(db);
+  await db.schema
+    .createTable("users")
+    .addColumn("user_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("display_name", "text")
+    .addColumn("status", "text", (col) =>
+      col.defaultTo(sql`'active'`).notNull(),
+    )
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("user_password_credentials")
+    .addColumn("user_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .references("users.user_id")
+        .onDelete("cascade")
+        .notNull(),
+    )
+    .addColumn("username", "text", (col) => col.notNull())
+    .addColumn("password_hash", "text", (col) => col.notNull())
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("tenant_memberships")
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("user_id", "uuid", (col) =>
+      col.references("users.user_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("status", "text", (col) =>
+      col.defaultTo(sql`'active'`).notNull(),
+    )
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addPrimaryKeyConstraint("tenant_memberships_pk", ["tenant_id", "user_id"])
+    .execute();
+
+  await db.schema
+    .createTable("auth_scopes")
+    .addColumn("scope_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("parent_id", "uuid", (col) =>
+      col.references("auth_scopes.scope_id").onDelete("restrict"),
+    )
+    .addColumn("type", "text", (col) => col.notNull())
+    .addColumn("key", "text")
+    .addColumn("name", "text")
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("auth_scope_closure")
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("ancestor_id", "uuid", (col) =>
+      col.references("auth_scopes.scope_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("descendant_id", "uuid", (col) =>
+      col.references("auth_scopes.scope_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("depth", "integer", (col) => col.notNull())
+    .addPrimaryKeyConstraint("auth_scope_closure_pk", [
+      "tenant_id",
+      "ancestor_id",
+      "descendant_id",
+    ])
+    .execute();
+
+  await db.schema
+    .createTable("roles")
+    .addColumn("role_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("name", "text")
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("permissions")
+    .addColumn("permission_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("source", "text", (col) => col.notNull())
+    .addColumn("description", "text")
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("role_permissions")
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("role_id", "uuid", (col) =>
+      col.references("roles.role_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("permission_id", "uuid", (col) =>
+      col.references("permissions.permission_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addPrimaryKeyConstraint("role_permissions_pk", [
+      "tenant_id",
+      "role_id",
+      "permission_id",
+    ])
+    .execute();
+
+  await db.schema
+    .createTable("user_role_assignments")
+    .addColumn("assignment_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("user_id", "uuid", (col) =>
+      col.references("users.user_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("role_id", "uuid", (col) =>
+      col.references("roles.role_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("scope_id", "uuid", (col) =>
+      col.references("auth_scopes.scope_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("documents")
+    .addColumn("id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("collection", "text", (col) => col.notNull())
+    .addColumn("schema_version", "integer", (col) => col.notNull())
+    .addColumn("data", "jsonb", (col) => col.notNull())
+    .addColumn("auth_scope_id", "uuid", (col) =>
+      col.references("auth_scopes.scope_id").onDelete("restrict"),
+    )
+    .addColumn("remote_source", "text")
+    .addColumn("remote_id", "text")
+    .addColumn("version", "integer", (col) => col.defaultTo(1).notNull())
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("deleted_at", sql`timestamp with time zone`)
+    .execute();
+
+  await db.schema
+    .createIndex("user_password_credentials_username_unique")
+    .unique()
+    .on("user_password_credentials")
+    .column("username")
+    .execute();
+
+  await db.schema
+    .createIndex("auth_scopes_tenant_key_unique")
+    .unique()
+    .on("auth_scopes")
+    .columns(["tenant_id", "key"])
+    .where("key", "is not", null)
+    .execute();
+
+  await db.schema
+    .createIndex("auth_scopes_tenant_parent_idx")
+    .on("auth_scopes")
+    .columns(["tenant_id", "parent_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("auth_scope_closure_descendant_idx")
+    .on("auth_scope_closure")
+    .columns(["tenant_id", "descendant_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("roles_tenant_key_unique")
+    .unique()
+    .on("roles")
+    .columns(["tenant_id", "key"])
+    .execute();
+
+  await db.schema
+    .createIndex("permissions_key_unique")
+    .unique()
+    .on("permissions")
+    .column("key")
+    .execute();
+
+  await db.schema
+    .createIndex("user_role_assignments_unique")
+    .unique()
+    .on("user_role_assignments")
+    .columns(["tenant_id", "user_id", "role_id", "scope_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("user_role_assignments_user_idx")
+    .on("user_role_assignments")
+    .columns(["tenant_id", "user_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("documents_tenant_collection_deleted_idx")
+    .on("documents")
+    .columns(["tenant_id", "collection", "deleted_at"])
+    .execute();
+
+  await db.schema
+    .createIndex("documents_tenant_collection_auth_scope_idx")
+    .on("documents")
+    .columns(["tenant_id", "collection", "auth_scope_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("documents_tenant_auth_scope_idx")
+    .on("documents")
+    .columns(["tenant_id", "auth_scope_id"])
+    .execute();
+
+  await db.schema
+    .createIndex("documents_data_gin_idx")
+    .on("documents")
+    .column("data")
+    .using("gin")
+    .execute();
+
+  await db.schema
+    .createIndex("documents_remote_identity_unique")
+    .unique()
+    .on("documents")
+    .columns(["tenant_id", "collection", "remote_source", "remote_id"])
+    .where("remote_source", "is not", null)
+    .where("remote_id", "is not", null)
+    .execute();
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {
-  await sql`drop table if exists documents cascade`.execute(db);
-  await sql`drop table if exists user_role_assignments cascade`.execute(db);
-  await sql`drop table if exists role_permissions cascade`.execute(db);
-  await sql`drop table if exists permissions cascade`.execute(db);
-  await sql`drop table if exists roles cascade`.execute(db);
-  await sql`drop table if exists auth_scope_closure cascade`.execute(db);
-  await sql`drop table if exists auth_scopes cascade`.execute(db);
-  await sql`drop table if exists tenant_memberships cascade`.execute(db);
-  await sql`drop table if exists user_password_credentials cascade`.execute(db);
-  await sql`drop table if exists users cascade`.execute(db);
-  await sql`drop table if exists tenants cascade`.execute(db);
+  await db.schema.dropTable("documents").ifExists().cascade().execute();
+  await db.schema
+    .dropTable("user_role_assignments")
+    .ifExists()
+    .cascade()
+    .execute();
+  await db.schema.dropTable("role_permissions").ifExists().cascade().execute();
+  await db.schema.dropTable("permissions").ifExists().cascade().execute();
+  await db.schema.dropTable("roles").ifExists().cascade().execute();
+  await db.schema
+    .dropTable("auth_scope_closure")
+    .ifExists()
+    .cascade()
+    .execute();
+  await db.schema.dropTable("auth_scopes").ifExists().cascade().execute();
+  await db.schema
+    .dropTable("tenant_memberships")
+    .ifExists()
+    .cascade()
+    .execute();
+  await db.schema
+    .dropTable("user_password_credentials")
+    .ifExists()
+    .cascade()
+    .execute();
+  await db.schema.dropTable("users").ifExists().cascade().execute();
+  await db.schema.dropTable("tenants").ifExists().cascade().execute();
 }
