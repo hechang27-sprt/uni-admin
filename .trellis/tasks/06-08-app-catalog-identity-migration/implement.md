@@ -8,16 +8,16 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 1. Prepare schema/catalog foundation
 
-- [ ] Run GitNexus impact analysis before editing each modified function/class/method.
-- [ ] Add `AppsTable`, `TenantAppsTable`, and `CollectionsTable` to `server/db/schema.ts`.
-- [ ] Add `apps`, `tenant_apps`, and `collections` to `Database`.
-- [ ] Add baseline migration DDL for `apps`, `tenant_apps`, and `collections` before documents/permissions need them.
-- [ ] Add indexes/constraints:
+- [x] Run GitNexus impact analysis before editing each modified function/class/method.
+- [x] Add `AppsTable`, `TenantAppsTable`, and `CollectionsTable` to `server/db/schema.ts`.
+- [x] Add `apps`, `tenant_apps`, and `collections` to `Database`.
+- [x] Add baseline migration DDL for `apps`, `tenant_apps`, and `collections` before documents/permissions need them.
+- [x] Add indexes/constraints:
   - `apps_key_unique` on `apps.key`.
   - `tenant_apps_pk` on `(tenant_id, app_id)`.
   - `collections_app_key_unique` on `(app_id, key)`.
   - `collections_app_collection_unique` on `(app_id, collection_id)`.
-- [ ] Add tests proving pgLite migration succeeds with the new tables and constraints.
+- [x] Add tests proving pgLite migration succeeds with the new tables and constraints.
 
 ### 2. Add app-aware collection registration metadata
 

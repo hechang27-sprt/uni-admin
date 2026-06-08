@@ -9,6 +9,8 @@ type NullableTimestamp = ColumnType<
   Date | string | null
 >;
 
+export const DEFAULT_APP_KEY = "default";
+
 export interface TenantsTable {
   id: Generated<string>;
   name: string | null;
@@ -65,6 +67,34 @@ export interface RolesTable {
   updatedAt: Timestamp;
 }
 
+export interface AppsTable {
+  appId: Generated<string>;
+  key: string;
+  name: string | null;
+  config: JsonObject | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface TenantAppsTable {
+  tenantId: string;
+  appId: string;
+  config: JsonObject | null;
+  enabledAt: Timestamp;
+}
+
+export interface CollectionsTable {
+  collectionId: Generated<string>;
+  appId: string;
+  key: string;
+  definitionKey: string;
+  name: string | null;
+  schemaVersion: number;
+  config: JsonObject | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface PermissionsTable {
   permissionId: Generated<string>;
   key: string;
@@ -113,6 +143,9 @@ export interface Database {
   authScopes: AuthScopesTable;
   authScopeClosure: AuthScopeClosureTable;
   roles: RolesTable;
+  apps: AppsTable;
+  tenantApps: TenantAppsTable;
+  collections: CollectionsTable;
   permissions: PermissionsTable;
   rolePermissions: RolePermissionsTable;
   userRoleAssignments: UserRoleAssignmentsTable;

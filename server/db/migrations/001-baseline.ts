@@ -15,6 +15,65 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .execute();
 
   await db.schema
+    .createTable("apps")
+    .addColumn("app_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("name", "text")
+    .addColumn("config", "jsonb")
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  await db.schema
+    .createTable("tenant_apps")
+    .addColumn("tenant_id", "uuid", (col) =>
+      col.references("tenants.id").onDelete("cascade").notNull(),
+    )
+    .addColumn("app_id", "uuid", (col) =>
+      col.references("apps.app_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("config", "jsonb")
+    .addColumn("enabled_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addPrimaryKeyConstraint("tenant_apps_pk", ["tenant_id", "app_id"])
+    .execute();
+
+  await db.schema
+    .createTable("collections")
+    .addColumn("collection_id", "uuid", (col) =>
+      col
+        .primaryKey()
+        .defaultTo(sql`gen_random_uuid()`)
+        .notNull(),
+    )
+    .addColumn("app_id", "uuid", (col) =>
+      col.references("apps.app_id").onDelete("cascade").notNull(),
+    )
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("definition_key", "text", (col) => col.notNull())
+    .addColumn("name", "text")
+    .addColumn("schema_version", "integer", (col) => col.notNull())
+    .addColumn("config", "jsonb")
+    .addColumn("created_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+
+  await db.schema
     .createTable("users")
     .addColumn("user_id", "uuid", (col) =>
       col
@@ -267,6 +326,27 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .execute();
 
   await db.schema
+    .createIndex("apps_key_unique")
+    .unique()
+    .on("apps")
+    .column("key")
+    .execute();
+
+  await db.schema
+    .createIndex("collections_app_key_unique")
+    .unique()
+    .on("collections")
+    .columns(["app_id", "key"])
+    .execute();
+
+  await db.schema
+    .createIndex("collections_app_collection_unique")
+    .unique()
+    .on("collections")
+    .columns(["app_id", "collection_id"])
+    .execute();
+
+  await db.schema
     .createIndex("permissions_key_unique")
     .unique()
     .on("permissions")
@@ -330,6 +410,9 @@ export async function down(db: Kysely<Database>): Promise<void> {
     .execute();
   await db.schema.dropTable("role_permissions").ifExists().cascade().execute();
   await db.schema.dropTable("permissions").ifExists().cascade().execute();
+  await db.schema.dropTable("collections").ifExists().cascade().execute();
+  await db.schema.dropTable("tenant_apps").ifExists().cascade().execute();
+  await db.schema.dropTable("apps").ifExists().cascade().execute();
   await db.schema.dropTable("roles").ifExists().cascade().execute();
   await db.schema
     .dropTable("auth_scope_closure")
