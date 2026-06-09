@@ -858,3 +858,35 @@ Implemented part 4 of app catalog identity migration: documents now persist and 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Split catalog service and repository
+
+**Date**: 2026-06-09
+**Task**: Split catalog service and repository
+
+### Summary
+
+Split the catalog data module into repository.ts and service.ts while keeping index.ts as the public barrel. Verified typecheck, targeted server tests, and catalog lint checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9789f3c6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
