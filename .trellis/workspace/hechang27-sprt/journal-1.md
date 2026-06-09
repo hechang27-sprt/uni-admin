@@ -794,3 +794,35 @@ Implemented slice 2 app-aware collection registration metadata: default app and 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Catalog persistence helpers
+
+**Date**: 2026-06-09
+**Task**: Catalog persistence helpers
+
+### Summary
+
+Implemented slice 3 of the app catalog identity migration: added catalog repository/service helpers for default app creation, registry collection sync, tenant app enablement, and app-key plus collection-key lookup; added pgLite coverage and marked slice 3 complete while leaving the larger migration task in progress.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a6d7f8a1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
