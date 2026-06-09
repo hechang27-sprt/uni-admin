@@ -1,0 +1,35 @@
+{
+  "id": "add-collection-registration-key",
+  "name": "add-collection-registration-key",
+  "title": "Add collection registration key",
+  "description": "Add CollectionRegistration.key so name can become descriptive display metadata while key carries public catalog identity.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hechang27-sprt",
+  "assignee": "hechang27-sprt",
+  "createdAt": "2026-06-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "issue://5",
+    "server/data/documents/registry.ts",
+    "server/data/catalog/repository.ts",
+    "server/data/documents/service/service.ts",
+    "server/auth/um/repository.ts",
+    "server/db/schema.ts"
+  ],
+  "notes": "Planning task created from GitHub issue #5. User asked to leave definitionKey alone for now.",
+  "meta": {
+    "github_issue": "https://github.com/hechang27-sprt/uni-admin/issues/5"
+  }
+}
