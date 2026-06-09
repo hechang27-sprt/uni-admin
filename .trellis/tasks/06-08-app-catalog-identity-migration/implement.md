@@ -77,11 +77,11 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 6. Documentation/spec cleanup after smoke test
 
-- [ ] Update `docs/data-layer-development-notes.md` storage/auth sections.
-- [ ] Update `docs/framework-dx-guide.md` examples only after the public input shape is settled.
-- [ ] Update `.trellis/spec/server/repository-and-database.md`.
-- [ ] Update `.trellis/spec/server/auth-rbac.md`.
-- [ ] Update `.trellis/spec/server/data-layer-boundaries.md` if a catalog module is introduced.
+- [x] Update `docs/data-layer-development-notes.md` storage/auth sections.
+- [x] Update `docs/framework-dx-guide.md` examples only after the public input shape is settled.
+- [x] Update `.trellis/spec/server/repository-and-database.md`.
+- [x] Update `.trellis/spec/server/auth-rbac.md`.
+- [x] Update `.trellis/spec/server/data-layer-boundaries.md` if a catalog module is introduced.
 
 ## Validation Commands
 

@@ -8,8 +8,9 @@ constraints that future layers should preserve.
 
 Implemented today:
 
-- Multi-tenant document storage in PostgreSQL using one `documents` table.
-- Zod-backed collection registration.
+- Multi-tenant document storage in PostgreSQL using structured app and
+  collection catalog identity.
+- Zod-backed collection registration keyed by `(appKey, collection name)`.
 - Local document CRUD, list, soft delete, restore, hard delete, and JSON Patch.
 - Batch create, ordered batch get-by-id, and all-or-nothing batch update.
 - JSONB-path and metadata filtering, sorting, offset pagination, and deleted-row
@@ -20,6 +21,8 @@ Implemented today:
 - Remote response validation and projection mapping.
 - Service-level user identity, username/password credentials, tenant
   memberships, scope-tree RBAC, and actor-scoped document authorization.
+- Catalog persistence for apps, tenant app enablement, and registered
+  collection identity.
 - Kysely-backed repository implementation for runtime use and pgLite-backed
   unit tests.
 
@@ -34,16 +37,23 @@ Not implemented yet:
 
 ## Storage Model
 
-The current database shape is intentionally small:
+The current database separates catalog identity from document projection rows:
 
 - `tenants`: tenant identity.
+- `apps`: framework app identities keyed by stable app keys such as `default`.
+- `tenant_apps`: explicit tenant-to-app enablement.
+- `collections`: app-scoped collection identities keyed by `(app_id, key)` and
+  `(app_id, collection_id)`.
 - `documents`: tenant-scoped collection records with JSONB data.
 
 Document rows keep framework-owned identity separate from remote identity:
 
 - `id`: internal UUID primary key.
 - `tenant_id`: tenant boundary.
-- `collection`: collection name.
+- `app_id`: persisted catalog app identity.
+- `collection_id`: persisted catalog collection identity.
+- `collection`: legacy-compatible collection name mirror kept populated while
+  public service inputs still use `collection`.
 - `schema_version`: version of the registered local document schema.
 - `data`: JSONB local projection.
 - `auth_scope_id`: nullable framework-owned authorization scope. `null`
@@ -53,13 +63,20 @@ Document rows keep framework-owned identity separate from remote identity:
 - `version`: optimistic concurrency token.
 - `deleted_at`: soft-delete marker.
 
+Document repository operations scope by `tenant_id + app_id + collection_id`.
+The service resolves those ids through `CatalogService` from the registered
+collection's `appKey` and public `collection` input before calling the
+repository.
+
 Remote-backed rows are unique by:
 
 ```text
-(tenant_id, collection, remote_source, remote_id)
+(tenant_id, app_id, collection_id, remote_source, remote_id)
 ```
 
-Local-only rows leave `remote_source` and `remote_id` empty.
+Local-only rows leave `remote_source` and `remote_id` empty. The default app is
+enabled automatically for a tenant on document access; non-default apps must be
+enabled through the catalog boundary before tenant documents can be written.
 
 ## Auth/RBAC Model
 
@@ -88,29 +105,34 @@ without service options containing `actor`. Runtime code passes
 `setDocumentAuthScope` requires service options with `actor` because changing
 framework auth metadata is always a protected operation.
 
-Collection CRUD permissions are derived from registration with canonical keys:
+Collection CRUD permissions are derived from registration with canonical keys
+backed by catalog ids:
 
 ```text
-collection:<collection>:read
-collection:<collection>:create
-collection:<collection>:update
-collection:<collection>:patch
-collection:<collection>:delete
-collection:<collection>:restore
-collection:<collection>:hard-delete
+<app-id>:<collection-id>:read
+<app-id>:<collection-id>:create
+<app-id>:<collection-id>:update
+<app-id>:<collection-id>:patch
+<app-id>:<collection-id>:delete
+<app-id>:<collection-id>:restore
+<app-id>:<collection-id>:hard-delete
 ```
 
-Registrations may override capability names or use `resourceScope: "none"` for
-capability-only operations. The default resource scope is `"document"`, which
-checks the document `auth_scope_id`; `null` normalizes to tenant root.
+Special framework permissions keep explicit keys such as
+`admin:documents:set-scope`. App-level permissions use `<app-id>:<capability-id>`.
+Collection custom actions use fixed capability ids of `action-<action-id>` and
+collection-level canonical keys. Registrations cannot override built-in CRUD
+capability ids; this prevents two apps with the same human collection key from
+colliding or shadowing built-in behavior.
 
 Remote write authorization runs before adapter side effects. Protected remote
 adapter contexts include the normalized actor as `context.actor`.
 
 ## Local Document Service
 
-Collections are registered with a name, local document schema, and schema
-version:
+Collections are registered with an app key, a public collection name, local
+document schema, and schema version. Omitting `appKey` uses the built-in
+`default` app; omitting `definitionKey` uses the collection name:
 
 ```ts
 import { z } from "zod";
@@ -131,6 +153,7 @@ const taskSchema = z.object({
 const registry = createCollectionRegistry([
   {
     name: "tasks",
+    appKey: "default",
     schema: taskSchema,
     schemaVersion: 1,
   },
@@ -263,25 +286,32 @@ If a remote call fails, local projection data must remain unchanged.
 
 ## Repository Layout
 
-The current document repository is split by responsibility:
+The current data layer is split by responsibility:
 
-- `server/data/documents/repository/types.ts` defines the repository contract.
+- `server/data/catalog/repository.ts` owns app, tenant-app, and collection
+  catalog persistence.
+- `server/data/catalog/service.ts` owns default app setup, registry collection
+  sync, tenant app enablement, and collection identity lookup.
+- `server/data/documents/repository/types.ts` defines the document repository
+  contract.
 - `server/data/documents/repository/query.ts` normalizes list input and builds
   Kysely filter/sort expressions.
 - `server/data/documents/repository/kysely.ts` implements
   `KyselyDocumentRepository`, including batch update SQL and remote projection
-  upserts.
+  upserts scoped by structured app and collection ids.
 - `server/data/documents/repository/index.ts` is the public repository barrel.
 - `server/data/documents/service/contracts.ts` defines the service input,
   output, and interface types.
-- `server/data/documents/service/service.ts` implements `DocumentService`.
+- `server/data/documents/service/service.ts` implements `DocumentService` and
+  resolves public `{ appKey?, collection }` input to catalog ids before
+  persistence.
 - `server/data/documents/service/helpers.ts` holds shared service validation,
   version, remote adapter, and projection helpers.
 
 There is no separate in-memory repository implementation now. Unit tests create
 a pgLite database with `createInMemoryDb()` from `server/util/kysely.ts`, run
-the Kysely baseline migration, and exercise the same `KyselyDocumentRepository` used
-by the service.
+the Kysely baseline migration, and exercise the same catalog, document, and auth
+repositories used by the service.
 
 ## Type-Checking Notes
 

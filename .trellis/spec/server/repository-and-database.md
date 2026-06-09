@@ -8,20 +8,25 @@ repository implementation.
 `server/db/schema.ts` defines the typed Kysely `Database` shape, including:
 
 - `tenants`
+- `apps`
+- `tenantApps`
+- `collections`
 - `documents`
 
-Document rows include framework identity, tenant boundary, collection name,
-schema version, JSONB projection data, optional remote identity, optimistic
-version, timestamps, and soft-delete timestamp.
+Document rows include framework identity, tenant boundary, structured app and
+collection ids, a legacy-compatible collection name mirror, schema version,
+JSONB projection data, optional remote identity, optimistic version, timestamps,
+and soft-delete timestamp.
 
 The remote identity unique index is partial:
 
 ```text
-(tenant_id, collection, remote_source, remote_id)
+(tenant_id, app_id, collection_id, remote_source, remote_id)
 where remote_source is not null and remote_id is not null
 ```
 
-Preserve this distinction between local-only rows and remote-backed rows.
+Preserve this distinction between local-only rows and remote-backed rows. Do not
+scope document persistence by the legacy `collection` string alone.
 
 ## Scenario: Kysely Client And Baseline Migration Boundary
 
@@ -81,6 +86,95 @@ plugins: [new CamelCasePlugin()];
 plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })];
 ```
 
+## Scenario: Catalog-Scoped Document Persistence
+
+### 1. Scope / Trigger
+
+- Trigger: changing app registration, collection registration, tenant app
+  enablement, document persistence identity, or remote projection uniqueness.
+
+### 2. Signatures
+
+```ts
+interface CatalogRepository {
+  ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp>;
+  enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp>;
+  syncCollections(registry: CollectionRegistry): Promise<CatalogCollection[]>;
+  findCollection(input: FindCatalogCollectionInput): Promise<CatalogCollection | null>;
+  findTenantCollection(
+    input: FindTenantCatalogCollectionInput,
+  ): Promise<CatalogCollection | null>;
+}
+
+interface CollectionRegistration {
+  appKey?: string;
+  name: string;
+  definitionKey?: string;
+  schema: z.ZodType<JsonObject>;
+  schemaVersion: number;
+}
+```
+
+### 3. Contracts
+
+- `appKey` defaults to `default`; `definitionKey` defaults to `name`.
+- Registry uniqueness is `(appKey, name)`, so two apps may both define `tasks`.
+- `apps.key` is unique.
+- `tenant_apps` is keyed by `(tenant_id, app_id)`.
+- `collections` is unique on `(app_id, key)` and `(app_id, collection_id)`.
+- `documents.app_id` and `documents.collection_id` are required persistence
+  identity. `documents.collection` remains a compatibility mirror only.
+- The document service syncs registry collections and enables the default app
+  automatically before document persistence. Non-default apps require explicit
+  tenant enablement.
+
+### 4. Validation & Error Matrix
+
+- Missing registered collection -> `DocumentServiceError("UNKNOWN_COLLECTION")`.
+- Registered non-default app not enabled for tenant ->
+  `DocumentServiceError("UNKNOWN_COLLECTION")`.
+- Cross-app same collection name -> valid when callers provide the intended
+  `appKey`.
+- Remote identity duplicate in the same tenant/app/collection -> upsert/update
+  the existing projection; same remote id in another app or collection is valid.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `DocumentService` resolves `{ tenantId, appKey, collection }` to
+  `CatalogCollection` and passes `appId + collectionId` into the repository.
+- Base: default-app callers omit `appKey`; the service still stores structured
+  ids and keeps `documents.collection` populated.
+- Bad: repository code reads or writes documents filtered only by
+  `tenantId + collection`.
+
+### 6. Tests Required
+
+- pgLite migration creates app/catalog tables and constraints.
+- Tenant without an enabled non-default app cannot write documents for that app.
+- Two apps can both define `tasks` without document or remote-upsert
+  cross-contamination.
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: collection string is not sufficient identity after catalog migration.
+await repository.list({ tenantId, collection: "tasks", query });
+
+// Correct: service resolves catalog identity before persistence.
+const identity = await catalog.findTenantCollectionIdentity({
+  tenantId,
+  appKey: collection.appKey,
+  collectionKey: input.collection,
+});
+await repository.list({
+  tenantId,
+  appId: identity.appId,
+  collectionId: identity.collectionId,
+  collection: input.collection,
+  query,
+});
+```
+
 ## Repository Implementation
 
 `server/data/documents/repository/kysely.ts` implements
@@ -100,8 +194,8 @@ through `SERVER_DI_TYPES.AuthRbacRepository` and
 
 Important patterns:
 
-- Scope all document queries by `tenantId` and `collection`.
-- Exclude soft-deleted rows unless `includeDeleted` is explicitly true.
+- Scope all document queries by `tenantId`, `appId`, and `collectionId`; keep
+  `collection` only as public input and compatibility row data.
 - Use `.returning()` and row mappers for writes.
 - Item persistence primitives are batch-only: `insertMany`, `findByIds`,
   `updateMany`, and `hardDeleteMany`. Scalar service methods pass one-item
@@ -152,6 +246,8 @@ interface DocumentRepository {
   ): Promise<StoredDocument<T>[]>;
   findByIds<T>(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     ids: string[];
     includeDeleted?: boolean;
@@ -161,6 +257,8 @@ interface DocumentRepository {
   ): Promise<StoredDocument<T>[] | null>;
   hardDeleteMany(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     ids: string[];
   }): Promise<string[]>;

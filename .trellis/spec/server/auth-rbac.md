@@ -103,16 +103,24 @@ interface TenantActorContext {
   with `actor` because they are explicitly authorization-scoped management
   operations.
 
-### 3. Contracts
-
-- Database tables use explicit primary key names: `user_id`, `scope_id`,
-  `role_id`, `permission_id`.
+- Database tables use explicit primary key names for identity tables such as
+  `user_id`, `scope_id`, and `role_id`. `permissions` is keyed by canonical
+  `key`; there is no separate `permission_id`.
+- Permission rows carry `app_id`, `collection_id`, `capability_id`, and
+  `source` so app/collection grants can be evaluated by structured identity.
+- `role_permissions.permission_key` references `permissions.key`.
 - `documents.auth_scope_id` is framework metadata. It is not stored in document
   JSONB data.
 - `authScopeId: null` means tenant-root/global resource, not public access.
-- Collection CRUD capabilities default to
-  `collection:<collection>:<operation>`.
-- Registered action capabilities default to `action:<collection>:<action>`.
+- Built-in collection CRUD capabilities are fixed ids: `read`, `create`,
+  `update`, `patch`, `delete`, `restore`, and `hard-delete`.
+- Registered custom action capabilities default to `action-<action-id>`.
+- Canonical permission keys are:
+  - `admin:<capability-id>` for special admin permissions.
+  - `global:<capability-id>` for special global framework permissions.
+  - `<app-id>:<capability-id>` for app-level permissions.
+  - `<app-id>:<collection-id>:<capability-id>` for collection-level
+    permissions.
 - `resourceScope: "document"` checks the document `auth_scope_id`; `null`
   normalizes to the tenant root scope.
 - `resourceScope: "tenant-root"` checks the capability at the tenant root
@@ -133,8 +141,9 @@ interface TenantActorContext {
   service-policy omnibus method.
 - Service-level omnibus input may include `tenantAccess.userId` for validating
   target memberships and `permissionKeys` for list-access APIs that need
-  permission-key validation without requiring access to a single target scope.
-- Auth service list-access APIs validate active actor membership and
+  canonical permission-key validation without requiring access to a single
+  target scope.
+- Auth service list-access APIs validate active actor membership and canonical
   permission-key existence through the same service-owned omnibus evaluator
   before asking repository list queries for accessible scopes.
 - Repository validation helpers report the first ordered failure needed to
@@ -147,6 +156,10 @@ interface TenantActorContext {
 - Child auth-scope creation inserts the new scope and its closure rows from
   parent closure data in one statement; do not read ancestor rows into
   TypeScript for a mapped follow-up insert.
+- `syncCollectionPermissions(registry)` derives collection permissions from the
+  registry and persists canonical keys after catalog app/collection identity has
+  been synced. Built-in CRUD capability ids cannot be overridden by collection
+  auth config; custom capabilities are only emitted for registered actions.
 
 ### 4. Validation & Error Matrix
 
@@ -160,7 +173,8 @@ interface TenantActorContext {
 - Missing or inactive tenant membership during actor resolution ->
   `AuthRbacError` code `AUTH_TENANT_MEMBERSHIP_REQUIRED`.
 - Missing role/scope/permission during RBAC setup -> `AUTH_ROLE_NOT_FOUND`,
-  `AUTH_SCOPE_NOT_FOUND`, or `AUTH_PERMISSION_NOT_FOUND`.
+  `AUTH_SCOPE_NOT_FOUND`, or `AUTH_PERMISSION_NOT_FOUND` for the unknown
+  canonical permission key.
 - Any failed check in a protected document batch ->
   `DocumentServiceError` code `AUTHORIZATION_DENIED`; read batches return
   `null` for denied positional items.
@@ -171,6 +185,8 @@ interface TenantActorContext {
   actor can access `auth_scope_id = null` documents plus descendant scopes.
 - Good: assign a role at a child scope and verify sibling documents are absent
   from `list(input, { actor })`.
+- Good: register two apps with a collection named `tasks`; grant only the
+  canonical key for one app/collection and verify the other app is denied.
 - Good: authorize a multi-document update by sending its distinct scope checks
   once and preserve document input order.
 - Base: call trusted `create` from seed/import code when no actor exists.
@@ -193,6 +209,9 @@ interface TenantActorContext {
   `evaluateAccess` batch call per logical operation.
 - Owner bootstrap bulk grant behavior and delegated role denial/allow behavior
   through `findDeniedRolePermission`.
+- Permission sync and grant/evaluation coverage for built-in admin/global keys,
+  app-scoped keys, collection-scoped keys, duplicate human collection keys across
+  apps, and unknown canonical key failure.
 
 ### 7. Wrong vs Correct
 

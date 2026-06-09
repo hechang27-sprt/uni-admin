@@ -16,18 +16,19 @@ Use this document if you are:
 
 ## Current Status
 
-Today, the framework provides a local document service and a remote adapter
-boundary. You write TypeScript code to:
+Today, the framework provides catalog-backed local document storage, a document
+service, service-level auth/RBAC, and a remote adapter boundary. You write
+TypeScript code to:
 
 1. Define a local document schema.
-2. Register a collection.
-3. Create a Kysely-backed repository.
+2. Register a collection under an app key.
+3. Sync catalog metadata and enable apps for tenants when needed.
 4. Create a document service.
 5. Call service methods directly.
 
 There are no generated routes, table views, form builders, or client
-composables yet. Unit tests use pgLite to run the same repository contract
-in-memory, but the public document repository is `KyselyDocumentRepository`.
+composables yet. Unit tests use pgLite to run the same repository contracts
+in-memory, including the catalog, document, and auth repositories.
 
 ## Tutorial: Register a Local Collection
 
@@ -53,12 +54,17 @@ import {
   createCollectionRegistry,
   type DocumentService,
 } from "../server/data/documents";
+import { CatalogService } from "../server/data/catalog";
 import { createServerContainer, SERVER_DI_TYPES } from "../server/di";
 import { db } from "../server/util/kysely";
 
 const registry = createCollectionRegistry([
   {
+    // Optional. Defaults to "default" when omitted.
+    appKey: "default",
     name: "tasks",
+    // Optional. Defaults to name when omitted.
+    definitionKey: "tasks",
     schema: taskSchema,
     schemaVersion: 1,
   },
@@ -71,7 +77,9 @@ const container = createServerContainer({
 const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 ```
 
-Create and read a document:
+Create and read a document. The service resolves `{ appKey?, collection }` to
+catalog `app_id` and `collection_id` before persistence; callers keep using the
+public collection name:
 
 ```ts
 const created = await service.create<TaskDocument>({
@@ -84,10 +92,36 @@ const created = await service.create<TaskDocument>({
     tags: [],
   },
 });
-
 const listed = await service.list<TaskDocument>({
   tenantId: created.tenantId,
   collection: "tasks",
+});
+```
+
+For a non-default app, register with `appKey`, enable that app for the tenant,
+and pass the same app key to service methods:
+
+```ts
+registry.register({
+  appKey: "inventory",
+  name: "tasks",
+  schema: taskSchema,
+  schemaVersion: 1,
+});
+
+const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+await catalog.enableTenantApp({ tenantId, appKey: "inventory" });
+
+await service.create<TaskDocument>({
+  tenantId,
+  appKey: "inventory",
+  collection: "tasks",
+  data: {
+    title: "Inventory task",
+    status: "draft",
+    priority: 1,
+    tags: [],
+  },
 });
 ```
 
@@ -326,6 +360,7 @@ import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 
 const registry = createCollectionRegistry([
   {
+    appKey: "default",
     name: "tasks",
     schema: taskSchema,
     schemaVersion: 1,
@@ -372,6 +407,12 @@ await service.create(
 `null`, which means tenant-root/global resource. Normal update and patch calls
 do not change it; use `setDocumentAuthScope` for explicit reassignment guarded
 by `admin:documents:set-scope`.
+
+Collection permission keys are derived from catalog ids, not human collection
+names. Built-in collection capabilities are fixed (`read`, `create`, `update`,
+`patch`, `delete`, `restore`, `hard-delete`), so two apps can both register a
+collection named `tasks` without colliding in RBAC. Custom action permissions use
+capability ids of `action-<action-id>`.
 
 ## Local Testing Setup
 
