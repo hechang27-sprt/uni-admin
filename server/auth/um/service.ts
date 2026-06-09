@@ -13,6 +13,7 @@ import {
   type AuthRbacRepository,
 } from "./repository";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
+import type { CatalogService } from "#server/data/catalog";
 import type {
   AccessCheckEvaluation,
   AssignRoleInput,
@@ -37,7 +38,9 @@ import type {
 import { uniq, flatten, flatMap, isNotNil } from "es-toolkit";
 import type { Param0 } from "tsafe";
 
-export const builtInAdminPermissions: PermissionDefinitionInput[] = [
+export const builtInAdminPermissions: Array<
+  PermissionDefinitionInput & { key: string }
+> = [
   { key: ADMIN_TENANT_OVERRIDE_KEY, source: "admin" },
   { key: "admin:users:create", source: "admin" },
   { key: "admin:users:update", source: "admin" },
@@ -69,6 +72,8 @@ export class AuthRbacService {
   constructor(
     @inject(SERVER_DI_TYPES.AuthRbacRepository)
     private readonly repository: AuthRbacRepository,
+    @inject(SERVER_DI_TYPES.CatalogService)
+    private readonly catalog: CatalogService,
   ) {}
 
   createUser(input: CreateUserInput = {}) {
@@ -175,7 +180,8 @@ export class AuthRbacService {
     return this.repository.upsertPermissions(builtInAdminPermissions);
   }
 
-  syncCollectionPermissions(registry: CollectionRegistry) {
+  async syncCollectionPermissions(registry: CollectionRegistry) {
+    await this.catalog.syncRegistryCollections(registry);
     return this.repository.upsertPermissions(
       deriveCollectionPermissionDefinitions(registry),
     );

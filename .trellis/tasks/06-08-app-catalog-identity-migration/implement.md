@@ -56,19 +56,19 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 5. Cut permission persistence to structured identity
 
-- [ ] Extend permission types with `appId`, `collectionId`, `capabilityId`, and primary `key` fields.
-- [ ] Add nullable `app_id`, nullable `collection_id`, and non-null `capability_id` to `permissions`; do not add `permission_id` or `display_key`.
-- [ ] Make `permissions.key` the primary key:
+- [x] Extend permission types with `appId`, `collectionId`, `capabilityId`, and primary `key` fields.
+- [x] Add nullable `app_id`, nullable `collection_id`, and non-null `capability_id` to `permissions`; do not add `permission_id` or `display_key`.
+- [x] Make `permissions.key` the primary key:
   - `admin:<capability-id>` for special admin permissions.
   - `global:<capability-id>` for special global framework permissions.
   - `<app-id>:<capability-id>` for app-level permissions.
   - `<app-id>:<collection-id>:<capability-id>` for collection-level permissions.
-- [ ] Change `role_permissions.permission_id` to `role_permissions.permission_key` with an FK to `permissions(key)`.
-- [ ] Update collection permission derivation to emit fixed built-in CRUD capability ids and reject attempts to override them.
-- [ ] Allow custom capabilities only for registered custom actions, emitted as `action-<action-id>`.
-- [ ] Update `upsertPermissions()` conflict handling to target canonical `key`.
-- [ ] Update invalid permission lookup, role permission assignment, capability checks, and granted-scope listing to use canonical keys directly.
-- [ ] Add tests:
+- [x] Change `role_permissions.permission_id` to `role_permissions.permission_key` with an FK to `permissions(key)`.
+- [x] Update collection permission derivation to emit fixed built-in CRUD capability ids and reject attempts to override them.
+- [x] Allow custom capabilities only for registered custom actions, emitted as `action-<action-id>`.
+- [x] Update `upsertPermissions()` conflict handling to target canonical `key`.
+- [x] Update invalid permission lookup, role permission assignment, capability checks, and granted-scope listing to use canonical keys directly.
+- [x] Add tests:
   - Same human collection key can exist in two apps without permission collision because canonical keys include app/collection ids.
   - Built-in CRUD capability ids cannot be overridden by collection/action auth config.
   - Grants/evaluation use the intended app/collection permission identity.

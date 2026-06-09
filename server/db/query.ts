@@ -38,7 +38,7 @@ export function selectGrantedPermissions() {
         .onRef("rp.roleId", "=", "assigned.roleId")
         .onRef("rp.tenantId", "=", "tu.tenantId"),
     )
-    .innerJoin("permissions as p", "p.permissionId", "rp.permissionId")
+    .innerJoin("permissions as p", "p.key", "rp.permissionKey")
     .innerJoin("authScopeClosure as c", (join) =>
       join
         .onRef("c.ancestorId", "=", "assigned.scopeId")

@@ -41,8 +41,10 @@ export interface Role {
 }
 
 export interface Permission {
-  permissionId: string;
   key: string;
+  appId: string | null;
+  collectionId: string | null;
+  capabilityId: string;
   source: string;
   description: string | null;
   createdAt: Date;
@@ -92,7 +94,10 @@ export interface CreateRoleInput {
 }
 
 export interface PermissionDefinitionInput {
-  key: string;
+  key?: string;
+  appKey?: string | null;
+  collectionKey?: string | null;
+  capabilityId?: string;
   source: string;
   description?: string | null;
 }
@@ -133,7 +138,7 @@ export type CapabilityEvaluation = {
   hasOverride: boolean;
   missingCaps: {
     capability: string;
-    permissionId: string;
+    permissionKey: string | null;
     roleId?: string;
     targetScopeId: string;
     isRootScope: boolean;

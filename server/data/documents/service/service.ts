@@ -175,7 +175,7 @@ export class DocumentService {
           ...actorContext(input, options),
           checks: [
             {
-              capabilities: [auth.capability],
+              capabilities: [collectionPermissionKey(identity, auth.capability)],
               targetScopeIds: [null],
             },
           ],
@@ -184,7 +184,7 @@ export class DocumentService {
         accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
           input,
           options,
-          auth.capability,
+          collectionPermissionKey(identity, auth.capability),
         );
       }
     }
@@ -218,7 +218,7 @@ export class DocumentService {
           ...actorContext(input, options),
           checks: [
             {
-              capabilities: [auth.capability],
+              capabilities: [collectionPermissionKey(identity, auth.capability)],
               targetScopeIds: [null],
             },
           ],
@@ -227,7 +227,7 @@ export class DocumentService {
         accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
           input,
           options,
-          auth.capability,
+          collectionPermissionKey(identity, auth.capability),
         );
       }
     }
@@ -704,12 +704,14 @@ export class DocumentService {
     if (!auth) {
       return [];
     }
+    const identity = await this.requireCollectionIdentity(input, collection);
+    const capability = collectionPermissionKey(identity, auth.capability);
     if (auth.resourceScope === "tenant-root") {
       await this.assertDocumentAccess({
         ...actorContext(input, authenticatedOptions),
         checks: [
           {
-            capabilities: [auth.capability],
+            capabilities: [capability],
             targetScopeIds: [null],
           },
         ],
@@ -719,7 +721,7 @@ export class DocumentService {
 
     return this.authorizer.listCreatableDocumentScopeIds({
       context: actorContext(input, authenticatedOptions),
-      capability: auth.capability,
+      capability,
     });
   }
 
@@ -737,12 +739,13 @@ export class DocumentService {
     if (!auth) {
       return;
     }
+    const identity = await this.requireCollectionIdentity(input, collection);
 
     await this.assertDocumentAccess({
       ...actorContext(input, options),
       checks: [
         {
-          capabilities: [auth.capability],
+          capabilities: [collectionPermissionKey(identity, auth.capability)],
           targetScopeIds:
             auth.resourceScope === "tenant-root" ? [null] : uniq(authScopeIds),
         },
@@ -765,12 +768,13 @@ export class DocumentService {
     if (!auth) {
       return;
     }
+    const identity = await this.requireCollectionIdentity(input, collection);
 
     await this.assertDocumentAccess({
       ...actorContext(input, options),
       checks: [
         {
-          capabilities: [auth.capability],
+          capabilities: [collectionPermissionKey(identity, auth.capability)],
           targetScopeIds:
             auth.resourceScope === "tenant-root"
               ? [null]
@@ -795,12 +799,13 @@ export class DocumentService {
     if (!auth) {
       return documents;
     }
+    const identity = await this.requireCollectionIdentity(input, collection);
 
     const access = await this.authorizer.evaluateAccess({
       ...actorContext(input, options),
       checks: [
         {
-          capabilities: [auth.capability],
+          capabilities: [collectionPermissionKey(identity, auth.capability)],
           targetScopeIds:
             auth.resourceScope === "tenant-root"
               ? [null]
@@ -1085,6 +1090,13 @@ export class DocumentService {
 
     return identity;
   }
+}
+
+function collectionPermissionKey(
+  identity: Pick<CatalogCollection, "appId" | "collectionId">,
+  capabilityId: string,
+): string {
+  return `${identity.appId}:${identity.collectionId}:${capabilityId}`;
 }
 
 type AuthenticatedDocumentServiceOptions = DocumentServiceOptions & {

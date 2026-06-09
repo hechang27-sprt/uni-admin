@@ -146,11 +146,11 @@ describe("auth/RBAC service integration", () => {
     const collection = registry.get("tasks");
 
     expect(resolveCollectionOperationAuth(collection, "read")).toEqual({
-      capability: "collection:tasks:read",
+      capability: "read",
       resourceScope: "tenant-root",
     });
     expect(resolveCollectionActionAuth(collection, "archive")).toEqual({
-      capability: "action:tasks:archive",
+      capability: "action-archive",
       resourceScope: "tenant-root",
     });
   });
@@ -222,6 +222,43 @@ describe("auth/RBAC service integration", () => {
     });
     expect(registry.listForApp("crm")).toHaveLength(1);
   });
+
+  it("derives distinct canonical permission keys for same collection key across apps", async () => {
+    const registry = createCollectionRegistry([
+      {
+        appKey: "crm",
+        name: "tasks",
+        definitionKey: "crm-tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+      },
+      {
+        appKey: "ops",
+        name: "tasks",
+        definitionKey: "ops-tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+      },
+    ]);
+    const auth = createTestAuthService();
+
+    await auth.syncCollectionPermissions(registry);
+
+    const rows = await getTestDatabase()
+      .selectFrom("permissions")
+      .innerJoin("collections", "collections.collectionId", "permissions.collectionId")
+      .innerJoin("apps", "apps.appId", "permissions.appId")
+      .select(["apps.key as appKey", "permissions.key"])
+      .where("collections.key", "=", "tasks")
+      .where("permissions.capabilityId", "=", "read")
+      .orderBy("apps.key")
+      .execute();
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.appKey).toBe("crm");
+    expect(rows[1]!.appKey).toBe("ops");
+    expect(rows[0]!.key).not.toBe(rows[1]!.key);
+  });
   it("rejects unsafe collection and action names before deriving permissions", () => {
     expect(() =>
       createCollectionRegistry([
@@ -249,28 +286,25 @@ describe("auth/RBAC service integration", () => {
     ).toThrow(/collection/i);
   });
 
-  it("rejects duplicate derived permission keys", () => {
+  it("rejects built-in collection capability overrides", () => {
     const registry = createCollectionRegistry([
       {
         name: "tasks",
         schema: taskSchema,
         schemaVersion: 1,
         auth: {
-          read: { capability: "custom:duplicate" },
-          actions: {
-            archive: { capability: "custom:duplicate" },
-          },
+          read: { capability: "custom-duplicate" },
         },
       },
     ]);
 
     expect(() => deriveCollectionPermissionDefinitions(registry)).toThrow(
-      /permission/i,
+      /overrid/i,
     );
   });
 
   it("filters and mutates documents through resource-scoped role assignments", async () => {
-    const { auth, service } = await createTaskServiceWithAuth();
+    const { auth, service, permissionKeys } = await createTaskServiceWithAuth();
     const root = await auth.ensureTenantRootScope(tenantA);
     const deptA = await auth.createScope({
       tenantId: tenantA,
@@ -299,12 +333,12 @@ describe("auth/RBAC service integration", () => {
     await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
-      permissionKey: "collection:tasks:read",
+      permissionKey: permissionKeys.read,
     });
     await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
-      permissionKey: "collection:tasks:update",
+      permissionKey: permissionKeys.update,
     });
     await auth.assignRole({
       tenantId: tenantA,
@@ -367,7 +401,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("checks create target scope and exposes creatable document scopes", async () => {
-    const { auth, service } = await createTaskServiceWithAuth();
+    const { auth, service, permissionKeys } = await createTaskServiceWithAuth();
     const root = await auth.ensureTenantRootScope(tenantA);
     const child = await auth.createScope({
       tenantId: tenantA,
@@ -384,7 +418,7 @@ describe("auth/RBAC service integration", () => {
     await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: role.roleId,
-      permissionKey: "collection:tasks:create",
+      permissionKey: permissionKeys.create,
     });
     await auth.assignRole({
       tenantId: tenantA,
@@ -424,7 +458,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("authorizes protected document batches through one check per operation", async () => {
-    const { auth, service } = await createTaskServiceWithAuth();
+    const { auth, service, permissionKeys } = await createTaskServiceWithAuth();
     const evaluateAccess = vi.spyOn(auth, "evaluateAccess");
     const root = await auth.ensureTenantRootScope(tenantA);
     const [childA, childB] = await Promise.all([
@@ -451,16 +485,13 @@ describe("auth/RBAC service integration", () => {
       key: "batch-editor",
     });
     await Promise.all(
-      [
-        "collection:tasks:create",
-        "collection:tasks:read",
-        "collection:tasks:update",
-      ].map((permissionKey) =>
-        auth.assignPermissionToRole({
-          tenantId: tenantA,
-          roleId: role.roleId,
-          permissionKey,
-        }),
+      [permissionKeys.create, permissionKeys.read, permissionKeys.update].map(
+        (permissionKey) =>
+          auth.assignPermissionToRole({
+            tenantId: tenantA,
+            roleId: role.roleId,
+            permissionKey,
+          }),
       ),
     );
     await auth.assignRole({
@@ -496,7 +527,7 @@ describe("auth/RBAC service integration", () => {
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
     expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
       {
-        capabilities: ["collection:tasks:create"],
+        capabilities: [permissionKeys.create],
         targetScopeIds: [childA.scopeId, childB.scopeId],
       },
     ]);
@@ -532,7 +563,7 @@ describe("auth/RBAC service integration", () => {
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
     expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
       {
-        capabilities: ["collection:tasks:update"],
+        capabilities: [permissionKeys.update],
         targetScopeIds: [childA.scopeId, childB.scopeId],
       },
     ]);
@@ -566,7 +597,7 @@ describe("auth/RBAC service integration", () => {
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
     expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([
       {
-        capabilities: ["collection:tasks:update"],
+        capabilities: [permissionKeys.update],
         targetScopeIds: [updated[0]!.authScopeId, updated[2]!.authScopeId],
       },
     ]);
@@ -1079,7 +1110,7 @@ describe("auth/RBAC service integration", () => {
         missingCaps: [
           {
             capability: "collection:tasks:delete",
-            permissionId: expect.any(String),
+            permissionKey: "collection:tasks:delete",
             roleId: escalated.roleId,
             targetScopeId: child.scopeId,
             isRootScope: false,
@@ -1203,11 +1234,12 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: user.userId,
     });
+    const readKey = await findPermissionKey("read");
     const reader = await auth.createRole({ tenantId: tenantA, key: "reader" });
     await auth.assignPermissionToRole({
       tenantId: tenantA,
       roleId: reader.roleId,
-      permissionKey: "collection:tasks:read",
+      permissionKey: readKey,
     });
     await auth.assignRole({
       tenantId: tenantA,
@@ -1241,6 +1273,7 @@ describe("auth/RBAC service integration", () => {
   async function createTaskServiceWithAuth(): Promise<{
     auth: AuthRbacService;
     service: DocumentService;
+    permissionKeys: Record<"create" | "read" | "update" | "delete", string>;
   }> {
     const registry = createCollectionRegistry([
       {
@@ -1258,7 +1291,22 @@ describe("auth/RBAC service integration", () => {
     return {
       auth,
       service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),
+      permissionKeys: {
+        create: await findPermissionKey("create"),
+        read: await findPermissionKey("read"),
+        update: await findPermissionKey("update"),
+        delete: await findPermissionKey("delete"),
+      },
     };
+  }
+
+  async function findPermissionKey(capabilityId: string): Promise<string> {
+    const row = await getTestDatabase()
+      .selectFrom("permissions")
+      .select("key")
+      .where("capabilityId", "=", capabilityId)
+      .executeTakeFirstOrThrow();
+    return row.key;
   }
 
   function createTestAuthService() {

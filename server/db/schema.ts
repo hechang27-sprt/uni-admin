@@ -96,8 +96,10 @@ export interface CollectionsTable {
 }
 
 export interface PermissionsTable {
-  permissionId: Generated<string>;
   key: string;
+  appId: string | null;
+  collectionId: string | null;
+  capabilityId: string;
   source: string;
   description: string | null;
   createdAt: Timestamp;
@@ -107,7 +109,7 @@ export interface PermissionsTable {
 export interface RolePermissionsTable {
   tenantId: string;
   roleId: string;
-  permissionId: string;
+  permissionKey: string;
   createdAt: Timestamp;
 }
 

@@ -12,7 +12,7 @@ const safePermissionSegmentSchema = z
     "Must start with a lowercase letter and contain only lowercase letters, digits, or hyphens",
   );
 
-const collectionOperationValues = [
+export const collectionOperationValues = [
   "read",
   "create",
   "update",
@@ -22,7 +22,12 @@ const collectionOperationValues = [
   "hard-delete",
 ] as const;
 
-const permissionSourceValues = ["collection", "action", "admin"] as const;
+const permissionSourceValues = [
+  "collection",
+  "action",
+  "admin",
+  "global",
+] as const;
 export const DEFAULT_APP_KEY = "default";
 
 const collectionOperationSchema = z.enum(collectionOperationValues);
@@ -63,7 +68,10 @@ const _resolvedCollectionOperationAuthSchema = z.object({
 });
 
 const permissionDefinitionSchema = z.object({
-  key: z.string(),
+  key: z.string().optional(),
+  appKey: safePermissionSegmentSchema.nullable().optional(),
+  collectionKey: safePermissionSegmentSchema.nullable().optional(),
+  capabilityId: safePermissionSegmentSchema.optional(),
   source: z.enum(permissionSourceValues),
   description: z.string().optional(),
 });
@@ -254,16 +262,19 @@ export function resolveCollectionOperationAuth(
 
   const baseResourceScope = collection.auth?.resourceScope ?? "document";
 
-  if (typeof declaration === "string") {
-    return {
-      capability: declaration,
-      resourceScope: baseResourceScope,
-    };
+  if (typeof declaration === "string" || declaration?.capability) {
+    throw new DocumentServiceError(
+      "VALIDATION_FAILED",
+      `Built-in collection capability cannot be overridden: ${collection.name}/${operation}`,
+      {
+        collection: collection.name,
+        operation,
+      },
+    );
   }
 
   return {
-    capability:
-      declaration?.capability ?? `collection:${collection.name}:${operation}`,
+    capability: operation,
     resourceScope: declaration?.resourceScope ?? baseResourceScope,
   };
 }
@@ -279,8 +290,7 @@ export function resolveCollectionActionAuth(
   }
 
   return {
-    capability:
-      declaration?.capability ?? `action:${collection.name}:${action}`,
+    capability: `action-${action}`,
     resourceScope:
       declaration?.resourceScope ??
       collection.auth?.resourceScope ??
@@ -298,7 +308,9 @@ export function deriveCollectionPermissionDefinitions(
       const auth = resolveCollectionOperationAuth(collection, operation);
       if (auth) {
         addPermissionDefinition(permissions, {
-          key: auth.capability,
+          appKey: collection.appKey,
+          collectionKey: collection.name,
+          capabilityId: auth.capability,
           source: "collection",
         });
       }
@@ -308,7 +320,9 @@ export function deriveCollectionPermissionDefinitions(
       const auth = resolveCollectionActionAuth(collection, action);
       if (auth) {
         addPermissionDefinition(permissions, {
-          key: auth.capability,
+          appKey: collection.appKey,
+          collectionKey: collection.name,
+          capabilityId: auth.capability,
           source: "action",
         });
       }
@@ -324,20 +338,31 @@ function addPermissionDefinition(
 ): void {
   permissionDefinitionSchema.parse(definition);
 
-  const existing = permissions.get(definition.key);
+  const derivedKey = permissionDefinitionIdentity(definition);
+  const existing = permissions.get(derivedKey);
 
   if (existing) {
     throw new DocumentServiceError(
       "VALIDATION_FAILED",
-      `Duplicate derived permission key: ${definition.key}`,
+      `Duplicate derived permission key: ${derivedKey}`,
       {
-        capability: definition.key,
+        capability: definition.capabilityId ?? definition.key,
         operation: `${existing.source}->${definition.source}`,
       },
     );
   }
 
-  permissions.set(definition.key, definition);
+  permissions.set(derivedKey, definition);
+}
+
+function permissionDefinitionIdentity(
+  definition: PermissionDefinition,
+): string {
+  return [
+    definition.appKey ?? "",
+    definition.collectionKey ?? "",
+    definition.capabilityId ?? definition.key ?? "",
+  ].join(":");
 }
 
 function normalizeRegistration<TData extends JsonObject>(

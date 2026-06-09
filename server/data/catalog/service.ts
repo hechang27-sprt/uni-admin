@@ -28,8 +28,10 @@ export class CatalogService {
     });
   }
 
-  syncRegistryCollections(): Promise<CatalogCollection[]> {
-    return this.repository.syncCollections(this.registry);
+  syncRegistryCollections(
+    registry: CollectionRegistry = this.registry,
+  ): Promise<CatalogCollection[]> {
+    return this.repository.syncCollections(registry);
   }
 
   enableDefaultAppForTenant(tenantId: string): Promise<CatalogApp> {

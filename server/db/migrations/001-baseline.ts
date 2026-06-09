@@ -203,13 +203,14 @@ export async function up(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("permissions")
-    .addColumn("permission_id", "uuid", (col) =>
-      col
-        .primaryKey()
-        .defaultTo(sql`gen_random_uuid()`)
-        .notNull(),
+    .addColumn("key", "text", (col) => col.primaryKey().notNull())
+    .addColumn("app_id", "uuid", (col) =>
+      col.references("apps.app_id").onDelete("cascade"),
     )
-    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("collection_id", "uuid", (col) =>
+      col.references("collections.collection_id").onDelete("cascade"),
+    )
+    .addColumn("capability_id", "text", (col) => col.notNull())
     .addColumn("source", "text", (col) => col.notNull())
     .addColumn("description", "text")
     .addColumn("created_at", sql`timestamp with time zone`, (col) =>
@@ -228,8 +229,8 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn("role_id", "uuid", (col) =>
       col.references("roles.role_id").onDelete("cascade").notNull(),
     )
-    .addColumn("permission_id", "uuid", (col) =>
-      col.references("permissions.permission_id").onDelete("cascade").notNull(),
+    .addColumn("permission_key", "text", (col) =>
+      col.references("permissions.key").onDelete("cascade").notNull(),
     )
     .addColumn("created_at", sql`timestamp with time zone`, (col) =>
       col.defaultTo(sql`now()`).notNull(),
@@ -237,7 +238,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addPrimaryKeyConstraint("role_permissions_pk", [
       "tenant_id",
       "role_id",
-      "permission_id",
+      "permission_key",
     ])
     .execute();
 

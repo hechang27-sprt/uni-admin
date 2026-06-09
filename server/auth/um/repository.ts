@@ -2,14 +2,15 @@
 import { inject, injectable } from "inversify";
 import { sql, type Selectable, type Transaction } from "kysely";
 
-import type {
-  AuthScopesTable,
-  Database,
-  PermissionsTable,
-  RolesTable,
-  TenantMembershipsTable,
-  UserPasswordCredentialsTable,
-  UsersTable,
+import {
+  DEFAULT_APP_KEY,
+  type AuthScopesTable,
+  type Database,
+  type PermissionsTable,
+  type RolesTable,
+  type TenantMembershipsTable,
+  type UserPasswordCredentialsTable,
+  type UsersTable,
 } from "#server/db/schema";
 import { AuthRbacError } from "./errors";
 import type {
@@ -434,19 +435,29 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     if (input.length === 0) {
       return [];
     }
+
+    const values = await Promise.all(
+      input.map((permission) => this.resolvePermissionValue(permission)),
+    );
     const now = new Date();
     const rows = await this.database
       .insertInto("permissions")
       .values(
-        input.map((permission) => ({
+        values.map((permission) => ({
           key: permission.key,
+          appId: permission.appId,
+          collectionId: permission.collectionId,
+          capabilityId: permission.capabilityId,
           source: permission.source,
-          description: permission.description ?? null,
+          description: permission.description,
           updatedAt: now,
         })),
       )
       .onConflict((conflict) =>
         conflict.column("key").doUpdateSet({
+          appId: sql`excluded.app_id`,
+          collectionId: sql`excluded.collection_id`,
+          capabilityId: sql`excluded.capability_id`,
           source: sql`excluded.source`,
           description: sql`excluded.description`,
           updatedAt: now,
@@ -468,7 +479,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     await this.database
       .insertInto("rolePermissions")
-      .columns(["tenantId", "roleId", "permissionId"])
+      .columns(["tenantId", "roleId", "permissionKey"])
       .expression(({ selectFrom, val }) =>
         selectFrom(
           sql<{
@@ -481,7 +492,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .select([
             val(input.tenantId).as("tenantId"),
             val(input.roleId).as("roleId"),
-            "permissions.permissionId",
+            "permissions.key as permissionKey",
           ]),
       )
       .onConflict((conflict) => conflict.doNothing())
@@ -660,7 +671,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       )
       .leftJoin("permissions", "permissions.key", "input.permissionKey")
       .select("input.permissionKey")
-      .where("permissions.permissionId", "is", null)
+      .where("permissions.key", "is", null)
       .orderBy("input.inputOrder")
       .executeTakeFirst();
 
@@ -703,7 +714,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           "scopeId",
           "descendantId",
           "rp.roleId",
-          "p.permissionId",
           "p.key as permissionKey",
         ]),
       )
@@ -755,7 +765,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
             )
               .select([
                 "directCap.capability",
-                lit(null).$castTo<string>().as("permissionId"),
+                lit(null).$castTo<string>().as("permissionKey"),
                 lit(null).$castTo<string>().as("roleId"),
                 "directCap.capabilityOrder",
                 lit<number>(0).as("sourceOrder"),
@@ -782,14 +792,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                         sql<string>`role_input.role_id::uuid`,
                       ),
                   )
-                  .innerJoin(
-                    "permissions as p",
-                    "p.permissionId",
-                    "rp.permissionId",
-                  )
+                  .innerJoin("permissions as p", "p.key", "rp.permissionKey")
                   .select([
                     "p.key as capability",
-                    "p.permissionId as permissionId",
+                    "p.key as permissionKey",
                     sql<string>`role_input.role_id::uuid`.as("roleId"),
                     sql<number>`1000000 + role_input.role_order`.as(
                       "capabilityOrder",
@@ -841,7 +847,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                   jsonb_agg(
                     jsonb_build_object(
                       'capability', cap.capability,
-                      'permissionId', coalesce(cap.permission_id, direct_permission.permission_id),
+                      'permissionKey', coalesce(cap.permission_key, direct_permission.key),
                       'roleId', cap.role_id,
                       'targetScopeId', scope_eval.target_scope_id,
                       'isRootScope', scope_eval.is_root_scope
@@ -853,14 +859,14 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       scope_eval.scope_order,
                       scope_eval.target_scope_id
                   ) filter (
-                    where g2.permission_id is null
+                    where g2.permission_key is null
                   ),
                   '[]'::jsonb
                 )
               `.as("missingCaps"),
               sql<boolean>`
                 coalesce(
-                  bool_and(g2.permission_id is not null),
+                  bool_and(g2.permission_key is not null),
                   true
                 )
               `.as("hasAllCaps"),
@@ -874,7 +880,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .$castTo<boolean>()
           .as("hasOverride"),
         ref("caps.missingCaps").as("missingCaps"),
-        or([eb("g1.permissionId", "is not", null), ref("caps.hasAllCaps")])
+        or([eb("g1.permissionKey", "is not", null), ref("caps.hasAllCaps")])
           .$castTo<boolean>()
           .as("allowed"),
       ])
@@ -929,6 +935,63 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => (row.isRootScope ? null : row.scopeId));
   }
 
+  private async resolvePermissionValue(permission: PermissionDefinitionInput): Promise<{
+    key: string;
+    appId: string | null;
+    collectionId: string | null;
+    capabilityId: string;
+    source: string;
+    description: string | null;
+  }> {
+    const capabilityId = permission.capabilityId ?? inferCapabilityId(permission);
+
+    if (permission.collectionKey) {
+      const collection = await this.database
+        .selectFrom("collections")
+        .innerJoin("apps", "apps.appId", "collections.appId")
+        .select(["apps.appId", "collections.collectionId"])
+        .where("apps.key", "=", permission.appKey ?? DEFAULT_APP_KEY)
+        .where("collections.key", "=", permission.collectionKey)
+        .executeTakeFirstOrThrow();
+
+      return {
+        key: `${collection.appId}:${collection.collectionId}:${capabilityId}`,
+        appId: collection.appId,
+        collectionId: collection.collectionId,
+        capabilityId,
+        source: permission.source,
+        description: permission.description ?? null,
+      };
+    }
+
+    if (permission.appKey) {
+      const app = await this.database
+        .selectFrom("apps")
+        .select("appId")
+        .where("key", "=", permission.appKey)
+        .executeTakeFirstOrThrow();
+
+      return {
+        key: `${app.appId}:${capabilityId}`,
+        appId: app.appId,
+        collectionId: null,
+        capabilityId,
+        source: permission.source,
+        description: permission.description ?? null,
+      };
+    }
+
+    const key = permission.key ?? `${permission.source}:${capabilityId}`;
+    return {
+      key,
+      appId: null,
+      collectionId: null,
+      capabilityId,
+      source: permission.source,
+      description: permission.description ?? null,
+    };
+  }
+
   async findTenantRootScope(
     tenantId: string,
     database: AuthDatabase = this.database,
@@ -941,6 +1004,23 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .executeTakeFirst();
     return row ? mapScope(row) : null;
   }
+}
+
+function inferCapabilityId(permission: PermissionDefinitionInput): string {
+  if (permission.key?.startsWith("admin:")) {
+    return permission.key.slice("admin:".length).replaceAll(":", "-");
+  }
+  if (permission.key?.startsWith("global:")) {
+    return permission.key.slice("global:".length).replaceAll(":", "-");
+  }
+  if (permission.key) {
+    return permission.key;
+  }
+  throw new AuthRbacError(
+    "AUTH_PERMISSION_NOT_FOUND",
+    "Permission definition requires a key or capability id",
+    { permissionKey: permission.key },
+  );
 }
 
 function mapUser(row: Selectable<UsersTable>): AuthUser {
