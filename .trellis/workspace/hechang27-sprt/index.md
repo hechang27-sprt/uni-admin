@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
+- **Total Sessions**: 26
 - **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~828 | Active |
+| `journal-1.md` | ~860 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-06-09 | Document catalog identity persistence | `b017a044` | `-` |
 | 25 | 2026-06-09 | Catalog persistence helpers | `a6d7f8a1` | `-` |
 | 24 | 2026-06-09 | App catalog identity migration slice 2 | `8637818a` | `-` |
 | 23 | 2026-06-08 | App catalog schema slice 1 | `b222fc3d` | `-` |

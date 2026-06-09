@@ -826,3 +826,35 @@ Implemented slice 3 of the app catalog identity migration: added catalog reposit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Document catalog identity persistence
+
+**Date**: 2026-06-09
+**Task**: Document catalog identity persistence
+
+### Summary
+
+Implemented part 4 of app catalog identity migration: documents now persist and query by tenant, app, and collection ids with catalog-backed service resolution, scoped remote uniqueness, DI wiring, and targeted service/database validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b017a044` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
