@@ -8,6 +8,11 @@ import {
   type AuthRbacRepository,
 } from "#server/auth/um";
 import {
+  CatalogService,
+  KyselyCatalogRepository,
+  type CatalogRepository,
+} from "#server/data/catalog";
+import {
   DocumentService,
   KyselyDocumentRepository,
   type CollectionRegistry,
@@ -41,8 +46,16 @@ export function createServerContainer(
     .to(KyselyDocumentRepository)
     .inSingletonScope();
   container
+    .bind<CatalogRepository>(SERVER_DI_TYPES.CatalogRepository)
+    .to(KyselyCatalogRepository)
+    .inSingletonScope();
+  container
     .bind<AuthRbacService>(SERVER_DI_TYPES.AuthRbacService)
     .to(AuthRbacService)
+    .inSingletonScope();
+  container
+    .bind<CatalogService>(SERVER_DI_TYPES.CatalogService)
+    .to(CatalogService)
     .inSingletonScope();
   container
     .bind<DocumentService>(SERVER_DI_TYPES.DocumentService)

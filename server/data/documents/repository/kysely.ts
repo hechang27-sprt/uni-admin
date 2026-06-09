@@ -59,6 +59,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .insertInto("documents")
       .columns([
         "tenantId",
+        "appId",
+        "collectionId",
         "collection",
         "schemaVersion",
         "data",
@@ -73,6 +75,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
           ),
         ).select([
           val(input.tenantId).as("tenantId"),
+          val(input.appId).as("appId"),
+          val(input.collectionId).as("collectionId"),
           val(input.collection).as("collection"),
           val(input.schemaVersion).as("schemaVersion"),
           "input.data",
@@ -88,6 +92,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
   }
   async findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     remoteSource: string;
     remoteId: string;
@@ -97,6 +103,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .selectFrom("documents")
       .selectAll()
       .where("tenantId", "=", input.tenantId)
+      .where("appId", "=", input.appId)
+      .where("collectionId", "=", input.collectionId)
       .where("collection", "=", input.collection)
       .where("remoteSource", "=", input.remoteSource)
       .where("remoteId", "=", input.remoteId);
@@ -109,6 +117,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
   async list<TData extends JsonObject>(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]> {
@@ -118,6 +128,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .selectFrom("documents")
       .selectAll()
       .where("tenantId", "=", input.tenantId)
+      .where("appId", "=", input.appId)
+      .where("collectionId", "=", input.collectionId)
       .where("collection", "=", input.collection);
 
     if (!normalized.includeDeleted) {
@@ -198,6 +210,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
             sql<UpdateInput>`
               unnest(
                 ${columns.id}::uuid[],
+                ${columns.appId}::uuid[],
+                ${columns.collectionId}::uuid[],
                 ${columns.collection}::text[],
                 ${columns.expectedVersion}::int[],
                 ${columns.schemaVersion}::int[],
@@ -215,7 +229,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
             `.as<"updates">(
               sql`
                 updates(
-                  id, collection, expected_version, schema_version,
+                  id, app_id, collection_id,
+                  collection, expected_version, schema_version,
                   data, set_data,
                   auth_scope_id, set_auth_scope_id,
                   deleted_at, set_deleted_at,
@@ -226,6 +241,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
             ),
           )
           .whereRef("documents.id", "=", "updates.id")
+          .whereRef("documents.appId", "=", "updates.appId")
+          .whereRef("documents.collectionId", "=", "updates.collectionId")
           .where("documents.tenantId", "=", input.tenantId)
           .whereRef("documents.collection", "=", "updates.collection")
           .whereRef("documents.version", "=", "updates.expectedVersion")
@@ -304,6 +321,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
     const rows = await this.database
       .insertInto("documents")
       .columns([
+        "appId",
+        "collectionId",
         "tenantId",
         "collection",
         "schemaVersion",
@@ -319,6 +338,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
             sql`input(data, auth_scope_id, remote_id)`,
           ),
         ).select([
+          val(record.appId).as("appId"),
+          val(record.collectionId).as("collectionId"),
           val(record.tenantId).as("tenantId"),
           val(record.collection).as("collection"),
           val(record.schemaVersion).as("schemaVersion"),
@@ -331,7 +352,13 @@ export class KyselyDocumentRepository implements DocumentRepository {
       )
       .onConflict((conflict) =>
         conflict
-          .columns(["tenantId", "collection", "remoteId", "remoteSource"])
+          .columns([
+            "tenantId",
+            "appId",
+            "collectionId",
+            "remoteId",
+            "remoteSource",
+          ])
           .where("remoteSource", "is not", null)
           .where("remoteId", "is not", null)
           .doUpdateSet(({ ref, fn, eb }) => ({
@@ -354,6 +381,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
 
   async hardDeleteMany(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     ids: string[];
   }): Promise<string[]> {
@@ -378,6 +407,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
         db
           .deleteFrom("documents")
           .where("tenantId", "=", input.tenantId)
+          .where("appId", "=", input.appId)
+          .where("collectionId", "=", input.collectionId)
           .where("collection", "=", input.collection)
           .where("id", "in", db.selectFrom("input").select("id"))
           .returning("id"),

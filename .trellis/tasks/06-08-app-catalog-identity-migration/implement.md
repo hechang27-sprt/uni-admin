@@ -38,17 +38,17 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 4. Cut document persistence to structured collection identity
 
-- [ ] Add `app_id` and `collection_id` columns to `documents`.
-- [ ] Add FK/invariant constraints:
+- [x] Add `app_id` and `collection_id` columns to `documents`.
+- [x] Add FK/invariant constraints:
   - `documents.app_id` references `apps.app_id`.
   - `(documents.app_id, documents.collection_id)` references `collections(app_id, collection_id)`.
   - `(documents.tenant_id, documents.app_id)` references `tenant_apps(tenant_id, app_id)`.
-- [ ] Keep `documents.collection` temporarily populated for compatibility.
-- [ ] Update `DocumentsTable` and `StoredDocument` only as needed; avoid exposing app fields publicly until behavior is stable.
-- [ ] Update document repository inputs to receive normalized app/collection ids.
-- [ ] Update insert/list/find/update/delete/remote upsert queries to scope by `tenant_id + app_id + collection_id`.
-- [ ] Update remote identity unique index to `(tenant_id, app_id, collection_id, remote_source, remote_id)`.
-- [ ] Add tests:
+- [x] Keep `documents.collection` temporarily populated for compatibility.
+- [x] Update `DocumentsTable` and `StoredDocument` only as needed; avoid exposing app fields publicly until behavior is stable.
+- [x] Update document repository inputs to receive normalized app/collection ids.
+- [x] Update insert/list/find/update/delete/remote upsert queries to scope by `tenant_id + app_id + collection_id`.
+- [x] Update remote identity unique index to `(tenant_id, app_id, collection_id, remote_source, remote_id)`.
+- [x] Add tests:
   - Tenant A and Tenant B can both store data for the same app collection without cross-read.
   - Two apps can both define `tasks`; documents do not cross app boundaries.
   - Tenant without enabled app cannot write documents for that app.

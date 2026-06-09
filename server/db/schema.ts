@@ -123,6 +123,8 @@ export interface UserRoleAssignmentsTable {
 export interface DocumentsTable {
   id: Generated<string>;
   tenantId: string;
+  appId: string;
+  collectionId: string;
   collection: string;
   schemaVersion: number;
   data: JsonObject;

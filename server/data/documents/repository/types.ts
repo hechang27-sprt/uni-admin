@@ -42,6 +42,8 @@ export const insertManyDocumentsItemSchema = z.object({
 
 export const insertManyDocumentsRecordSchema = z.object({
   tenantId: z.string(),
+  appId: z.string(),
+  collectionId: z.string(),
   collection: z.string(),
   schemaVersion: z.number(),
   items: z.array(insertManyDocumentsItemSchema),
@@ -58,6 +60,8 @@ export type InsertManyDocumentsRecord<TData extends JsonObject = JsonObject> =
   };
 
 export const updateDocumentRecordSchema = z.object({
+  appId: z.string(),
+  collectionId: z.string(),
   collection: z.string(),
   id: z.string(),
   expectedVersion: z.number(),
@@ -102,6 +106,8 @@ export const upsertRemoteProjectionSchema = z.object({
 
 export const upsertRemoteProjectionsRecordSchema = z.object({
   tenantId: z.string(),
+  appId: z.string(),
+  collectionId: z.string(),
   collection: z.string(),
   schemaVersion: z.number(),
   remoteSource: z.string(),
@@ -125,6 +131,8 @@ export interface DocumentRepository {
   ): Promise<StoredDocument<TData>[]>;
   findByRemoteIdentity<TData extends JsonObject>(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     remoteSource: string;
     remoteId: string;
@@ -132,6 +140,8 @@ export interface DocumentRepository {
   }): Promise<StoredDocument<TData> | null>;
   list<TData extends JsonObject>(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]>;
@@ -143,6 +153,8 @@ export interface DocumentRepository {
   ): Promise<StoredDocument<TData>[]>;
   hardDeleteMany(input: {
     tenantId: string;
+    appId: string;
+    collectionId: string;
     collection: string;
     ids: string[];
   }): Promise<string[]>;

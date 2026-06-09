@@ -70,6 +70,10 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn("updated_at", sql`timestamp with time zone`, (col) =>
       col.defaultTo(sql`now()`).notNull(),
     )
+    .addUniqueConstraint("collections_app_collection_unique", [
+      "app_id",
+      "collection_id",
+    ])
     .execute();
 
 
@@ -273,6 +277,10 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn("tenant_id", "uuid", (col) =>
       col.references("tenants.id").onDelete("cascade").notNull(),
     )
+    .addColumn("app_id", "uuid", (col) =>
+      col.references("apps.app_id").onDelete("restrict").notNull(),
+    )
+    .addColumn("collection_id", "uuid", (col) => col.notNull())
     .addColumn("collection", "text", (col) => col.notNull())
     .addColumn("schema_version", "integer", (col) => col.notNull())
     .addColumn("data", "jsonb", (col) => col.notNull())
@@ -289,6 +297,18 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col.defaultTo(sql`now()`).notNull(),
     )
     .addColumn("deleted_at", sql`timestamp with time zone`)
+    .addForeignKeyConstraint(
+      "documents_collection_identity_fk",
+      ["app_id", "collection_id"],
+      "collections",
+      ["app_id", "collection_id"],
+    )
+    .addForeignKeyConstraint(
+      "documents_tenant_app_fk",
+      ["tenant_id", "app_id"],
+      "tenant_apps",
+      ["tenant_id", "app_id"],
+    )
     .execute();
 
   await db.schema
@@ -339,12 +359,6 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .columns(["app_id", "key"])
     .execute();
 
-  await db.schema
-    .createIndex("collections_app_collection_unique")
-    .unique()
-    .on("collections")
-    .columns(["app_id", "collection_id"])
-    .execute();
 
   await db.schema
     .createIndex("permissions_key_unique")
@@ -369,13 +383,13 @@ export async function up(db: Kysely<Database>): Promise<void> {
   await db.schema
     .createIndex("documents_tenant_collection_deleted_idx")
     .on("documents")
-    .columns(["tenant_id", "collection", "deleted_at"])
+    .columns(["tenant_id", "app_id", "collection_id", "deleted_at"])
     .execute();
 
   await db.schema
     .createIndex("documents_tenant_collection_auth_scope_idx")
     .on("documents")
-    .columns(["tenant_id", "collection", "auth_scope_id"])
+    .columns(["tenant_id", "app_id", "collection_id", "auth_scope_id"])
     .execute();
 
   await db.schema
@@ -395,7 +409,13 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .createIndex("documents_remote_identity_unique")
     .unique()
     .on("documents")
-    .columns(["tenant_id", "collection", "remote_source", "remote_id"])
+    .columns([
+      "tenant_id",
+      "app_id",
+      "collection_id",
+      "remote_source",
+      "remote_id",
+    ])
     .where("remote_source", "is not", null)
     .where("remote_id", "is not", null)
     .execute();

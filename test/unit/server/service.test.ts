@@ -8,12 +8,16 @@ import {
   it,
 } from "vitest";
 import { sql } from "kysely";
+import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
 import {
+  createCollectionRegistry,
   DocumentServiceError,
   type DocumentService,
 } from "#server/data/documents";
+import type { CatalogService } from "#server/data/catalog";
+import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import {
   createRemoteService,
   createService,
@@ -76,6 +80,32 @@ describe.each([{ name: "pgLite Kysely repository" }])(
 
     function createTestService(): DocumentService {
       return createService(getTestDatabase());
+    }
+
+    async function createTwoAppTaskService(): Promise<DocumentService> {
+      const registry = createCollectionRegistry([
+        {
+          appKey: "default",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+        {
+          appKey: "workflow",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const container = createServerContainer({
+        database: getTestDatabase(),
+        registry,
+      });
+      const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+      await catalog.syncRegistryCollections();
+      await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
+      await catalog.enableTenantApp({ tenantId: tenantB, appKey: "workflow" });
+      return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
     }
 
     it("rejects unknown collections and invalid data before persistence", async () => {
@@ -368,6 +398,154 @@ describe.each([{ name: "pgLite Kysely repository" }])(
           },
         }),
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("scopes documents by structured tenant, app, and collection identity", async () => {
+      const service = await createTwoAppTaskService();
+
+      const tenantADefault = await service.create({
+        tenantId: tenantA,
+        collection: "tasks",
+        data: { title: "Tenant A default" },
+      });
+      const tenantBDefault = await service.create({
+        tenantId: tenantB,
+        collection: "tasks",
+        data: { title: "Tenant B default" },
+      });
+      const tenantAWorkflow = await service.create({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "tasks",
+        data: { title: "Tenant A workflow" },
+      });
+
+      await expect(
+        service.getById({
+          tenantId: tenantB,
+          collection: "tasks",
+          id: tenantADefault.id,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        service.getById({
+          tenantId: tenantA,
+          appKey: "workflow",
+          collection: "tasks",
+          id: tenantADefault.id,
+        }),
+      ).resolves.toBeNull();
+
+      const tenantAWorkflowList = await service.list({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "tasks",
+      });
+      expect(tenantAWorkflowList.items.map((item) => item.id)).toEqual([
+        tenantAWorkflow.id,
+      ]);
+      const tenantADefaultList = await service.list({
+        tenantId: tenantA,
+        collection: "tasks",
+      });
+      const tenantBDefaultList = await service.list({
+        tenantId: tenantB,
+        collection: "tasks",
+      });
+      expect(tenantADefaultList.items.map((item) => item.id)).toEqual([
+        tenantADefault.id,
+      ]);
+      expect(tenantBDefaultList.items.map((item) => item.id)).toEqual([
+        tenantBDefault.id,
+      ]);
+    });
+
+    it("requires tenant app enablement for non-default app writes", async () => {
+      const registry = createCollectionRegistry([
+        {
+          appKey: "workflow",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const container = createServerContainer({
+        database: getTestDatabase(),
+        registry,
+      });
+      const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
+
+      await expect(
+        service.create({
+          tenantId: tenantA,
+          appKey: "workflow",
+          collection: "tasks",
+          data: { title: "Blocked" },
+        }),
+      ).rejects.toMatchObject({ code: "UNKNOWN_COLLECTION" });
+    });
+
+    it("scopes remote upsert uniqueness by app and collection identity", async () => {
+      const registry = createCollectionRegistry([
+        {
+          appKey: "default",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+        {
+          appKey: "workflow",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const container = createServerContainer({
+        database: getTestDatabase(),
+        registry,
+      });
+      const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+      await catalog.syncRegistryCollections();
+      await catalog.enableDefaultAppForTenant(tenantA);
+      await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
+      const repository = getTestDatabase();
+      const identities = await Promise.all([
+        catalog.findTenantCollectionIdentity({
+          tenantId: tenantA,
+          appKey: "default",
+          collectionKey: "tasks",
+        }),
+        catalog.findTenantCollectionIdentity({
+          tenantId: tenantA,
+          appKey: "workflow",
+          collectionKey: "tasks",
+        }),
+      ]);
+
+      await repository
+        .insertInto("documents")
+        .values(
+          identities.map((identity, index) => ({
+            tenantId: tenantA,
+            appId: identity!.appId,
+            collectionId: identity!.collectionId,
+            collection: "tasks",
+            schemaVersion: 1,
+            data: { title: `Remote ${index}` },
+            remoteSource: "linear",
+            remoteId: "remote-1",
+          })),
+        )
+        .execute();
+
+      const rows = await repository
+        .selectFrom("documents")
+        .select(["appId", "collectionId", "remoteId"])
+        .where("tenantId", "=", tenantA)
+        .where("remoteSource", "=", "linear")
+        .where("remoteId", "=", "remote-1")
+        .execute();
+      expect(rows).toHaveLength(2);
     });
 
     it("supports JSONB-path filters, metadata filters, sorting, pagination bounds, and deleted inclusion", async () => {

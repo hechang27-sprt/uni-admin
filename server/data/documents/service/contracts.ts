@@ -7,10 +7,14 @@ import type {
   TenantActorContext,
 } from "../types";
 
+export interface CollectionDocumentInput extends TenantContext {
+  appKey?: string;
+  collection: string;
+}
+
 export interface CreateDocumentInput<
   TData extends JsonObject = JsonObject,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   data: TData;
   authScopeId?: string | null;
   remoteSource?: string | null;
@@ -19,8 +23,7 @@ export interface CreateDocumentInput<
 
 export interface CreateManyDocumentInput<
   TData extends JsonObject = JsonObject,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   items: {
     data: TData;
     authScopeId?: string | null;
@@ -29,20 +32,17 @@ export interface CreateManyDocumentInput<
   }[];
 }
 
-export interface VersionedDocumentInput extends TenantContext {
-  collection: string;
+export interface VersionedDocumentInput extends CollectionDocumentInput {
   id: string;
   expectedVersion: number;
 }
 
-export interface GetDocumentInput extends TenantContext {
-  collection: string;
+export interface GetDocumentInput extends CollectionDocumentInput {
   id: string;
   includeDeleted?: boolean;
 }
 
-export interface GetDocumentsByIdsInput extends TenantContext {
-  collection: string;
+export interface GetDocumentsByIdsInput extends CollectionDocumentInput {
   ids: string[];
   includeDeleted?: boolean;
 }
@@ -55,8 +55,7 @@ export interface UpdateDocumentInput<
 
 export interface UpdateManyDocumentInput<
   TData extends JsonObject = JsonObject,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   items: {
     id: string;
     expectedVersion: number;
@@ -68,35 +67,30 @@ export interface PatchDocumentInput extends VersionedDocumentInput {
   patch: JsonPatchOperation[];
 }
 
-export interface HardDeleteDocumentInput extends TenantContext {
-  collection: string;
+export interface HardDeleteDocumentInput extends CollectionDocumentInput {
   id: string;
   confirmHardDelete: true;
 }
 
 export interface ListDocumentServiceInput
-  extends TenantContext, ListDocumentsInput {
-  collection: string;
-}
+  extends CollectionDocumentInput,
+    ListDocumentsInput {}
 
 export interface SyncRemoteOneInput<
   TSyncInput = unknown,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   input: TSyncInput;
 }
 
 export interface SyncRemoteListInput<
   TSyncInput = unknown,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   input: TSyncInput;
 }
 
 export interface RemoteCreateInput<
   TCreateInput = unknown,
-> extends TenantContext {
-  collection: string;
+> extends CollectionDocumentInput {
   input: TCreateInput;
   authScopeId?: string | null;
 }
@@ -117,8 +111,7 @@ export interface DocumentServiceOptions {
   actor?: TenantActorContext["actor"];
 }
 
-export interface SetDocumentAuthScopeInput extends TenantContext {
-  collection: string;
+export interface SetDocumentAuthScopeInput extends CollectionDocumentInput {
   id: string;
   expectedVersion: number;
   authScopeId: string | null;

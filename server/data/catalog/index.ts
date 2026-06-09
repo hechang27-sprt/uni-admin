@@ -1,7 +1,9 @@
 /* oxlint-disable typescript/unbound-method -- Kysely callback methods are used only to build SQL AST nodes. */
+import { inject, injectable } from "inversify";
 import type { Selectable } from "kysely";
 
 import type { AppsTable, CollectionsTable } from "#server/db/schema";
+import { SERVER_DI_TYPES } from "#server/di/tokens";
 import {
   DEFAULT_APP_KEY,
   type CollectionRegistry,
@@ -43,6 +45,11 @@ export interface FindCatalogCollectionInput {
   collectionKey: string;
 }
 
+export interface FindTenantCatalogCollectionInput
+  extends FindCatalogCollectionInput {
+  tenantId: string;
+}
+
 export interface CatalogRepository {
   ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp>;
   enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp>;
@@ -50,10 +57,17 @@ export interface CatalogRepository {
   findCollection(
     input: FindCatalogCollectionInput,
   ): Promise<CatalogCollection | null>;
+  findTenantCollection(
+    input: FindTenantCatalogCollectionInput,
+  ): Promise<CatalogCollection | null>;
 }
 
+@injectable()
 export class KyselyCatalogRepository implements CatalogRepository {
-  constructor(private readonly database: DatabaseClient) {}
+  constructor(
+    @inject(SERVER_DI_TYPES.DatabaseClient)
+    private readonly database: DatabaseClient,
+  ) {}
 
   async ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp> {
     const now = new Date();
@@ -154,11 +168,39 @@ export class KyselyCatalogRepository implements CatalogRepository {
 
     return row ?? null;
   }
+
+  async findTenantCollection(
+    input: FindTenantCatalogCollectionInput,
+  ): Promise<CatalogCollection | null> {
+    const row = await this.database
+      .selectFrom("collections")
+      .innerJoin("apps", "apps.appId", "collections.appId")
+      .innerJoin("tenantApps", "tenantApps.appId", "apps.appId")
+      .select([
+        "collections.collectionId",
+        "collections.appId",
+        "apps.key as appKey",
+        "collections.key",
+        "collections.definitionKey",
+        "collections.name",
+        "collections.schemaVersion",
+        "collections.config",
+      ])
+      .where("tenantApps.tenantId", "=", input.tenantId)
+      .where("apps.key", "=", input.appKey)
+      .where("collections.key", "=", input.collectionKey)
+      .executeTakeFirst();
+
+    return row ?? null;
+  }
 }
 
+@injectable()
 export class CatalogService {
   constructor(
+    @inject(SERVER_DI_TYPES.CatalogRepository)
     private readonly repository: CatalogRepository,
+    @inject(SERVER_DI_TYPES.CollectionRegistry)
     private readonly registry: CollectionRegistry,
   ) {}
 
@@ -189,6 +231,12 @@ export class CatalogService {
     input: FindCatalogCollectionInput,
   ): Promise<CatalogCollection | null> {
     return this.repository.findCollection(input);
+  }
+
+  findTenantCollectionIdentity(
+    input: FindTenantCatalogCollectionInput,
+  ): Promise<CatalogCollection | null> {
+    return this.repository.findTenantCollection(input);
   }
 }
 

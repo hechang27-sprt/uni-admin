@@ -3,7 +3,9 @@ import { normalizeListInput, type DocumentRepository } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
   resolveCollectionOperationAuth,
+  DEFAULT_APP_KEY,
   type CollectionRegistry,
+  type RegisteredCollection,
   type CollectionOperation,
 } from "../registry";
 import type {
@@ -37,6 +39,7 @@ import type {
   SetDocumentAuthScopeInput,
 } from "./contracts";
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
+import type { CatalogService, CatalogCollection } from "#server/data/catalog";
 import { isAuthRbacError, type AuthRbacService } from "#server/auth/um";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
@@ -52,13 +55,15 @@ export class DocumentService {
     private readonly repository: DocumentRepository,
     @inject(SERVER_DI_TYPES.AuthRbacService)
     private readonly authorizer: AuthRbacService,
+    @inject(SERVER_DI_TYPES.CatalogService)
+    private readonly catalog: CatalogService,
   ) {}
 
   async create<TData extends JsonObject>(
     input: CreateDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
     if (!hasActorOptions(options)) {
       await this.validateAuthScopes({
@@ -72,8 +77,11 @@ export class DocumentService {
       input.collection,
     );
 
+    const identity = await this.requireCollectionIdentity(input, collection);
     const [created] = await this.repository.insertMany<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       schemaVersion: collection.schemaVersion,
       items: [
@@ -96,7 +104,7 @@ export class DocumentService {
     input: CreateManyDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
     const authScopeIds = input.items.map((item) => item.authScopeId);
     await this.authorizeCreate(
       input,
@@ -109,6 +117,7 @@ export class DocumentService {
         authScopeIds,
       });
     }
+    const identity = await this.requireCollectionIdentity(input, collection);
     const items = input.items.map((item) => ({
       data: parseData<TData>(collection.schema, item.data, input.collection),
       authScopeId: item.authScopeId,
@@ -118,6 +127,8 @@ export class DocumentService {
 
     return this.repository.insertMany<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       schemaVersion: collection.schemaVersion,
       items,
@@ -128,10 +139,13 @@ export class DocumentService {
     input: GetDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData> | null> {
-    this.registry.get(input.collection);
+    const collection = this.getCollection(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
 
     const [document] = await this.repository.list<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: {
         ids: [input.id],
@@ -150,7 +164,8 @@ export class DocumentService {
     input: GetDocumentsByIdsInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
     let accessibleScopeIds: string[] | null | undefined;
 
     if (hasActorOptions(options)) {
@@ -176,6 +191,8 @@ export class DocumentService {
 
     return this.repository.list<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: {
         ids: input.ids,
@@ -189,7 +206,8 @@ export class DocumentService {
     input: ListDocumentServiceInput,
     options?: DocumentServiceOptions,
   ): Promise<ListDocumentsResult<TData>> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
     const query = normalizeListInput(input);
     let accessibleScopeIds: string[] | null | undefined;
 
@@ -216,6 +234,8 @@ export class DocumentService {
 
     const items = await this.repository.list<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: {
         ...query,
@@ -236,7 +256,7 @@ export class DocumentService {
     input: UpdateDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
     const existing = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "update", [existing]);
     const data = parseData<TData>(
@@ -252,13 +272,16 @@ export class DocumentService {
     input: UpdateManyDocumentInput<TData>,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
     const items = input.items.map((item) => ({
       ...item,
       data: parseData<TData>(collection.schema, item.data, input.collection),
     }));
     const existingDocuments = await this.repository.list<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: { ids: items.map((item) => item.id) },
     });
@@ -301,6 +324,8 @@ export class DocumentService {
     );
 
     const records = items.map((item) => ({
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       id: item.id,
       expectedVersion: item.expectedVersion,
@@ -329,7 +354,7 @@ export class DocumentService {
     input: PatchDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
     const existing = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "patch", [existing]);
 
@@ -374,7 +399,8 @@ export class DocumentService {
     input: HardDeleteDocumentInput,
     options?: DocumentServiceOptions,
   ): Promise<void> {
-    this.registry.get(input.collection);
+    const collection = this.getCollection(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
 
     if (!input.confirmHardDelete) {
       throw new DocumentServiceError(
@@ -389,6 +415,8 @@ export class DocumentService {
 
     const [existing] = await this.repository.list({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: { ids: [input.id], includeDeleted: true },
     });
@@ -402,6 +430,8 @@ export class DocumentService {
 
     const deletedIds = await this.repository.hardDeleteMany({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       ids: [input.id],
     });
@@ -523,7 +553,7 @@ export class DocumentService {
       never,
       { update: TOutput }
     >(this.registry, input.collection);
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
     const current = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "update", [current]);
 
@@ -669,7 +699,7 @@ export class DocumentService {
     options: DocumentServiceOptions,
   ): Promise<(string | null)[]> {
     const authenticatedOptions = this.requireActorOptions(input, options);
-    const collection = this.registry.get(input.collection);
+    const collection = this.getCollection(input);
     const auth = resolveCollectionOperationAuth(collection, "create");
     if (!auth) {
       return [];
@@ -702,7 +732,7 @@ export class DocumentService {
       return;
     }
 
-    const collection = this.registry.get(input.collection);
+    const collection = this.getCollection(input);
     const auth = resolveCollectionOperationAuth(collection, "create");
     if (!auth) {
       return;
@@ -730,7 +760,7 @@ export class DocumentService {
       return;
     }
 
-    const collection = this.registry.get(input.collection);
+    const collection = this.getCollection(input);
     const auth = resolveCollectionOperationAuth(collection, operation);
     if (!auth) {
       return;
@@ -760,7 +790,7 @@ export class DocumentService {
       return documents;
     }
 
-    const collection = this.registry.get(input.collection);
+    const collection = this.getCollection(input);
     const auth = resolveCollectionOperationAuth(collection, operation);
     if (!auth) {
       return documents;
@@ -874,10 +904,12 @@ export class DocumentService {
     input: VersionedDocumentInput,
     includeDeleted = false,
   ): Promise<StoredDocument<TData>> {
-    this.registry.get(input.collection);
-
+    const collection = this.getCollection(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
     const [existing] = await this.repository.list<TData>({
       tenantId: input.tenantId,
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       collection: input.collection,
       query: { ids: [input.id], includeDeleted },
     });
@@ -909,7 +941,8 @@ export class DocumentService {
     input: { tenantId: string; collection: string },
     projections: RemoteAdapterProjection<TData>[],
   ): Promise<StoredDocument<TData>[]> {
-    const collection = this.registry.get<TData>(input.collection);
+    const collection = this.getCollection<TData>(input);
+    const identity = await this.requireCollectionIdentity(input, collection);
     const adapter = collection.remoteAdapter;
 
     if (!adapter) {
@@ -940,6 +973,8 @@ export class DocumentService {
     });
 
     return this.repository.upsertRemoteProjections<TData>({
+      appId: identity.appId,
+      collectionId: identity.collectionId,
       tenantId: input.tenantId,
       collection: input.collection,
       schemaVersion: collection.schemaVersion,
@@ -976,15 +1011,18 @@ export class DocumentService {
       });
     }
 
+    const identity = await this.requireCollectionIdentity(input);
     const updatedRows = await this.repository.updateMany<TData>({
       tenantId: input.tenantId,
       records: [
         {
+          appId: identity.appId,
+          collectionId: identity.collectionId,
           collection: input.collection,
           id: input.id,
           expectedVersion: input.expectedVersion,
           data,
-          schemaVersion: this.registry.get(input.collection).schemaVersion,
+          schemaVersion: this.getCollection(input).schemaVersion,
           ...(authScopeId === undefined ? {} : { authScopeId }),
           ...(deletedAt === undefined ? {} : { deletedAt }),
           ...(remoteIdentity
@@ -1011,6 +1049,41 @@ export class DocumentService {
     }
 
     return updated;
+  }
+
+  private getCollection<TData extends JsonObject = JsonObject>(input: {
+    appKey?: string;
+    collection: string;
+  }): RegisteredCollection<TData> {
+    return input.appKey
+      ? this.registry.getForApp<TData>(input.appKey, input.collection)
+      : this.registry.get<TData>(input.collection);
+  }
+
+  private async requireCollectionIdentity(
+    input: { tenantId: string; appKey?: string; collection: string },
+    collection = this.getCollection(input),
+  ): Promise<CatalogCollection> {
+    await this.catalog.syncRegistryCollections();
+    if (collection.appKey === DEFAULT_APP_KEY) {
+      await this.catalog.enableDefaultAppForTenant(input.tenantId);
+    }
+
+    const identity = await this.catalog.findTenantCollectionIdentity({
+      tenantId: input.tenantId,
+      appKey: collection.appKey,
+      collectionKey: input.collection,
+    });
+
+    if (!identity) {
+      throw new DocumentServiceError(
+        "UNKNOWN_COLLECTION",
+        "Collection is not enabled for tenant",
+        { collection: input.collection },
+      );
+    }
+
+    return identity;
   }
 }
 
