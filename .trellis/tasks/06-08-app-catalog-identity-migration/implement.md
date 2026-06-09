@@ -30,11 +30,11 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 3. Add catalog repository/service helpers
 
-- [ ] Add a focused catalog persistence boundary rather than scattering app/collection lookups through document/auth repositories.
-- [ ] Ensure default app exists.
-- [ ] Sync registry collections into `collections` rows.
-- [ ] Enable the default app for a tenant when tenant bootstrap/document tests need it, or expose an explicit helper used by tests/bootstrap.
-- [ ] Add tests for tenant app enablement and collection lookup by app key + collection key.
+- [x] Add a focused catalog persistence boundary rather than scattering app/collection lookups through document/auth repositories.
+- [x] Ensure default app exists.
+- [x] Sync registry collections into `collections` rows.
+- [x] Enable the default app for a tenant when tenant bootstrap/document tests need it, or expose an explicit helper used by tests/bootstrap.
+- [x] Add tests for tenant app enablement and collection lookup by app key + collection key.
 
 ### 4. Cut document persistence to structured collection identity
 

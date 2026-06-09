@@ -3,6 +3,8 @@ import { sql } from "kysely";
 import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
+import { CatalogService, KyselyCatalogRepository } from "#server/data/catalog";
+import { createCollectionRegistry } from "#server/data/documents";
 import { createInMemoryDb } from "#server/utils/kysely";
 import { pivotToColumns } from "#server/utils/pivot";
 
@@ -188,6 +190,90 @@ describe("baseline migration catalog tables", () => {
     ).rejects.toThrow("collections_app_key_unique");
   });
 
+
+  it("syncs registry collections into app-scoped catalog rows", async () => {
+    const db = getTestDatabase();
+    const registry = createCollectionRegistry([
+      {
+        name: "tasks",
+        schema: z.object({ title: z.string() }),
+        schemaVersion: 1,
+      },
+      {
+        appKey: "crm",
+        name: "tasks",
+        definitionKey: "crm-tasks",
+        schema: z.object({ company: z.string() }),
+        schemaVersion: 2,
+      },
+    ]);
+    const service = new CatalogService(
+      new KyselyCatalogRepository(db),
+      registry,
+    );
+
+    const defaultApp = await service.ensureDefaultApp();
+    const firstSync = await service.syncRegistryCollections();
+    const secondSync = await service.syncRegistryCollections();
+    const defaultTasks = await service.findCollectionIdentity({
+      appKey: "default",
+      collectionKey: "tasks",
+    });
+    const crmTasks = await service.findCollectionIdentity({
+      appKey: "crm",
+      collectionKey: "tasks",
+    });
+
+    expect(defaultApp).toMatchObject({ key: "default", name: "Default" });
+    expect(firstSync).toHaveLength(2);
+    expect(secondSync.map((collection) => collection.collectionId).toSorted()).toEqual(
+      firstSync.map((collection) => collection.collectionId).toSorted(),
+    );
+    expect(defaultTasks).toMatchObject({
+      appKey: "default",
+      appId: defaultApp.appId,
+      key: "tasks",
+      definitionKey: "tasks",
+      schemaVersion: 1,
+    });
+    expect(crmTasks).toMatchObject({
+      appKey: "crm",
+      key: "tasks",
+      definitionKey: "crm-tasks",
+      schemaVersion: 2,
+    });
+    expect(crmTasks?.collectionId).not.toEqual(defaultTasks?.collectionId);
+    expect(
+      await service.findCollectionIdentity({
+        appKey: "default",
+        collectionKey: "missing",
+      }),
+    ).toBeNull();
+  });
+
+  it("enables tenant apps idempotently", async () => {
+    const db = getTestDatabase();
+    const tenant = await db
+      .insertInto("tenants")
+      .values({ name: "Catalog Tenant" })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    const service = new CatalogService(
+      new KyselyCatalogRepository(db),
+      createCollectionRegistry(),
+    );
+
+    const first = await service.enableDefaultAppForTenant(tenant.id);
+    const second = await service.enableDefaultAppForTenant(tenant.id);
+    const tenantApps = await db
+      .selectFrom("tenantApps")
+      .select(["tenantId", "appId"])
+      .where("tenantId", "=", tenant.id)
+      .execute();
+
+    expect(second.appId).toBe(first.appId);
+    expect(tenantApps).toEqual([{ tenantId: tenant.id, appId: first.appId }]);
+  });
   it("creates named catalog indexes and constraints", async () => {
     const db = getTestDatabase();
 
