@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 27
+- **Total Sessions**: 28
 - **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~892 | Active |
+| `journal-1.md` | ~924 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 28 | 2026-06-09 | Permission identity migration part 5 | `3e4267ae` | `-` |
 | 27 | 2026-06-09 | Split catalog service and repository | `9789f3c6` | `-` |
 | 26 | 2026-06-09 | Document catalog identity persistence | `b017a044` | `-` |
 | 25 | 2026-06-09 | Catalog persistence helpers | `a6d7f8a1` | `-` |

@@ -890,3 +890,35 @@ Split the catalog data module into repository.ts and service.ts while keeping in
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Permission identity migration part 5
+
+**Date**: 2026-06-09
+**Task**: Permission identity migration part 5
+
+### Summary
+
+Cut permission persistence over to canonical app/collection/capability keys, updated RBAC queries and document authorization to use canonical keys, refreshed tests, and verified typecheck/lint/server unit tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3e4267ae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
