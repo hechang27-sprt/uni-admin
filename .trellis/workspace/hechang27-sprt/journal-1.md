@@ -762,3 +762,35 @@ Implemented the first app catalog identity migration slice: added apps, tenant_a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: App catalog identity migration slice 2
+
+**Date**: 2026-06-09
+**Task**: App catalog identity migration slice 2
+
+### Summary
+
+Implemented slice 2 app-aware collection registration metadata: default app and definition keys, app-scoped registry uniqueness, compatibility helpers, registry exports, tests, typecheck, lint, and GitNexus change detection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8637818a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

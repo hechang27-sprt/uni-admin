@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 23
-- **Last Active**: 2026-06-08
+- **Total Sessions**: 24
+- **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~764 | Active |
+| `journal-1.md` | ~796 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-06-09 | App catalog identity migration slice 2 | `8637818a` | `-` |
 | 23 | 2026-06-08 | App catalog schema slice 1 | `b222fc3d` | `-` |
 | 22 | 2026-06-08 | Fix duplicate unsafe collection permissions | `fe429c4b` | `-` |
 | 21 | 2026-06-08 | Baseline migration and collection permission invariants | `ca3c8394`, `2f923b1f` | `-` |
