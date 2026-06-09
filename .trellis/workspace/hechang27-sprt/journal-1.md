@@ -922,3 +922,35 @@ Cut permission persistence over to canonical app/collection/capability keys, upd
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: App catalog identity docs
+
+**Date**: 2026-06-09
+**Task**: App catalog identity docs
+
+### Summary
+
+Completed part 6 documentation/spec cleanup for the app catalog identity migration. Updated maintainer docs, DX guide, server repository/database spec, auth/RBAC spec, and data-layer boundary spec to reflect catalog-scoped app and collection identity plus canonical permission keys. Verified with targeted Vitest suites, typecheck, lint, combined server tests, and GitNexus change detection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `89cc00e2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
