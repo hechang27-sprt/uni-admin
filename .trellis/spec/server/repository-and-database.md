@@ -250,11 +250,17 @@ filter/sort SQL expression building:
 
 ## Database Utilities
 
-- Runtime `db` is created in `server/util/kysely.ts` from `DATABASE_URL`.
+- Runtime `db` is created in `server/utils/kysely.ts` from `DATABASE_URL`.
 - Tests use `createInMemoryDb()` from the same file to create a pgLite-backed
   Kysely database.
-- `pivotToColumns()` in `server/util/db.ts` is the shared row-to-column helper
-  for SQL array parameters and normalizes `undefined` values to `null`.
+- Repository code under `server/` may rely on Nuxt server auto-imports from
+  `server/utils/` for shared utility symbols such as `DatabaseClient`,
+  `pivotToColumns()`, and `unnest()`. Follow the existing module convention:
+  do not add explicit `#server/utils/*` imports inside server-only modules
+  unless the file is outside Nuxt's server auto-import scope or a tool requires
+  an explicit import.
+- `pivotToColumns()` in `server/utils/pivot.ts` is the shared row-to-column
+  helper for SQL array parameters and normalizes `undefined` values to `null`.
 - For repository batch inputs with optional fields, pass the matching Zod
   object schema to `pivotToColumns()` so column names come from the declared
   input shape rather than from whichever row keys happen to exist. This is

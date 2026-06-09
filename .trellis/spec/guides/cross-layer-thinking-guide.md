@@ -100,7 +100,33 @@ create one owner for:
 
 Rendering code may format fields, but it must not redefine the payload contract.
 
----
+
+### Mistake 5: Ignoring Framework Import Boundaries
+
+**Bad**: Adding explicit imports for symbols that the framework auto-imports in
+that layer:
+
+```typescript
+import type { DatabaseClient } from "#server/utils/kysely";
+```
+
+In Nuxt server code, `server/utils/*` is part of the server auto-import contract.
+Adding explicit imports during a file split can look harmless, but it creates a
+parallel convention and makes future moves harder to audit.
+
+**Good**: Check neighboring files before changing imports and preserve the layer
+convention:
+
+```typescript
+class Repository {
+  constructor(private readonly database: DatabaseClient) {}
+}
+```
+
+**Rule**: When moving code across files, imports are not purely mechanical. Treat
+framework auto-imports, generated aliases, dependency-injection tokens, and
+barrel exports as layer contracts. Match the closest established module pattern
+before adding a new explicit import path.
 
 ## Checklist for Cross-Layer Features
 
@@ -110,6 +136,8 @@ Before implementation:
 - [ ] Identified all layer boundaries
 - [ ] Defined format at each boundary
 - [ ] Decided where validation happens
+- [ ] Checked neighboring files for framework auto-import and barrel-export
+      conventions before adding new import paths
 
 After implementation:
 
