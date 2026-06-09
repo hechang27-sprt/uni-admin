@@ -155,21 +155,72 @@ describe("auth/RBAC service integration", () => {
     });
   });
 
-  it("rejects duplicate collection names", () => {
+  it("defaults collection app and definition metadata", () => {
+    const registry = createCollectionRegistry([
+      {
+        name: "tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+      },
+    ]);
+
+    expect(registry.get("tasks")).toMatchObject({
+      appKey: "default",
+      definitionKey: "tasks",
+      name: "tasks",
+    });
+    expect(registry.has("tasks")).toBe(true);
+    expect(registry.hasForApp("default", "tasks")).toBe(true);
+  });
+
+  it("rejects duplicate collection names within the same app", () => {
     expect(() =>
       createCollectionRegistry([
         {
+          appKey: "crm",
           name: "tasks",
           schema: taskSchema,
           schemaVersion: 1,
         },
         {
+          appKey: "crm",
           name: "tasks",
           schema: taskSchema,
           schemaVersion: 2,
         },
       ]),
     ).toThrow(/collection/i);
+  });
+
+  it("allows duplicate collection names across different apps", () => {
+    const registry = createCollectionRegistry([
+      {
+        appKey: "crm",
+        name: "tasks",
+        definitionKey: "crm-tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+      },
+      {
+        appKey: "ops",
+        name: "tasks",
+        definitionKey: "ops-tasks",
+        schema: taskSchema,
+        schemaVersion: 2,
+      },
+    ]);
+
+    expect(registry.getForApp("crm", "tasks")).toMatchObject({
+      appKey: "crm",
+      definitionKey: "crm-tasks",
+      schemaVersion: 1,
+    });
+    expect(registry.getForApp("ops", "tasks")).toMatchObject({
+      appKey: "ops",
+      definitionKey: "ops-tasks",
+      schemaVersion: 2,
+    });
+    expect(registry.listForApp("crm")).toHaveLength(1);
   });
   it("rejects unsafe collection and action names before deriving permissions", () => {
     expect(() =>

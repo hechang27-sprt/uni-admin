@@ -21,12 +21,12 @@ Do not run `task.py start` until this plan is reviewed. This is a complex cross-
 
 ### 2. Add app-aware collection registration metadata
 
-- [ ] Extend collection registration with optional `appKey` and `definitionKey`.
-- [ ] Default `appKey` to `default` and `definitionKey` to `name`.
-- [ ] Change registry uniqueness from collection `name` to `(appKey, name)`.
-- [ ] Preserve safe slug validation for app, collection, action, and definition keys.
-- [ ] Keep existing callers working without specifying `appKey`.
-- [ ] Add tests for duplicate collection key allowed across different apps but rejected within one app.
+- [x] Extend collection registration with optional `appKey` and `definitionKey`.
+- [x] Default `appKey` to `default` and `definitionKey` to `name`.
+- [x] Change registry uniqueness from collection `name` to `(appKey, name)`.
+- [x] Preserve safe slug validation for app, collection, action, and definition keys.
+- [x] Keep existing callers working without specifying `appKey`.
+- [x] Add tests for duplicate collection key allowed across different apps but rejected within one app.
 
 ### 3. Add catalog repository/service helpers
 

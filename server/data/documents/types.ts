@@ -43,6 +43,7 @@ export type DocumentErrorCode =
 
 export interface DocumentErrorDetails {
   collection?: string;
+  appKey?: string;
   tenantId?: string;
   documentId?: string;
   expectedVersion?: number;

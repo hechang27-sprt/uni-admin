@@ -23,6 +23,7 @@ const collectionOperationValues = [
 ] as const;
 
 const permissionSourceValues = ["collection", "action", "admin"] as const;
+export const DEFAULT_APP_KEY = "default";
 
 const collectionOperationSchema = z.enum(collectionOperationValues);
 
@@ -68,7 +69,9 @@ const permissionDefinitionSchema = z.object({
 });
 
 const collectionRegistrationSchema = z.object({
+  appKey: safePermissionSegmentSchema.optional(),
   name: safePermissionSegmentSchema,
+  definitionKey: safePermissionSegmentSchema.optional(),
   schema: z.custom<z.ZodType<JsonObject>>(
     (value) => value instanceof z.ZodType,
   ),
@@ -108,50 +111,67 @@ type CollectionRegistrationBase = z.infer<typeof collectionRegistrationSchema>;
 
 export type CollectionRegistration<TData extends JsonObject = JsonObject> =
   Omit<CollectionRegistrationBase, "schema" | "remoteAdapter"> & {
+    appKey?: string;
+    definitionKey?: string;
     schema: z.ZodType<TData>;
     remoteAdapter?: RemoteCollectionAdapter<TData>;
   };
 
+export type RegisteredCollection<TData extends JsonObject = JsonObject> = Omit<
+  CollectionRegistration<TData>,
+  "appKey" | "definitionKey"
+> & {
+  appKey: string;
+  definitionKey: string;
+};
+
 @injectable()
 export class CollectionRegistry {
-  private readonly collections = new Map<string, CollectionRegistration>();
+  private readonly collections = new Map<string, RegisteredCollection>();
 
   register<TData extends JsonObject>(
     registration: CollectionRegistration<TData>,
   ): this {
     validateRegistration(registration);
 
-    if (this.collections.has(registration.name)) {
+    const collection = normalizeRegistration(registration);
+    const key = collectionRegistryKey(collection.appKey, collection.name);
+
+    if (this.collections.has(key)) {
       throw new DocumentServiceError(
         "VALIDATION_FAILED",
-        `Duplicate collection name: ${registration.name}`,
+        `Duplicate collection name in app ${collection.appKey}: ${collection.name}`,
         {
-          collection: registration.name,
+          appKey: collection.appKey,
+          collection: collection.name,
         },
       );
     }
 
     if (
-      registration.remoteAdapter &&
-      !registration.remoteAdapter.remoteSource.trim()
+      collection.remoteAdapter &&
+      !collection.remoteAdapter.remoteSource.trim()
     ) {
       throw new DocumentServiceError(
         "VALIDATION_FAILED",
         "Remote source is required for remote-backed collections",
         {
-          collection: registration.name,
+          appKey: collection.appKey,
+          collection: collection.name,
         },
       );
     }
 
-    this.collections.set(registration.name, registration);
+    this.collections.set(key, collection);
     return this;
   }
 
   get<TData extends JsonObject = JsonObject>(
     name: string,
-  ): CollectionRegistration<TData> {
-    const collection = this.collections.get(name);
+  ): RegisteredCollection<TData> {
+    const collection = this.collections.get(
+      collectionRegistryKey(DEFAULT_APP_KEY, name),
+    );
 
     if (!collection) {
       throw new DocumentServiceError(
@@ -164,15 +184,49 @@ export class CollectionRegistry {
     }
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registered collection names establish their schema data type at runtime.
-    return collection as CollectionRegistration<TData>;
+    return collection as RegisteredCollection<TData>;
   }
 
   has(name: string): boolean {
-    return this.collections.has(name);
+    return this.collections.has(collectionRegistryKey(DEFAULT_APP_KEY, name));
   }
 
-  list(): CollectionRegistration[] {
+  getForApp<TData extends JsonObject = JsonObject>(
+    appKey: string,
+    name: string,
+  ): RegisteredCollection<TData> {
+    const collection = this.collections.get(
+      collectionRegistryKey(appKey, name),
+    );
+
+    if (!collection) {
+      throw new DocumentServiceError(
+        "UNKNOWN_COLLECTION",
+        `Unknown collection: ${appKey}/${name}`,
+        {
+          appKey,
+          collection: name,
+        },
+      );
+    }
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registered app/collection keys establish their schema data type at runtime.
+    return collection as RegisteredCollection<TData>;
+  }
+
+  hasForApp(appKey: string, name: string): boolean {
+    return this.collections.has(collectionRegistryKey(appKey, name));
+  }
+
+  list(): RegisteredCollection[] {
     return this.collections.values().toArray();
+  }
+
+  listForApp(appKey: string): RegisteredCollection[] {
+    return this.collections
+      .values()
+      .filter((collection) => collection.appKey === appKey)
+      .toArray();
   }
 }
 
@@ -286,6 +340,19 @@ function addPermissionDefinition(
   permissions.set(definition.key, definition);
 }
 
+function normalizeRegistration<TData extends JsonObject>(
+  registration: CollectionRegistration<TData>,
+): RegisteredCollection<TData> {
+  return {
+    ...registration,
+    appKey: registration.appKey ?? DEFAULT_APP_KEY,
+    definitionKey: registration.definitionKey ?? registration.name,
+  };
+}
+
+function collectionRegistryKey(appKey: string, name: string): string {
+  return `${appKey}:${name}`;
+}
 function validateRegistration(registration: CollectionRegistration): void {
   const result = collectionRegistrationSchema.safeParse(registration);
 

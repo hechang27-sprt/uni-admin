@@ -13,6 +13,7 @@ export type {
   RemoteSyncOneResult,
 } from "./remote";
 export {
+  DEFAULT_APP_KEY,
   CollectionRegistry,
   createCollectionRegistry,
   deriveCollectionPermissionDefinitions,
@@ -29,6 +30,7 @@ export type {
   CollectionResourceScopeMode,
   PermissionDefinition,
   ResolvedCollectionOperationAuth,
+  RegisteredCollection,
 } from "./registry";
 export {
   KyselyDocumentRepository,
