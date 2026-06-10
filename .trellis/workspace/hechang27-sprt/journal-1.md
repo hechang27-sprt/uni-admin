@@ -1018,3 +1018,35 @@ Moved collection registry implementation into server/data/collections, removed t
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: Tighten collection registration typing
+
+**Date**: 2026-06-10
+**Task**: Tighten collection registration typing
+
+### Summary
+
+Refactored collection registration parsing around schema-generic Zod-derived types, branded registered collections, and canonical auth capability declarations; verified typecheck, lint, focused server unit tests, and GitNexus change detection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `65529beb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
