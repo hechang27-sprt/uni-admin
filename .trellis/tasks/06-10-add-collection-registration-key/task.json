@@ -3,7 +3,7 @@
   "name": "add-collection-registration-key",
   "title": "Add collection registration key",
   "description": "Add CollectionRegistration.key so name can become descriptive display metadata while key carries public catalog identity.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

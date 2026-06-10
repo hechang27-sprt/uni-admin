@@ -119,7 +119,7 @@ export class KyselyCatalogRepository implements CatalogRepository {
           .insertInto("collections")
           .values({
             appId: app.appId,
-            key: registration.name,
+            key: registration.key,
             definitionKey: registration.definitionKey,
             name: registration.name,
             schemaVersion: registration.schemaVersion,

@@ -400,7 +400,63 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
 
-    it("scopes documents by structured tenant, app, and collection identity", async () => {
+    it("uses registration key as collection identity and name as description", async () => {
+    const registry = createCollectionRegistry([
+      {
+        key: "tasks",
+        name: "Task records",
+        schema: z.object({ title: z.string() }),
+        schemaVersion: 1,
+      },
+      {
+        name: "legacy-tasks",
+        schema: z.object({ title: z.string() }),
+        schemaVersion: 1,
+      },
+    ]);
+    const container = createServerContainer({
+      database: getTestDatabase(),
+      registry,
+    });
+    const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
+
+    expect(registry.has("tasks")).toBe(true);
+    expect(registry.has("Task records")).toBe(false);
+    expect(registry.get("tasks")).toMatchObject({
+      key: "tasks",
+      name: "Task records",
+      definitionKey: "tasks",
+    });
+    expect(registry.get("legacy-tasks")).toMatchObject({
+      key: "legacy-tasks",
+      name: "legacy-tasks",
+      definitionKey: "legacy-tasks",
+    });
+
+    const created = await service.create({
+      tenantId: tenantA,
+      collection: "tasks",
+      data: { title: "Keyed" },
+    });
+
+    expect(created.collection).toBe("tasks");
+
+    const catalogRow = await getTestDatabase()
+      .selectFrom("collections")
+      .innerJoin("apps", "apps.appId", "collections.appId")
+      .select(["collections.key", "collections.name", "collections.definitionKey"])
+      .where("apps.key", "=", "default")
+      .where("collections.key", "=", "tasks")
+      .executeTakeFirstOrThrow();
+
+    expect(catalogRow).toEqual({
+      key: "tasks",
+      name: "Task records",
+      definitionKey: "tasks",
+    });
+  });
+
+  it("scopes documents by structured tenant, app, and collection identity", async () => {
       const service = await createTwoAppTaskService();
 
       const tenantADefault = await service.create({

@@ -78,7 +78,8 @@ const permissionDefinitionSchema = z.object({
 
 const collectionRegistrationSchema = z.object({
   appKey: safePermissionSegmentSchema.optional(),
-  name: safePermissionSegmentSchema,
+  key: safePermissionSegmentSchema.optional(),
+  name: z.string().min(1).optional(),
   definitionKey: safePermissionSegmentSchema.optional(),
   schema: z.custom<z.ZodType<JsonObject>>(
     (value) => value instanceof z.ZodType,
@@ -130,6 +131,8 @@ export type RegisteredCollection<TData extends JsonObject = JsonObject> = Omit<
   "appKey" | "definitionKey"
 > & {
   appKey: string;
+  key: string;
+  name: string;
   definitionKey: string;
 };
 
@@ -143,15 +146,15 @@ export class CollectionRegistry {
     validateRegistration(registration);
 
     const collection = normalizeRegistration(registration);
-    const key = collectionRegistryKey(collection.appKey, collection.name);
+    const registryKey = collectionRegistryKey(collection.appKey, collection.key);
 
-    if (this.collections.has(key)) {
+    if (this.collections.has(registryKey)) {
       throw new DocumentServiceError(
         "VALIDATION_FAILED",
-        `Duplicate collection name in app ${collection.appKey}: ${collection.name}`,
+        `Duplicate collection key in app ${collection.appKey}: ${collection.key}`,
         {
           appKey: collection.appKey,
-          collection: collection.name,
+          collection: collection.key,
         },
       );
     }
@@ -165,28 +168,28 @@ export class CollectionRegistry {
         "Remote source is required for remote-backed collections",
         {
           appKey: collection.appKey,
-          collection: collection.name,
+          collection: collection.key,
         },
       );
     }
 
-    this.collections.set(key, collection);
+    this.collections.set(registryKey, collection);
     return this;
   }
 
   get<TData extends JsonObject = JsonObject>(
-    name: string,
+    key: string,
   ): RegisteredCollection<TData> {
     const collection = this.collections.get(
-      collectionRegistryKey(DEFAULT_APP_KEY, name),
+      collectionRegistryKey(DEFAULT_APP_KEY, key),
     );
 
     if (!collection) {
       throw new DocumentServiceError(
         "UNKNOWN_COLLECTION",
-        `Unknown collection: ${name}`,
+        `Unknown collection: ${key}`,
         {
-          collection: name,
+          collection: key,
         },
       );
     }
@@ -195,25 +198,25 @@ export class CollectionRegistry {
     return collection as RegisteredCollection<TData>;
   }
 
-  has(name: string): boolean {
-    return this.collections.has(collectionRegistryKey(DEFAULT_APP_KEY, name));
+  has(key: string): boolean {
+    return this.collections.has(collectionRegistryKey(DEFAULT_APP_KEY, key));
   }
 
   getForApp<TData extends JsonObject = JsonObject>(
     appKey: string,
-    name: string,
+    key: string,
   ): RegisteredCollection<TData> {
     const collection = this.collections.get(
-      collectionRegistryKey(appKey, name),
+      collectionRegistryKey(appKey, key),
     );
 
     if (!collection) {
       throw new DocumentServiceError(
         "UNKNOWN_COLLECTION",
-        `Unknown collection: ${appKey}/${name}`,
+        `Unknown collection: ${appKey}/${key}`,
         {
           appKey,
-          collection: name,
+          collection: key,
         },
       );
     }
@@ -222,8 +225,8 @@ export class CollectionRegistry {
     return collection as RegisteredCollection<TData>;
   }
 
-  hasForApp(appKey: string, name: string): boolean {
-    return this.collections.has(collectionRegistryKey(appKey, name));
+  hasForApp(appKey: string, key: string): boolean {
+    return this.collections.has(collectionRegistryKey(appKey, key));
   }
 
   list(): RegisteredCollection[] {
@@ -265,9 +268,9 @@ export function resolveCollectionOperationAuth(
   if (typeof declaration === "string" || declaration?.capability) {
     throw new DocumentServiceError(
       "VALIDATION_FAILED",
-      `Built-in collection capability cannot be overridden: ${collection.name}/${operation}`,
+      `Built-in collection capability cannot be overridden: ${collection.key}/${operation}`,
       {
-        collection: collection.name,
+        collection: collection.key,
         operation,
       },
     );
@@ -309,7 +312,7 @@ export function deriveCollectionPermissionDefinitions(
       if (auth) {
         addPermissionDefinition(permissions, {
           appKey: collection.appKey,
-          collectionKey: collection.name,
+          collectionKey: collection.key,
           capabilityId: auth.capability,
           source: "collection",
         });
@@ -321,7 +324,7 @@ export function deriveCollectionPermissionDefinitions(
       if (auth) {
         addPermissionDefinition(permissions, {
           appKey: collection.appKey,
-          collectionKey: collection.name,
+          collectionKey: collection.key,
           capabilityId: auth.capability,
           source: "action",
         });
@@ -368,15 +371,27 @@ function permissionDefinitionIdentity(
 function normalizeRegistration<TData extends JsonObject>(
   registration: CollectionRegistration<TData>,
 ): RegisteredCollection<TData> {
+  const key = registration.key ?? registration.name;
+
+  if (!key) {
+    throw new DocumentServiceError(
+      "VALIDATION_FAILED",
+      "Collection registration requires a key or name",
+      { collection: registration.name },
+    );
+  }
+
   return {
     ...registration,
     appKey: registration.appKey ?? DEFAULT_APP_KEY,
-    definitionKey: registration.definitionKey ?? registration.name,
+    key,
+    name: registration.name ?? key,
+    definitionKey: registration.definitionKey ?? key,
   };
 }
 
-function collectionRegistryKey(appKey: string, name: string): string {
-  return `${appKey}:${name}`;
+function collectionRegistryKey(appKey: string, key: string): string {
+  return `${appKey}:${key}`;
 }
 function validateRegistration(registration: CollectionRegistration): void {
   const result = collectionRegistrationSchema.safeParse(registration);
@@ -391,7 +406,7 @@ function validateRegistration(registration: CollectionRegistration): void {
     : "Collection registration is invalid";
 
   throw new DocumentServiceError("VALIDATION_FAILED", message, {
-    collection: registration.name,
+    collection: registration.key ?? registration.name,
     issues: result.error.issues,
   });
 }

@@ -108,7 +108,8 @@ interface CatalogRepository {
 
 interface CollectionRegistration {
   appKey?: string;
-  name: string;
+  key?: string;
+  name?: string;
   definitionKey?: string;
   schema: z.ZodType<JsonObject>;
   schemaVersion: number;
@@ -117,8 +118,9 @@ interface CollectionRegistration {
 
 ### 3. Contracts
 
-- `appKey` defaults to `default`; `definitionKey` defaults to `name`.
-- Registry uniqueness is `(appKey, name)`, so two apps may both define `tasks`.
+- `appKey` defaults to `default`; `key` defaults from `name` for compatibility; `name` defaults from `key` and is descriptive metadata.
+- `definitionKey` defaults to normalized public `key`, not descriptive `name`.
+- Registry uniqueness is `(appKey, key)`, so two apps may define `tasks`, and one app may use a descriptive name distinct from its public key.
 - `apps.key` is unique.
 - `tenant_apps` is keyed by `(tenant_id, app_id)`.
 - `collections` is unique on `(app_id, key)` and `(app_id, collection_id)`.
@@ -164,7 +166,7 @@ await repository.list({ tenantId, collection: "tasks", query });
 const identity = await catalog.findTenantCollectionIdentity({
   tenantId,
   appKey: collection.appKey,
-  collectionKey: input.collection,
+  collectionKey: collection.key,
 });
 await repository.list({
   tenantId,

@@ -259,7 +259,7 @@ describe("auth/RBAC service integration", () => {
     expect(rows[1]!.appKey).toBe("ops");
     expect(rows[0]!.key).not.toBe(rows[1]!.key);
   });
-  it("rejects unsafe collection and action names before deriving permissions", () => {
+  it("rejects unsafe collection keys and action names before deriving permissions", () => {
     expect(() =>
       createCollectionRegistry([
         {
@@ -278,7 +278,7 @@ describe("auth/RBAC service integration", () => {
     expect(() =>
       createCollectionRegistry([
         {
-          name: "tasks:archive",
+          key: "tasks:archive",
           schema: taskSchema,
           schemaVersion: 1,
         },

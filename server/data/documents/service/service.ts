@@ -1077,7 +1077,7 @@ export class DocumentService {
     const identity = await this.catalog.findTenantCollectionIdentity({
       tenantId: input.tenantId,
       appKey: collection.appKey,
-      collectionKey: input.collection,
+      collectionKey: collection.key,
     });
 
     if (!identity) {
