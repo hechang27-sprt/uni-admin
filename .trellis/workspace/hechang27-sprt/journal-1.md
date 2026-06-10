@@ -986,3 +986,35 @@ Added CollectionRegistration.key as public collection identity, kept name as des
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: Extract collection registry module
+
+**Date**: 2026-06-10
+**Task**: Extract collection registry module
+
+### Summary
+
+Moved collection registry implementation into server/data/collections, removed the documents registry compatibility file and document-barrel collection exports, updated use sites to import collection APIs directly, and verified typecheck/lint plus affected unit tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6e7113b7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

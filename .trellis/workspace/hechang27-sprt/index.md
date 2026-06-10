@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
+- **Total Sessions**: 31
 - **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~988 | Active |
+| `journal-1.md` | ~1020 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-06-10 | Extract collection registry module | `6e7113b7` | `-` |
 | 30 | 2026-06-10 | Add collection registration key | `d085dc5f` | `-` |
 | 29 | 2026-06-09 | App catalog identity docs | `89cc00e2` | `-` |
 | 28 | 2026-06-09 | Permission identity migration part 5 | `3e4267ae` | `-` |
