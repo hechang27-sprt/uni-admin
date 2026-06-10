@@ -954,3 +954,35 @@ Completed part 6 documentation/spec cleanup for the app catalog identity migrati
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: Add collection registration key
+
+**Date**: 2026-06-10
+**Task**: Add collection registration key
+
+### Summary
+
+Added CollectionRegistration.key as public collection identity, kept name as descriptive metadata, updated catalog sync/service resolution/tests/spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d085dc5f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
