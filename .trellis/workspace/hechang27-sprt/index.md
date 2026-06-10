@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 32
+- **Total Sessions**: 33
 - **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1052 | Active |
+| `journal-1.md` | ~1084 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-06-10 | Register custom action callbacks | `a26ae346` | `-` |
 | 32 | 2026-06-10 | Tighten collection registration typing | `65529beb` | `-` |
 | 31 | 2026-06-10 | Extract collection registry module | `6e7113b7` | `-` |
 | 30 | 2026-06-10 | Add collection registration key | `d085dc5f` | `-` |

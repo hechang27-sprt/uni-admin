@@ -1050,3 +1050,35 @@ Refactored collection registration parsing around schema-generic Zod-derived typ
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: Register custom action callbacks
+
+**Date**: 2026-06-10
+**Task**: Register custom action callbacks
+
+### Summary
+
+Required custom action auth keys to match registered collection action callbacks; moved action identity into capability ids and kept permission source scoped to collection/app/global/admin.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a26ae346` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
