@@ -13,6 +13,7 @@ pgLite-backed tests.
 | [Repository And Database](./repository-and-database.md) | Kysely repository patterns, schema, query normalization, and migrations                     |
 | [Remote Adapters](./remote-adapters.md)                 | Adapter contracts, projection mapping, output metadata, and remote semantics                |
 | [Auth/RBAC](./auth-rbac.md)                             | User identity, tenant memberships, scope-tree RBAC, and actor-scoped document authorization |
+| [TypeScript Type Contracts](./typescript-type-contracts.md) | Zod-derived types, branded newtypes, validation-as-construction style |
 | [Testing](./testing.md)                                 | pgLite setup, fixture style, and behavior coverage requirements                             |
 
 ## Source References
