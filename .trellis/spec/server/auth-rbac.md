@@ -107,7 +107,9 @@ interface TenantActorContext {
   `user_id`, `scope_id`, and `role_id`. `permissions` is keyed by canonical
   `key`; there is no separate `permission_id`.
 - Permission rows carry `app_id`, `collection_id`, `capability_id`, and
-  `source` so app/collection grants can be evaluated by structured identity.
+  `source`; `source` denotes structured permission location (`collection`,
+  `app`, `global`, or `admin`), while custom action identity lives in
+  `capability_id` as `action-<action-id>`.
 - `role_permissions.permission_key` references `permissions.key`.
 - `documents.auth_scope_id` is framework metadata. It is not stored in document
   JSONB data.
@@ -157,9 +159,10 @@ interface TenantActorContext {
   parent closure data in one statement; do not read ancestor rows into
   TypeScript for a mapped follow-up insert.
 - `syncCollectionPermissions(registry)` derives collection permissions from the
-  registry and persists canonical keys after catalog app/collection identity has
-  been synced. Built-in CRUD capability ids cannot be overridden by collection
-  auth config; custom capabilities are only emitted for registered actions.
+  registry and persists canonical keys after catalog app/collection identity is
+  synced. Built-in CRUD capability ids cannot be overridden by collection auth
+  config; custom capabilities are emitted only for registered action callback
+  keys, and `auth.actions` cannot name callbacks missing from `actions`.
 
 ### 4. Validation & Error Matrix
 

@@ -29,7 +29,7 @@ Implemented today:
 Not implemented yet:
 
 - Operation records and queue worker.
-- Custom action registration and dispatch.
+- Custom action dispatch.
 - `queueOnConflict` write modes.
 - Nuxt API routes and composables.
 - Generated table UI or UI schema runtime.
@@ -124,6 +124,11 @@ Collection custom actions use fixed capability ids of `action-<action-id>` and
 collection-level canonical keys. Registrations cannot override built-in CRUD
 capability ids; this prevents two apps with the same human collection key from
 colliding or shadowing built-in behavior.
+
+Collection registrations may declare custom action callbacks under `actions`.
+`auth.actions` is only authorization metadata and must reference one of those
+callback keys. Permission derivation emits custom action capabilities from the
+registered callback keys, not from auth-only declarations.
 
 Remote write authorization runs before adapter side effects. Protected remote
 adapter contexts include the normalized actor as `context.actor`.

@@ -19,6 +19,7 @@ import {
 import { migrateToLatest } from "#server/db/migrate";
 import {
   createCollectionRegistry,
+  defineCollection,
   resolveCollectionActionAuth,
   resolveCollectionOperationAuth,
 } from "#server/data/collections";
@@ -131,6 +132,11 @@ describe("auth/RBAC service integration", () => {
         name: "tasks",
         schema: taskSchema,
         schemaVersion: 1,
+        actions: {
+          archive: {
+            handler: () => {},
+          },
+        },
         auth: {
           resourceScope: "tenant-root",
           actions: {
@@ -277,9 +283,9 @@ describe("auth/RBAC service integration", () => {
           name: "tasks",
           schema: taskSchema,
           schemaVersion: 1,
-          auth: {
-            actions: {
-              "archive:read": {},
+          actions: {
+            "archive:read": {
+              handler: () => {},
             },
           },
         },
@@ -297,6 +303,71 @@ describe("auth/RBAC service integration", () => {
     ).toThrow(/collection/i);
   });
 
+
+  it("rejects action auth without a matching action callback", () => {
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 1,
+          actions: {
+            archive: {
+              handler: () => {},
+            },
+          },
+          auth: {
+            actions: {
+              archive: {},
+              approve: {},
+            },
+          },
+        },
+      ]),
+    ).toThrow(/auth\.actions\.approve/i);
+  });
+
+  it("type-checks action auth keys against action callbacks", () => {
+    const collection = defineCollection({
+      name: "tasks",
+      schema: taskSchema,
+      schemaVersion: 1,
+      actions: {
+        archive: {
+        handler: () => {},
+        },
+      },
+      auth: {
+        actions: {
+          archive: {},
+        },
+      },
+    });
+
+    expect(resolveCollectionActionAuth(collection, "archive")).toEqual({
+      capability: "action-archive",
+      resourceScope: "document",
+    });
+
+    expect(() =>
+      defineCollection({
+        name: "tasks",
+        schema: taskSchema,
+        schemaVersion: 1,
+        actions: {
+          archive: {
+            handler: () => {},
+          },
+        },
+        auth: {
+          actions: {
+            // @ts-expect-error Auth action keys must match action callbacks.
+            approve: {},
+          },
+        },
+      }),
+    ).toThrow(/auth\.actions\.approve/i);
+  });
   it("rejects built-in collection capability overrides", () => {
     expect(() =>
       createCollectionRegistry([
@@ -320,6 +391,11 @@ describe("auth/RBAC service integration", () => {
           name: "tasks",
           schema: taskSchema,
           schemaVersion: 1,
+          actions: {
+            archive: {
+              handler: () => {},
+            },
+          },
           auth: {
             actions: {
               // @ts-expect-error Action capability ids derive from action keys.

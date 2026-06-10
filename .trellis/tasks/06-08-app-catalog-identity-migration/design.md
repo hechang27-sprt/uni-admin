@@ -203,6 +203,10 @@ Action capabilities should be namespaced with an `action-` prefix in the
 canonical key, for example `action-approve`, so custom action ids cannot collide
 with built-in CRUD ids.
 
+`source` denotes permission location (`collection`, `app`, `global`, or
+`admin`). It must not use `action`; custom action identity is already encoded in
+`capability_id` as `action-<action-id>`.
+
 Scopes:
 
 ```text
@@ -279,7 +283,9 @@ Avoid adding this public shape until the default-app migration works end-to-end.
 
 ## Collection Registry Integration
 
-The process-local `CollectionRegistry` remains the owner of code-defined schemas. It should grow app-aware registration metadata:
+The process-local `CollectionRegistry` remains the owner of code-defined schemas.
+It grows app-aware registration metadata and the executable custom action key
+set:
 
 ```ts
 {
@@ -288,6 +294,17 @@ The process-local `CollectionRegistry` remains the owner of code-defined schemas
   definitionKey?: "tasks";
   schemaVersion: 1;
   schema: taskSchema;
+  actions?: {
+    approve: {
+      input?: approveInputSchema;
+      handler: approveTask;
+    };
+  };
+  auth?: {
+    actions?: {
+      approve?: { resourceScope?: "document" | "tenant-root" } | false;
+    };
+  };
 }
 ```
 

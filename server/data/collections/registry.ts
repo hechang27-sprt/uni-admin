@@ -24,7 +24,7 @@ export const collectionOperationValues = [
 
 const permissionSourceValues = [
   "collection",
-  "action",
+  "app",
   "admin",
   "global",
 ] as const;
@@ -77,24 +77,78 @@ export type CollectionSchema<TData extends JsonObject = JsonObject> =
 type CollectionSchemaData<TSchema extends CollectionSchema> =
   z.output<TSchema> & JsonObject;
 
+type CollectionActionDefinitions = Record<string, CollectionActionDefinition>;
+
+type CollectionActionKey<TActions extends CollectionActionDefinitions> = Extract<
+  keyof TActions,
+  string
+>;
+
+export type CollectionActionHandler<TInput = unknown, TOutput = unknown> = (
+  context: unknown,
+  input: TInput,
+) => TOutput | Promise<TOutput>;
+
+export type CollectionActionDefinition<
+  TInputSchema extends z.ZodType = z.ZodType,
+  TOutput = unknown,
+> = {
+  input?: TInputSchema;
+  handler: CollectionActionHandler<z.output<TInputSchema>, TOutput>;
+};
+
+const collectionActionDefinitionSchema = z
+  .object({
+    input: z
+      .custom<z.ZodType>(
+        (value) => value instanceof z.ZodType,
+        "Collection action input must be a Zod schema",
+      )
+      .optional(),
+    handler: z.custom<CollectionActionHandler>(
+      (value) => typeof value === "function",
+      "Collection action handler must be a function",
+    ),
+  })
+  .strict();
+
 function collectionRegistrationSchema<
   TSchema extends CollectionSchema = CollectionSchema,
 >() {
-  return z.object({
-    appKey: safePermissionSegmentSchema.optional(),
-    key: safePermissionSegmentSchema.optional(),
-    name: z.string().min(1).optional(),
-    definitionKey: safePermissionSegmentSchema.optional(),
-    schema: z.custom<TSchema>(
-      (value) => value instanceof z.ZodObject,
-      "Collection schema must be a Zod object",
-    ),
-    schemaVersion: z.number().int().positive(),
-    auth: collectionAuthDeclarationSchema.optional(),
-    remoteAdapter: z
-      .custom<RemoteCollectionAdapter<CollectionSchemaData<TSchema>>>()
-      .optional(),
-  });
+  return z
+    .object({
+      appKey: safePermissionSegmentSchema.optional(),
+      key: safePermissionSegmentSchema.optional(),
+      name: z.string().min(1).optional(),
+      definitionKey: safePermissionSegmentSchema.optional(),
+      schema: z.custom<TSchema>(
+        (value) => value instanceof z.ZodObject,
+        "Collection schema must be a Zod object",
+      ),
+      schemaVersion: z.number().int().positive(),
+      actions: z
+        .record(safePermissionSegmentSchema, collectionActionDefinitionSchema)
+        .optional(),
+      auth: collectionAuthDeclarationSchema.optional(),
+      remoteAdapter: z
+        .custom<RemoteCollectionAdapter<CollectionSchemaData<TSchema>>>()
+        .optional(),
+    })
+    .superRefine((registration, context) => {
+      const actions = registration.actions ?? {};
+
+      for (const action of Object.keys(registration.auth?.actions ?? {})) {
+        if (actions[action]) {
+          continue;
+        }
+
+        context.addIssue({
+          code: "custom",
+          message: `Action auth requires a matching action callback: ${action}`,
+          path: ["auth", "actions", action],
+        });
+      }
+    });
 }
 
 function registeredCollectionSchema<
@@ -139,26 +193,46 @@ export type CollectionOperationAuthInput = z.infer<
   typeof collectionOperationAuthInputSchema
 >;
 
-export type CollectionActionAuthDeclaration = NonNullable<
-  z.infer<typeof collectionAuthDeclarationSchema>["actions"]
->[string];
+export type CollectionAuthDeclaration<TActionKey extends string = string> = Omit<
+  z.infer<typeof collectionAuthDeclarationSchema>,
+  "actions"
+> & {
+  actions?: Partial<Record<TActionKey, CollectionOperationAuthInput>>;
+};
 
-export type CollectionAuthDeclaration = z.infer<
-  typeof collectionAuthDeclarationSchema
->;
+export type CollectionActionAuthDeclaration<TActionKey extends string = string> =
+  NonNullable<CollectionAuthDeclaration<TActionKey>["actions"]>[TActionKey];
 
 export type ResolvedCollectionOperationAuth = z.infer<
   typeof _resolvedCollectionOperationAuthSchema
 >;
 export type PermissionDefinition = z.infer<typeof permissionDefinitionSchema>;
 
+type CollectionRegistrationInput<TSchema extends CollectionSchema> = z.input<
+  ReturnType<typeof collectionRegistrationSchema<TSchema>>
+>;
+
 export type CollectionRegistration<
   TSchema extends CollectionSchema = CollectionSchema,
-> = z.input<ReturnType<typeof collectionRegistrationSchema<TSchema>>>;
+  TActions extends CollectionActionDefinitions = CollectionActionDefinitions,
+> = Omit<CollectionRegistrationInput<TSchema>, "actions" | "auth"> & {
+  actions?: TActions;
+  auth?: CollectionAuthDeclaration<CollectionActionKey<NoInfer<TActions>>>;
+};
 
 export type RegisteredCollection<
   TSchema extends CollectionSchema = CollectionSchema,
 > = z.output<ReturnType<typeof registeredCollectionSchema<TSchema>>>;
+
+export function defineCollection<
+  TSchema extends CollectionSchema,
+  const TActions extends CollectionActionDefinitions = Record<never, never>,
+>(
+  registration: CollectionRegistration<TSchema, TActions>,
+): CollectionRegistration<TSchema, TActions> {
+  parseRegistration(registration);
+  return registration;
+}
 
 @injectable()
 export class CollectionRegistry {
@@ -327,14 +401,14 @@ export function deriveCollectionPermissionDefinitions(
       }
     }
 
-    for (const action of Object.keys(collection.auth?.actions ?? {})) {
+    for (const action of Object.keys(collection.actions ?? {})) {
       const auth = resolveCollectionActionAuth(collection, action);
       if (auth) {
         addPermissionDefinition(permissions, {
           appKey: collection.appKey,
           collectionKey: collection.key,
           capabilityId: auth.capability,
-          source: "action",
+          source: "collection",
         });
       }
     }
