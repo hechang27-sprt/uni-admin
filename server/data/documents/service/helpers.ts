@@ -1,4 +1,4 @@
-import type { CollectionRegistry } from "../registry";
+import type { CollectionRegistry } from "../../collections";
 import { DocumentServiceError } from "../errors";
 import type { RemoteAdapterOutputs, RemoteCollectionAdapter } from "../remote";
 import type { JsonObject } from "../types";

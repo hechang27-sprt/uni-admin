@@ -4,7 +4,8 @@ import type { Selectable } from "kysely";
 
 import type { AppsTable, CollectionsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import type { CollectionRegistry, JsonObject } from "#server/data/documents";
+import type { CollectionRegistry } from "#server/data/collections";
+import type { JsonObject } from "#server/data/documents";
 
 export interface CatalogApp {
   appId: string;

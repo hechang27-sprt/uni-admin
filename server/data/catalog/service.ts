@@ -1,6 +1,6 @@
 import { inject, injectable } from "inversify";
 
-import { DEFAULT_APP_KEY, type CollectionRegistry } from "#server/data/documents";
+import { DEFAULT_APP_KEY, type CollectionRegistry } from "#server/data/collections";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import type {
   CatalogApp,

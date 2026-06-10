@@ -22,9 +22,8 @@ import {
   deriveCollectionPermissionDefinitions,
   resolveCollectionActionAuth,
   resolveCollectionOperationAuth,
-  type DocumentService,
-  type RemoteCollectionAdapter,
-} from "#server/data/documents";
+} from "#server/data/collections";
+import type { DocumentService, RemoteCollectionAdapter } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import { tenantA, tenantB } from "./fixtures/service";
 import { ADMIN_TENANT_OVERRIDE_KEY } from "#server/auth/um/repository";

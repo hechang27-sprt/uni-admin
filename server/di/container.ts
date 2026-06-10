@@ -12,10 +12,10 @@ import {
   KyselyCatalogRepository,
   type CatalogRepository,
 } from "#server/data/catalog";
+import type { CollectionRegistry } from "#server/data/collections";
 import {
   DocumentService,
   KyselyDocumentRepository,
-  type CollectionRegistry,
   type DocumentRepository,
 } from "#server/data/documents";
 import { SERVER_DI_TYPES } from "./tokens";

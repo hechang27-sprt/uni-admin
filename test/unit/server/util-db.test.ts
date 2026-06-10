@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
 import { CatalogService, KyselyCatalogRepository } from "#server/data/catalog";
-import { createCollectionRegistry } from "#server/data/documents";
+import { createCollectionRegistry } from "#server/data/collections";
 import { createInMemoryDb } from "#server/utils/kysely";
 import { pivotToColumns } from "#server/utils/pivot";
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
+import { createCollectionRegistry } from "#server/data/collections";
 import {
-  createCollectionRegistry,
   createRemoteProjectionMapper,
   type DocumentService,
   type RemoteCollectionAdapter,

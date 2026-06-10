@@ -17,7 +17,8 @@ pgLite-backed tests.
 
 ## Source References
 
-- `server/data/documents/index.ts` is the public document data-layer barrel.
+- `server/data/collections/index.ts` is public collection registry barrel.
+- `server/data/documents/index.ts` is public document data-layer barrel.
 - `server/data/documents/service/service.ts` implements `DocumentService`.
 - `server/data/documents/repository/kysely.ts` implements
   `KyselyDocumentRepository`.

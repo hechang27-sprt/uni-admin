@@ -50,10 +50,8 @@ type TaskDocument = z.infer<typeof taskSchema>;
 Create a registry and service:
 
 ```ts
-import {
-  createCollectionRegistry,
-  type DocumentService,
-} from "../server/data/documents";
+import { createCollectionRegistry } from "../server/data/collections";
+import { type DocumentService } from "../server/data/documents";
 import { CatalogService } from "../server/data/catalog";
 import { createServerContainer, SERVER_DI_TYPES } from "../server/di";
 import { db } from "../server/util/kysely";
@@ -351,10 +349,8 @@ routes, composables, or generated management UI yet.
 Create the auth/RBAC service beside the document service:
 
 ```ts
-import {
-  createCollectionRegistry,
-  type DocumentService,
-} from "#server/data/documents";
+import { createCollectionRegistry } from "#server/data/collections";
+import { type DocumentService } from "#server/data/documents";
 import { AuthRbacService } from "#server/auth";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 

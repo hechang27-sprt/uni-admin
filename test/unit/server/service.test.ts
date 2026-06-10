@@ -11,8 +11,8 @@ import { sql } from "kysely";
 import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
+import { createCollectionRegistry } from "#server/data/collections";
 import {
-  createCollectionRegistry,
   DocumentServiceError,
   type DocumentService,
 } from "#server/data/documents";

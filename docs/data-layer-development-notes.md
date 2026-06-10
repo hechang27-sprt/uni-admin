@@ -136,10 +136,8 @@ document schema, and schema version. Omitting `appKey` uses the built-in
 
 ```ts
 import { z } from "zod";
-import {
-  createCollectionRegistry,
-  type DocumentService,
-} from "../server/data/documents";
+import { createCollectionRegistry } from "../server/data/collections";
+import { type DocumentService } from "../server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "../server/di";
 import { db } from "../server/util/kysely";
 

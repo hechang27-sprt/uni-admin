@@ -10,7 +10,7 @@ contracts.
   filtering, sorting, pagination, and error-code types.
 - `server/data/documents/errors.ts` owns `DocumentServiceError` and
   `isDocumentServiceError`.
-- `server/data/documents/registry.ts` owns app-aware collection registration,
+- `server/data/collections/` owns app-aware collection registration,
   collection lookup, and collection permission derivation.
 - `server/data/catalog/` owns persisted app, tenant-app, and collection catalog
   identity plus tenant app enablement helpers.

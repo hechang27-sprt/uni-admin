@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { injectable } from "inversify";
 
-import { DocumentServiceError } from "./errors";
-import type { RemoteCollectionAdapter } from "./remote";
-import type { JsonObject } from "./types";
+import { DocumentServiceError } from "../documents/errors";
+import type { RemoteCollectionAdapter } from "../documents/remote";
+import type { JsonObject } from "../documents/types";
 
 const safePermissionSegmentSchema = z
   .string()

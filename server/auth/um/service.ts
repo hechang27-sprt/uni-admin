@@ -1,9 +1,11 @@
 import {
   deriveCollectionPermissionDefinitions,
-  type ActorContext,
   type CollectionRegistry,
-  type TenantContext,
-  type TenantActorContext,
+} from "#server/data/collections";
+import type {
+  ActorContext,
+  TenantActorContext,
+  TenantContext,
 } from "#server/data/documents";
 import { inject, injectable } from "inversify";
 import { AuthRbacError } from "./errors";

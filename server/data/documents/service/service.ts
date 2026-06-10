@@ -2,12 +2,12 @@ import { applyJsonPatch } from "../json-patch";
 import { normalizeListInput, type DocumentRepository } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
-  resolveCollectionOperationAuth,
   DEFAULT_APP_KEY,
+  resolveCollectionOperationAuth,
+  type CollectionOperation,
   type CollectionRegistry,
   type RegisteredCollection,
-  type CollectionOperation,
-} from "../registry";
+} from "../../collections";
 import type {
   JsonObject,
   ListDocumentsResult,
