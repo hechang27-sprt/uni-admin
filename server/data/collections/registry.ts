@@ -34,13 +34,13 @@ const collectionOperationSchema = z.enum(collectionOperationValues);
 
 const collectionResourceScopeModeSchema = z.enum(["document", "tenant-root"]);
 
-const collectionOperationAuthDeclarationSchema = z.object({
-  capability: z.string().optional(),
-  resourceScope: collectionResourceScopeModeSchema.optional(),
-});
+const collectionOperationAuthDeclarationSchema = z
+  .object({
+    resourceScope: collectionResourceScopeModeSchema.optional(),
+  })
+  .strict();
 
 const collectionOperationAuthInputSchema = z.union([
-  z.string(),
   z.literal(false),
   collectionOperationAuthDeclarationSchema,
 ]);
@@ -54,12 +54,7 @@ const collectionAuthDeclarationSchema = z.object({
   delete: collectionOperationAuthInputSchema.optional(),
   restore: collectionOperationAuthInputSchema.optional(),
   hardDelete: collectionOperationAuthInputSchema.optional(),
-  actions: z
-    .record(
-      safePermissionSegmentSchema,
-      z.union([collectionOperationAuthDeclarationSchema, z.literal(false)]),
-    )
-    .optional(),
+  actions: z.record(safePermissionSegmentSchema, collectionOperationAuthInputSchema).optional(),
 });
 
 const _resolvedCollectionOperationAuthSchema = z.object({
@@ -76,18 +71,59 @@ const permissionDefinitionSchema = z.object({
   description: z.string().optional(),
 });
 
-const collectionRegistrationSchema = z.object({
-  appKey: safePermissionSegmentSchema.optional(),
-  key: safePermissionSegmentSchema.optional(),
-  name: z.string().min(1).optional(),
-  definitionKey: safePermissionSegmentSchema.optional(),
-  schema: z.custom<z.ZodType<JsonObject>>(
-    (value) => value instanceof z.ZodType,
-  ),
-  schemaVersion: z.number().int().positive(),
-  auth: collectionAuthDeclarationSchema.optional(),
-  remoteAdapter: z.custom<RemoteCollectionAdapter>().optional(),
-});
+export type CollectionSchema<TData extends JsonObject = JsonObject> =
+  z.ZodObject<z.ZodRawShape> & z.ZodType<TData>;
+
+type CollectionSchemaData<TSchema extends CollectionSchema> =
+  z.output<TSchema> & JsonObject;
+
+function collectionRegistrationSchema<
+  TSchema extends CollectionSchema = CollectionSchema,
+>() {
+  return z.object({
+    appKey: safePermissionSegmentSchema.optional(),
+    key: safePermissionSegmentSchema.optional(),
+    name: z.string().min(1).optional(),
+    definitionKey: safePermissionSegmentSchema.optional(),
+    schema: z.custom<TSchema>(
+      (value) => value instanceof z.ZodObject,
+      "Collection schema must be a Zod object",
+    ),
+    schemaVersion: z.number().int().positive(),
+    auth: collectionAuthDeclarationSchema.optional(),
+    remoteAdapter: z
+      .custom<RemoteCollectionAdapter<CollectionSchemaData<TSchema>>>()
+      .optional(),
+  });
+}
+
+function registeredCollectionSchema<
+  TSchema extends CollectionSchema = CollectionSchema,
+>() {
+  return collectionRegistrationSchema<TSchema>()
+    .transform((registration, context) => {
+      const key = registration.key ?? registration.name;
+
+      if (!key) {
+        context.addIssue({
+          code: "custom",
+          message: "Collection registration requires a key or name",
+          path: ["key"],
+        });
+
+        return z.NEVER;
+      }
+
+      return {
+        ...registration,
+        appKey: registration.appKey ?? DEFAULT_APP_KEY,
+        key,
+        name: registration.name ?? key,
+        definitionKey: registration.definitionKey ?? key,
+      };
+    })
+    .brand<"RegisteredCollection">();
+}
 
 export type CollectionOperation = z.infer<typeof collectionOperationSchema>;
 
@@ -103,8 +139,9 @@ export type CollectionOperationAuthInput = z.infer<
   typeof collectionOperationAuthInputSchema
 >;
 
-export type CollectionActionAuthDeclaration =
-  CollectionOperationAuthDeclaration;
+export type CollectionActionAuthDeclaration = NonNullable<
+  z.infer<typeof collectionAuthDeclarationSchema>["actions"]
+>[string];
 
 export type CollectionAuthDeclaration = z.infer<
   typeof collectionAuthDeclarationSchema
@@ -113,39 +150,24 @@ export type CollectionAuthDeclaration = z.infer<
 export type ResolvedCollectionOperationAuth = z.infer<
   typeof _resolvedCollectionOperationAuthSchema
 >;
-
 export type PermissionDefinition = z.infer<typeof permissionDefinitionSchema>;
 
-type CollectionRegistrationBase = z.infer<typeof collectionRegistrationSchema>;
+export type CollectionRegistration<
+  TSchema extends CollectionSchema = CollectionSchema,
+> = z.input<ReturnType<typeof collectionRegistrationSchema<TSchema>>>;
 
-export type CollectionRegistration<TData extends JsonObject = JsonObject> =
-  Omit<CollectionRegistrationBase, "schema" | "remoteAdapter"> & {
-    appKey?: string;
-    definitionKey?: string;
-    schema: z.ZodType<TData>;
-    remoteAdapter?: RemoteCollectionAdapter<TData>;
-  };
-
-export type RegisteredCollection<TData extends JsonObject = JsonObject> = Omit<
-  CollectionRegistration<TData>,
-  "appKey" | "definitionKey"
-> & {
-  appKey: string;
-  key: string;
-  name: string;
-  definitionKey: string;
-};
+export type RegisteredCollection<
+  TSchema extends CollectionSchema = CollectionSchema,
+> = z.output<ReturnType<typeof registeredCollectionSchema<TSchema>>>;
 
 @injectable()
 export class CollectionRegistry {
   private readonly collections = new Map<string, RegisteredCollection>();
 
-  register<TData extends JsonObject>(
-    registration: CollectionRegistration<TData>,
+  register<TSchema extends CollectionSchema>(
+    registration: CollectionRegistration<TSchema>,
   ): this {
-    validateRegistration(registration);
-
-    const collection = normalizeRegistration(registration);
+    const collection = parseRegistration(registration);
     const registryKey = collectionRegistryKey(collection.appKey, collection.key);
 
     if (this.collections.has(registryKey)) {
@@ -177,9 +199,10 @@ export class CollectionRegistry {
     return this;
   }
 
-  get<TData extends JsonObject = JsonObject>(
+  get<TSchema extends CollectionSchema = CollectionSchema>(
     key: string,
-  ): RegisteredCollection<TData> {
+  ): RegisteredCollection<TSchema>;
+  get(key: string): RegisteredCollection {
     const collection = this.collections.get(
       collectionRegistryKey(DEFAULT_APP_KEY, key),
     );
@@ -194,21 +217,19 @@ export class CollectionRegistry {
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registered collection names establish their schema data type at runtime.
-    return collection as RegisteredCollection<TData>;
+    return collection;
   }
 
   has(key: string): boolean {
     return this.collections.has(collectionRegistryKey(DEFAULT_APP_KEY, key));
   }
 
-  getForApp<TData extends JsonObject = JsonObject>(
+  getForApp<TSchema extends CollectionSchema = CollectionSchema>(
     appKey: string,
     key: string,
-  ): RegisteredCollection<TData> {
-    const collection = this.collections.get(
-      collectionRegistryKey(appKey, key),
-    );
+  ): RegisteredCollection<TSchema>;
+  getForApp(appKey: string, key: string): RegisteredCollection {
+    const collection = this.collections.get(collectionRegistryKey(appKey, key));
 
     if (!collection) {
       throw new DocumentServiceError(
@@ -221,8 +242,7 @@ export class CollectionRegistry {
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registered app/collection keys establish their schema data type at runtime.
-    return collection as RegisteredCollection<TData>;
+    return collection;
   }
 
   hasForApp(appKey: string, key: string): boolean {
@@ -263,22 +283,10 @@ export function resolveCollectionOperationAuth(
     return null;
   }
 
-  const baseResourceScope = collection.auth?.resourceScope ?? "document";
-
-  if (typeof declaration === "string" || declaration?.capability) {
-    throw new DocumentServiceError(
-      "VALIDATION_FAILED",
-      `Built-in collection capability cannot be overridden: ${collection.key}/${operation}`,
-      {
-        collection: collection.key,
-        operation,
-      },
-    );
-  }
-
   return {
     capability: operation,
-    resourceScope: declaration?.resourceScope ?? baseResourceScope,
+    resourceScope:
+      declaration?.resourceScope ?? collection.auth?.resourceScope ?? "document",
   };
 }
 
@@ -368,46 +376,34 @@ function permissionDefinitionIdentity(
   ].join(":");
 }
 
-function normalizeRegistration<TData extends JsonObject>(
-  registration: CollectionRegistration<TData>,
-): RegisteredCollection<TData> {
-  const key = registration.key ?? registration.name;
-
-  if (!key) {
-    throw new DocumentServiceError(
-      "VALIDATION_FAILED",
-      "Collection registration requires a key or name",
-      { collection: registration.name },
-    );
-  }
-
-  return {
-    ...registration,
-    appKey: registration.appKey ?? DEFAULT_APP_KEY,
-    key,
-    name: registration.name ?? key,
-    definitionKey: registration.definitionKey ?? key,
-  };
-}
-
 function collectionRegistryKey(appKey: string, key: string): string {
   return `${appKey}:${key}`;
 }
-function validateRegistration(registration: CollectionRegistration): void {
-  const result = collectionRegistrationSchema.safeParse(registration);
+
+function parseRegistration<TSchema extends CollectionSchema>(
+  registration: CollectionRegistration<TSchema>,
+): RegisteredCollection<TSchema> {
+  const result = registeredCollectionSchema<TSchema>().safeParse(registration);
 
   if (result.success) {
-    return;
+    return result.data;
   }
 
-  const invalidPath = result.error.issues[0]?.path.join(".");
+  return throwRegistrationError(registration, result.error);
+}
+
+function throwRegistrationError(
+  registration: CollectionRegistration,
+  error: z.ZodError,
+): never {
+  const invalidPath = error.issues[0]?.path.join(".");
   const message = invalidPath
     ? `Collection registration is invalid at ${invalidPath}`
     : "Collection registration is invalid";
 
   throw new DocumentServiceError("VALIDATION_FAILED", message, {
     collection: registration.key ?? registration.name,
-    issues: result.error.issues,
+    issues: error.issues,
   });
 }
 

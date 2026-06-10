@@ -6,6 +6,7 @@ import {
   resolveCollectionOperationAuth,
   type CollectionOperation,
   type CollectionRegistry,
+  type CollectionSchema,
   type RegisteredCollection,
 } from "../../collections";
 import type {
@@ -40,7 +41,11 @@ import type {
 } from "./contracts";
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
 import type { CatalogService, CatalogCollection } from "#server/data/catalog";
-import { isAuthRbacError, type AuthRbacService } from "#server/auth/um";
+import {
+  isAuthRbacError,
+  type AuthRbacService,
+  type CheckAccessManyInput,
+} from "#server/auth/um";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
@@ -175,7 +180,9 @@ export class DocumentService {
           ...actorContext(input, options),
           checks: [
             {
-              capabilities: [collectionPermissionKey(identity, auth.capability)],
+              capabilities: [
+                collectionPermissionKey(identity, auth.capability),
+              ],
               targetScopeIds: [null],
             },
           ],
@@ -218,7 +225,9 @@ export class DocumentService {
           ...actorContext(input, options),
           checks: [
             {
-              capabilities: [collectionPermissionKey(identity, auth.capability)],
+              capabilities: [
+                collectionPermissionKey(identity, auth.capability),
+              ],
               targetScopeIds: [null],
             },
           ],
@@ -831,7 +840,7 @@ export class DocumentService {
   }
 
   private async assertDocumentAccess(
-    input: Parameters<AuthRbacService["evaluateAccess"]>[0],
+    input: CheckAccessManyInput,
   ): Promise<void> {
     try {
       await this.authorizer.evaluateAccess({
@@ -1059,10 +1068,13 @@ export class DocumentService {
   private getCollection<TData extends JsonObject = JsonObject>(input: {
     appKey?: string;
     collection: string;
-  }): RegisteredCollection<TData> {
+  }): RegisteredCollection<CollectionSchema<TData>> {
     return input.appKey
-      ? this.registry.getForApp<TData>(input.appKey, input.collection)
-      : this.registry.get<TData>(input.collection);
+      ? this.registry.getForApp<CollectionSchema<TData>>(
+          input.appKey,
+          input.collection,
+        )
+      : this.registry.get<CollectionSchema<TData>>(input.collection);
   }
 
   private async requireCollectionIdentity(

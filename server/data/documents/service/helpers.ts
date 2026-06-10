@@ -1,4 +1,4 @@
-import type { CollectionRegistry } from "../../collections";
+import type { CollectionRegistry, CollectionSchema } from "../../collections";
 import { DocumentServiceError } from "../errors";
 import type { RemoteAdapterOutputs, RemoteCollectionAdapter } from "../remote";
 import type { JsonObject } from "../types";
@@ -23,7 +23,7 @@ export function getRemoteAdapter<
   TDeleteInput,
   TOutputs
 > {
-  const collection = registry.get<TData>(collectionName);
+  const collection = registry.get<CollectionSchema<TData>>(collectionName);
   const adapter = collection.remoteAdapter;
 
   if (!adapter) {
@@ -37,7 +37,7 @@ export function getRemoteAdapter<
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- String registry lookup cannot retain adapter operation generics.
-  return adapter as RemoteCollectionAdapter<
+  return adapter as unknown as RemoteCollectionAdapter<
     TData,
     TSyncOneInput,
     TSyncListInput,

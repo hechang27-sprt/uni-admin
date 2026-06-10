@@ -106,14 +106,15 @@ interface CatalogRepository {
   ): Promise<CatalogCollection | null>;
 }
 
-interface CollectionRegistration {
-  appKey?: string;
-  key?: string;
-  name?: string;
-  definitionKey?: string;
-  schema: z.ZodType<JsonObject>;
-  schemaVersion: number;
-}
+type CollectionSchema<TData extends JsonObject = JsonObject> =
+  z.ZodObject<z.ZodRawShape> & z.ZodType<TData>;
+
+type CollectionRegistration<TSchema extends CollectionSchema = CollectionSchema> =
+  z.input<ReturnType<typeof collectionRegistrationSchema<TSchema>>>;
+
+type RegisteredCollection<TSchema extends CollectionSchema = CollectionSchema> =
+  z.output<ReturnType<typeof registeredCollectionSchema<TSchema>>>;
+// RegisteredCollection is branded by Zod after defaults are derived.
 ```
 
 ### 3. Contracts

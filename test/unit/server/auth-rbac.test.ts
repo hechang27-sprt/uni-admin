@@ -19,7 +19,6 @@ import {
 import { migrateToLatest } from "#server/db/migrate";
 import {
   createCollectionRegistry,
-  deriveCollectionPermissionDefinitions,
   resolveCollectionActionAuth,
   resolveCollectionOperationAuth,
 } from "#server/data/collections";
@@ -172,6 +171,19 @@ describe("auth/RBAC service integration", () => {
     expect(registry.hasForApp("default", "tasks")).toBe(true);
   });
 
+
+  it("rejects non-object collection schemas", () => {
+    const invalidRegistration = {
+      name: "tasks",
+      schema: z.string(),
+      schemaVersion: 1,
+    };
+
+    expect(() =>
+      // @ts-expect-error Runtime validation still rejects untyped callers.
+      createCollectionRegistry([invalidRegistration]),
+    ).toThrow(/schema/i);
+  });
   it("rejects duplicate collection names within the same app", () => {
     expect(() =>
       createCollectionRegistry([
@@ -286,20 +298,37 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("rejects built-in collection capability overrides", () => {
-    const registry = createCollectionRegistry([
-      {
-        name: "tasks",
-        schema: taskSchema,
-        schemaVersion: 1,
-        auth: {
-          read: { capability: "custom-duplicate" },
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 1,
+          auth: {
+            // @ts-expect-error Capability ids are framework-defined for CRUD operations.
+            read: { capability: "custom-duplicate" },
+          },
         },
-      },
-    ]);
+      ]),
+    ).toThrow(/auth\.read/i);
+  });
 
-    expect(() => deriveCollectionPermissionDefinitions(registry)).toThrow(
-      /overrid/i,
-    );
+  it("rejects custom action capability overrides", () => {
+    expect(() =>
+      createCollectionRegistry([
+        {
+          name: "tasks",
+          schema: taskSchema,
+          schemaVersion: 1,
+          auth: {
+            actions: {
+              // @ts-expect-error Action capability ids derive from action keys.
+              archive: { capability: "custom-archive" },
+            },
+          },
+        },
+      ]),
+    ).toThrow(/auth\.actions\.archive/i);
   });
 
   it("filters and mutates documents through resource-scoped role assignments", async () => {

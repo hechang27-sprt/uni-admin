@@ -12,6 +12,7 @@ export type {
   CollectionOperation,
   CollectionOperationAuthDeclaration,
   CollectionOperationAuthInput,
+  CollectionSchema,
   CollectionRegistration,
   CollectionResourceScopeMode,
   PermissionDefinition,
