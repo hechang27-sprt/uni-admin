@@ -1082,3 +1082,35 @@ Required custom action auth keys to match registered collection action callbacks
 ### Next Steps
 
 - None - task complete
+
+
+## Session 34: Unify DocumentService reads around list
+
+**Date**: 2026-06-11
+**Task**: Unify DocumentService reads around list
+
+### Summary
+
+Removed legacy DocumentService read helpers, unified read/access filtering through list with operation override, updated tests/docs/specs, and captured the broader interface-shape convention.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e5961134` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
