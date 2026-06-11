@@ -1,8 +1,10 @@
 import type { ColumnType, Generated } from "kysely";
 
-import type { JsonObject } from "../data/documents/types";
-
-type Timestamp = ColumnType<Date | string, Date | string | undefined, Date | string>;
+type Timestamp = ColumnType<
+  Date | string,
+  Date | string | undefined,
+  Date | string
+>;
 type NullableTimestamp = ColumnType<
   Date | string | null,
   Date | string | null | undefined,

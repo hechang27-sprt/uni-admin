@@ -3,7 +3,6 @@ import { injectable } from "inversify";
 
 import { DocumentServiceError } from "../documents/errors";
 import type { RemoteCollectionAdapter } from "../documents/remote";
-import type { JsonObject } from "../documents/types";
 
 const safePermissionSegmentSchema = z
   .string()
@@ -54,7 +53,9 @@ const collectionAuthDeclarationSchema = z.object({
   delete: collectionOperationAuthInputSchema.optional(),
   restore: collectionOperationAuthInputSchema.optional(),
   hardDelete: collectionOperationAuthInputSchema.optional(),
-  actions: z.record(safePermissionSegmentSchema, collectionOperationAuthInputSchema).optional(),
+  actions: z
+    .record(safePermissionSegmentSchema, collectionOperationAuthInputSchema)
+    .optional(),
 });
 
 const _resolvedCollectionOperationAuthSchema = z.object({
@@ -79,10 +80,8 @@ type CollectionSchemaData<TSchema extends CollectionSchema> =
 
 type CollectionActionDefinitions = Record<string, CollectionActionDefinition>;
 
-type CollectionActionKey<TActions extends CollectionActionDefinitions> = Extract<
-  keyof TActions,
-  string
->;
+type CollectionActionKey<TActions extends CollectionActionDefinitions> =
+  Extract<keyof TActions, string>;
 
 export type CollectionActionHandler<TInput = unknown, TOutput = unknown> = (
   context: unknown,
@@ -112,20 +111,23 @@ const collectionActionDefinitionSchema = z
   })
   .strict();
 
+export const collectionRegistrationBaseSchema = z.object({
+  appKey: safePermissionSegmentSchema.optional(),
+  key: safePermissionSegmentSchema.optional(),
+  name: z.string().min(1).optional(),
+  definitionKey: safePermissionSegmentSchema.optional(),
+  schemaVersion: z.number().int().positive(),
+});
+
 function collectionRegistrationSchema<
   TSchema extends CollectionSchema = CollectionSchema,
 >() {
-  return z
-    .object({
-      appKey: safePermissionSegmentSchema.optional(),
-      key: safePermissionSegmentSchema.optional(),
-      name: z.string().min(1).optional(),
-      definitionKey: safePermissionSegmentSchema.optional(),
+  return collectionRegistrationBaseSchema
+    .extend({
       schema: z.custom<TSchema>(
         (value) => value instanceof z.ZodObject,
         "Collection schema must be a Zod object",
       ),
-      schemaVersion: z.number().int().positive(),
       actions: z
         .record(safePermissionSegmentSchema, collectionActionDefinitionSchema)
         .optional(),
@@ -193,15 +195,14 @@ export type CollectionOperationAuthInput = z.infer<
   typeof collectionOperationAuthInputSchema
 >;
 
-export type CollectionAuthDeclaration<TActionKey extends string = string> = Omit<
-  z.infer<typeof collectionAuthDeclarationSchema>,
-  "actions"
-> & {
-  actions?: Partial<Record<TActionKey, CollectionOperationAuthInput>>;
-};
+export type CollectionAuthDeclaration<TActionKey extends string = string> =
+  Omit<z.infer<typeof collectionAuthDeclarationSchema>, "actions"> & {
+    actions?: Partial<Record<TActionKey, CollectionOperationAuthInput>>;
+  };
 
-export type CollectionActionAuthDeclaration<TActionKey extends string = string> =
-  NonNullable<CollectionAuthDeclaration<TActionKey>["actions"]>[TActionKey];
+export type CollectionActionAuthDeclaration<
+  TActionKey extends string = string,
+> = NonNullable<CollectionAuthDeclaration<TActionKey>["actions"]>[TActionKey];
 
 export type ResolvedCollectionOperationAuth = z.infer<
   typeof _resolvedCollectionOperationAuthSchema
@@ -242,7 +243,10 @@ export class CollectionRegistry {
     registration: CollectionRegistration<TSchema>,
   ): this {
     const collection = parseRegistration(registration);
-    const registryKey = collectionRegistryKey(collection.appKey, collection.key);
+    const registryKey = collectionRegistryKey(
+      collection.appKey,
+      collection.key,
+    );
 
     if (this.collections.has(registryKey)) {
       throw new DocumentServiceError(
@@ -360,7 +364,9 @@ export function resolveCollectionOperationAuth(
   return {
     capability: operation,
     resourceScope:
-      declaration?.resourceScope ?? collection.auth?.resourceScope ?? "document",
+      declaration?.resourceScope ??
+      collection.auth?.resourceScope ??
+      "document",
   };
 }
 

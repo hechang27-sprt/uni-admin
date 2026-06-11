@@ -1,40 +1,10 @@
 import { z } from "zod";
 
-import type {
-  JsonObject,
-  JsonValue,
-  ListDocumentsInput,
-  StoredDocument,
-} from "../types";
-
-const repositoryJsonObjectSchema = z.custom<JsonObject>(isJsonObject);
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    Object.values(value).every(isJsonValue)
-  );
-}
-
-function isJsonValue(value: unknown): value is JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return true;
-  }
-  if (Array.isArray(value)) {
-    return value.every(isJsonValue);
-  }
-  return isJsonObject(value);
-}
+import { jsonObjectSchema } from "#server/utils/zod";
+import type { ListDocumentsInput, StoredDocument } from "../types";
 
 export const insertManyDocumentsItemSchema = z.object({
-  data: repositoryJsonObjectSchema,
+  data: jsonObjectSchema,
   authScopeId: z.string().nullable().optional(),
   remoteSource: z.string().nullable().optional(),
   remoteId: z.string().nullable().optional(),
@@ -66,7 +36,7 @@ export const updateDocumentRecordSchema = z.object({
   id: z.string(),
   expectedVersion: z.number(),
   schemaVersion: z.number().optional(),
-  data: repositoryJsonObjectSchema.optional(),
+  data: jsonObjectSchema.optional(),
   authScopeId: z.string().nullable().optional(),
   deletedAt: z.date().nullable().optional(),
   remoteSource: z.string().nullable().optional(),
@@ -100,7 +70,7 @@ export type UpdateManyDocumentsRecord<TData extends JsonObject = JsonObject> =
 
 export const upsertRemoteProjectionSchema = z.object({
   remoteId: z.string(),
-  data: repositoryJsonObjectSchema,
+  data: jsonObjectSchema,
   authScopeId: z.string().nullable().optional(),
 });
 

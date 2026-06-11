@@ -1,7 +1,6 @@
 import type { z } from "zod";
 
 import type {
-  JsonObject,
   StoredDocument,
   TenantActorContext,
   TenantContext,

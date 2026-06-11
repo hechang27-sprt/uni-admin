@@ -9,7 +9,6 @@ import {
   type RegisteredCollection,
 } from "../../collections";
 import type {
-  JsonObject,
   ListDocumentsResult,
   StoredDocument,
   TenantActorContext,

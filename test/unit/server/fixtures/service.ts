@@ -67,9 +67,9 @@ export async function createService(database: DatabaseClient): Promise<DocumentS
   ]);
   const container = createServerContainer({ database, registry });
   const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-  await catalog.syncRegistryCollections();
   await catalog.enableDefaultAppForTenant(tenantA);
   await catalog.enableDefaultAppForTenant(tenantB);
+  await catalog.syncRegistryCollections();
   return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 }
 
@@ -203,9 +203,9 @@ export async function createRemoteService(database: DatabaseClient): Promise<{
   ]);
   const container = createServerContainer({ database, registry });
   const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-  await catalog.syncRegistryCollections();
   await catalog.enableDefaultAppForTenant(tenantA);
   await catalog.enableDefaultAppForTenant(tenantB);
+  await catalog.syncRegistryCollections();
 
   return {
     service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),

@@ -97,8 +97,9 @@ plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })];
 
 ```ts
 interface CatalogRepository {
-  ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp>;
-  enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp>;
+  ensureApps(input: EnsureCatalogAppInput[]): Promise<Record<string, CatalogApp>>;
+  findApp(key: string): Promise<CatalogApp | null>;
+  enableTenantApps(input: EnableTenantAppInput[]): Promise<void>;
   syncCollections(registry: CollectionRegistry): Promise<CatalogCollection[]>;
   findCollection(input: FindCatalogCollectionInput): Promise<CatalogCollection | null>;
   findTenantCollection(
@@ -130,12 +131,16 @@ type RegisteredCollection<TSchema extends CollectionSchema = CollectionSchema> =
 - The document service syncs registry collections and enables the default app
   automatically before document persistence. Non-default apps require explicit
   tenant enablement.
+- Default-app bootstrap is the only normal path that creates apps implicitly.
+  Non-default tenant enablement must target an existing app key.
 
 ### 4. Validation & Error Matrix
 
 - Missing registered collection -> `DocumentServiceError("UNKNOWN_COLLECTION")`.
 - Registered non-default app not enabled for tenant ->
   `DocumentServiceError("UNKNOWN_COLLECTION")`.
+- Enabling a tenant app for an unknown app key ->
+  `DocumentServiceError("NOT_FOUND")`.
 - Cross-app same collection name -> valid when callers provide the intended
   `appKey`.
 - Remote identity duplicate in the same tenant/app/collection -> upsert/update

@@ -1,7 +1,6 @@
 import type { JsonPatchOperation } from "../json-patch";
 import type { CollectionOperation } from "../../collections";
 import type {
-  JsonObject,
   ListDocumentsInput,
   StoredDocument,
   TenantContext,
@@ -38,7 +37,6 @@ export interface VersionedDocumentInput extends CollectionDocumentInput {
   expectedVersion: number;
 }
 
-
 export interface UpdateDocumentInput<
   TData extends JsonObject = JsonObject,
 > extends VersionedDocumentInput {
@@ -65,8 +63,7 @@ export interface HardDeleteDocumentInput extends CollectionDocumentInput {
 }
 
 export interface ListDocumentServiceInput
-  extends CollectionDocumentInput,
-    ListDocumentsInput {
+  extends CollectionDocumentInput, ListDocumentsInput {
   operation?: CollectionOperation;
 }
 export interface SyncRemoteOneInput<

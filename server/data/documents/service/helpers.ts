@@ -1,7 +1,6 @@
 import type { CollectionRegistry, CollectionSchema } from "../../collections";
 import { DocumentServiceError } from "../errors";
 import type { RemoteAdapterOutputs, RemoteCollectionAdapter } from "../remote";
-import type { JsonObject } from "../types";
 
 export function getRemoteAdapter<
   TData extends JsonObject,

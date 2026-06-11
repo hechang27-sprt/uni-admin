@@ -1,11 +1,16 @@
 /* oxlint-disable typescript/unbound-method -- Kysely callback methods are used only to build SQL AST nodes. */
 import { inject, injectable } from "inversify";
-import type { Selectable } from "kysely";
+import { type Selectable } from "kysely";
 
+import { jsonObjectSchema } from "#server/utils/zod";
 import type { AppsTable, CollectionsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import type { CollectionRegistry } from "#server/data/collections";
-import type { JsonObject } from "#server/data/documents";
+import {
+  collectionRegistrationBaseSchema,
+  type CollectionRegistry,
+} from "#server/data/collections";
+import { keyBy, uniqBy } from "es-toolkit";
+import z from "zod";
 
 export interface CatalogApp {
   appId: string;
@@ -25,31 +30,37 @@ export interface CatalogCollection {
   config: JsonObject | null;
 }
 
-export interface EnsureCatalogAppInput {
-  key: string;
-  name?: string | null;
-  config?: JsonObject | null;
-}
+const ensureCatalogAppInputSchema = z.object({
+  key: z.string(),
+  name: z.string().optional(),
+  config: jsonObjectSchema.optional(),
+});
 
-export interface EnableTenantAppInput {
-  tenantId: string;
-  appKey: string;
-  config?: JsonObject | null;
-}
+const enableTenantAppInputSchema = z.object({
+  tenantId: z.string(),
+  appKey: z.string(),
+  config: jsonObjectSchema.optional(),
+});
+
+export type EnsureCatalogAppInput = z.infer<typeof ensureCatalogAppInputSchema>;
+
+export type EnableTenantAppInput = z.infer<typeof enableTenantAppInputSchema>;
 
 export interface FindCatalogCollectionInput {
   appKey: string;
   collectionKey: string;
 }
 
-export interface FindTenantCatalogCollectionInput
-  extends FindCatalogCollectionInput {
+export interface FindTenantCatalogCollectionInput extends FindCatalogCollectionInput {
   tenantId: string;
 }
 
 export interface CatalogRepository {
-  ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp>;
-  enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp>;
+  ensureApps(
+    input: EnsureCatalogAppInput[],
+  ): Promise<Record<string, CatalogApp>>;
+  findApp(key: string): Promise<CatalogApp | null>;
+  enableTenantApps(input: EnableTenantAppInput[]): Promise<void>;
   syncCollections(registry: CollectionRegistry): Promise<CatalogCollection[]>;
   findCollection(
     input: FindCatalogCollectionInput,
@@ -66,81 +77,233 @@ export class KyselyCatalogRepository implements CatalogRepository {
     private readonly database: DatabaseClient,
   ) {}
 
-  async ensureApp(input: EnsureCatalogAppInput): Promise<CatalogApp> {
+  async ensureApps(
+    input: EnsureCatalogAppInput[],
+  ): Promise<Record<string, CatalogApp>> {
+    input = uniqBy(input, ({ key }) => key);
+
+    const { key, name, setName, config, setConfig } = pivotToColumns(
+      input,
+      ensureCatalogAppInputSchema,
+      "set",
+    );
+
     const now = new Date();
-    const row = await this.database
-      .insertInto("apps")
-      .values({
-        key: input.key,
-        name: input.name ?? null,
-        config: input.config ?? null,
-        updatedAt: now,
-      })
-      .onConflict((conflict) =>
-        conflict.column("key").doUpdateSet({
-          name: input.name ?? null,
-          config: input.config ?? null,
-          updatedAt: now,
-        }),
+
+    const rows = await this.database
+      .mergeInto("apps")
+      .using(
+        unnest(
+          "input",
+          { key, name, setName, config, setConfig },
+          { jsonb: ["config"] },
+        ),
+        "input.key",
+        "apps.key",
       )
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
-    return mapApp(row);
-  }
-
-  async enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp> {
-    const app = await this.ensureApp({ key: input.appKey });
-
-    await this.database
-      .insertInto("tenantApps")
-      .values({
-        tenantId: input.tenantId,
-        appId: app.appId,
-        config: input.config ?? null,
-      })
-      .onConflict((conflict) =>
-        conflict.columns(["tenantId", "appId"]).doUpdateSet({
-          config: input.config ?? null,
-        }),
+      .whenMatchedAnd((eb) =>
+        eb.or([
+          eb("input.setName", "=", true),
+          eb("input.setConfig", "=", true),
+        ]),
       )
+      .thenUpdate((ub) =>
+        ub
+          .set("name", (eb) =>
+            eb
+              .case()
+              .when("input.setName", "=", true)
+              .thenRef("input.name")
+              .elseRef("apps.name")
+              .end(),
+          )
+          .set("config", (eb) =>
+            eb
+              .case()
+              .when("input.setConfig", "=", true)
+              .thenRef("input.config")
+              .elseRef("apps.config")
+              .end(),
+          )
+          .set("updatedAt", now),
+      )
+      // required for `RETURNING`
+      .whenMatched()
+      .thenUpdateSet("updatedAt", ({ ref }) => ref("apps.updatedAt"))
+      .whenNotMatched()
+      .thenInsertValues(({ ref }) => ({
+        key: ref("input.key"),
+        name: ref("input.name"),
+        config: ref("input.config"),
+      }))
+      .returningAll("apps")
       .execute();
 
-    return app;
+    return keyBy(rows.map(mapApp), (app) => app.key);
+  }
+
+  async findApp(key: string): Promise<CatalogApp | null> {
+    const row = await this.database
+      .selectFrom("apps")
+      .selectAll()
+      .where("key", "=", key)
+      .executeTakeFirst();
+
+    return row ? mapApp(row) : null;
+  }
+
+  async enableTenantApps(input: EnableTenantAppInput[]): Promise<void> {
+    const { tenantId, appKey, config, setConfig } = pivotToColumns(
+      input,
+      enableTenantAppInputSchema,
+      "set",
+    );
+
+    await this.database
+      .mergeInto("tenantApps")
+      .using(
+        ({ selectFrom }) =>
+          selectFrom(
+            unnest(
+              "t",
+              { tenantId, appKey, config, setConfig },
+              { types: { tenantId: "uuid" }, jsonb: ["config"] },
+            ),
+          )
+            .innerJoin("apps", "apps.key", "t.appKey")
+            .innerJoin("tenants", "tenants.id", "t.tenantId")
+            .selectAll("t")
+            .select("apps.appId")
+            .as("input"),
+        (join) =>
+          join
+            .onRef("input.appId", "=", "tenantApps.appId")
+            .onRef("input.tenantId", "=", "tenantApps.tenantId")
+            .on("input.appId", "is not", null),
+      )
+      .whenMatchedAnd("input.setConfig", "=", true)
+      .thenUpdateSet("config", (eb) =>
+        eb
+          .case()
+          .when("input.setConfig", "=", true)
+          .thenRef("input.config")
+          .elseRef("tenantApps.config")
+          .end(),
+      )
+      .whenNotMatched()
+      .thenInsertValues(({ ref }) => ({
+        tenantId: ref("input.tenantId"),
+        appId: ref("input.appId").$notNull(),
+        config: ref("input.config"),
+      }))
+      .execute();
   }
 
   async syncCollections(
     registry: CollectionRegistry,
   ): Promise<CatalogCollection[]> {
-    return Promise.all(
-      registry.list().map(async (registration) => {
-        const app = await this.ensureApp({ key: registration.appKey });
-        const now = new Date();
-        const row = await this.database
-          .insertInto("collections")
-          .values({
-            appId: app.appId,
-            key: registration.key,
-            definitionKey: registration.definitionKey,
-            name: registration.name,
-            schemaVersion: registration.schemaVersion,
-            config: null,
-            updatedAt: now,
-          })
-          .onConflict((conflict) =>
-            conflict.columns(["appId", "key"]).doUpdateSet({
-              definitionKey: registration.definitionKey,
-              name: registration.name,
-              schemaVersion: registration.schemaVersion,
-              updatedAt: now,
-            }),
-          )
-          .returningAll()
-          .executeTakeFirstOrThrow();
+    const registeredCollectionBaseSchema =
+      collectionRegistrationBaseSchema.required();
 
-        return mapCollection(row, app.key);
-      }),
+    const collections = registry
+      .list()
+      .map((obj) => registeredCollectionBaseSchema.parse(obj));
+    const {
+      key: collectionKey,
+      appKey,
+      definitionKey,
+      setDefinitionKey,
+      name,
+      setName,
+      schemaVersion,
+      setSchemaVersion,
+    } = pivotToColumns(collections, registeredCollectionBaseSchema, "set");
+
+    const apps = await this.ensureApps(
+      new Set(appKey)
+        .values()
+        .map((ak) => ({ key: ak }))
+        .toArray(),
     );
+    const appId = appKey.map((ak) => apps[ak]?.appId ?? null);
+
+    const now = new Date();
+    const rows = await this.database
+      .mergeInto("collections")
+      .using(
+        unnest(
+          "reg",
+          {
+            appId,
+            appKey,
+            key: collectionKey,
+            definitionKey,
+            setDefinitionKey,
+            name,
+            setName,
+            schemaVersion,
+            setSchemaVersion,
+          },
+          { types: { appId: "uuid" } },
+        ),
+        (join) =>
+          join
+            .onRef("reg.appId", "=", "collections.appId")
+            .onRef("reg.key", "=", "collections.key")
+            .on("reg.appId", "is not", null),
+      )
+      .whenMatchedAnd((eb) =>
+        eb.or([
+          eb("reg.setDefinitionKey", "=", true),
+          eb("reg.setName", "=", true),
+          eb("reg.setSchemaVersion", "=", true),
+        ]),
+      )
+      .thenUpdate((ub) =>
+        ub
+          .set("definitionKey", (eb) =>
+            eb
+              .case()
+              .when("reg.setDefinitionKey", "=", true)
+              .thenRef("reg.definitionKey")
+              .elseRef("collections.definitionKey")
+              .end(),
+          )
+          .set("name", (eb) =>
+            eb
+              .case()
+              .when("reg.setName", "=", true)
+              .thenRef("reg.name")
+              .elseRef("collections.name")
+              .end(),
+          )
+          .set("schemaVersion", (eb) =>
+            eb
+              .case()
+              .when("reg.setSchemaVersion", "=", true)
+              .thenRef("reg.schemaVersion")
+              .elseRef("collections.schemaVersion")
+              .end(),
+          )
+          .set("updatedAt", now),
+      )
+      .whenMatched()
+      .thenUpdateSet("updatedAt", ({ ref }) =>
+        ref("collections.updatedAt"),
+      )
+      .whenNotMatched()
+      .thenInsertValues(({ ref }) => ({
+        appId: ref("reg.appId").$notNull(),
+        key: ref("reg.key"),
+        definitionKey: ref("reg.definitionKey"),
+        name: ref("reg.name"),
+        schemaVersion: ref("reg.schemaVersion"),
+      }))
+      .returningAll("collections")
+      .returning("reg.appId")
+      .execute();
+
+    return rows.map((row) => mapCollection(row, row.appId));
   }
 
   async findCollection(

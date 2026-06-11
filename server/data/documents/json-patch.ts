@@ -1,5 +1,4 @@
 import { DocumentServiceError } from "./errors";
-import type { JsonObject, JsonValue } from "./types";
 
 export type JsonPatchOperation =
   | { op: "add"; path: string; value: JsonValue }

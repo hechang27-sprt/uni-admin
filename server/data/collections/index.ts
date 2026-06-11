@@ -6,6 +6,7 @@ export {
   deriveCollectionPermissionDefinitions,
   resolveCollectionActionAuth,
   resolveCollectionOperationAuth,
+  collectionRegistrationBaseSchema,
 } from "./registry";
 export type {
   CollectionActionAuthDeclaration,

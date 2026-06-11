@@ -102,9 +102,9 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         registry,
       });
       const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-      await catalog.syncRegistryCollections();
       await catalog.enableDefaultAppForTenant(tenantA);
       await catalog.enableDefaultAppForTenant(tenantB);
+      await catalog.syncRegistryCollections();
       await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
       await catalog.enableTenantApp({ tenantId: tenantB, appKey: "workflow" });
       return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);

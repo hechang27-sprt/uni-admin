@@ -4,7 +4,7 @@ import { sql, type Selectable } from "kysely";
 
 import type { DocumentsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import type { JsonObject, ListDocumentsInput, StoredDocument } from "../types";
+import type { ListDocumentsInput, StoredDocument } from "../types";
 import {
   buildAccessibleScopeCondition,
   buildAuthScopeCondition,

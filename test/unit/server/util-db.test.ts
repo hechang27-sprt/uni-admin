@@ -274,6 +274,23 @@ describe("baseline migration catalog tables", () => {
     expect(second.appId).toBe(first.appId);
     expect(tenantApps).toEqual([{ tenantId: tenant.id, appId: first.appId }]);
   });
+
+  it("rejects enabling unknown tenant apps", async () => {
+    const db = getTestDatabase();
+    const tenant = await db
+      .insertInto("tenants")
+      .values({ name: "Catalog Tenant" })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    const service = new CatalogService(
+      new KyselyCatalogRepository(db),
+      createCollectionRegistry(),
+    );
+
+    await expect(
+      service.enableTenantApp({ tenantId: tenant.id, appKey: "missing" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   it("creates named catalog indexes and constraints", async () => {
     const db = getTestDatabase();
 
