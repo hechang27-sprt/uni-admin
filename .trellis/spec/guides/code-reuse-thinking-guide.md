@@ -83,6 +83,40 @@ shared type guard / normalizer / projection before adding a third reader.
 
 ---
 
+## Prefer One Extensible Interface
+
+Before adding a new method next to an existing one, ask whether the operation is
+really new or whether it is the same behavior with one more explicit parameter.
+
+**Use one interface when**:
+- The methods touch the same resource.
+- They share filtering, authorization, validation, pagination, or result-shaping
+  rules.
+- The new method would differ only by a narrower filter, one permission mode, or
+  scalar vs batch return shape.
+
+**Prefer**:
+```typescript
+await service.list({ tenantId, collection, ids, operation: "update" }, options);
+```
+
+**Avoid**:
+```typescript
+await service.getByIds({ tenantId, collection, ids });
+await service.filterAccessibleDocuments(input, options, "update");
+```
+
+Parallel near-duplicate methods create hidden semantic forks: one path forgets a
+tenant/app constraint, another path handles missing rows differently, and a
+third path drifts in authorization behavior. Add a sibling method only when it
+is a distinct domain command with different lifecycle or invariants.
+
+→ For server data-layer code, follow
+[`server/data-layer-boundaries.md`](../server/data-layer-boundaries.md) and
+[`server/document-service.md`](../server/document-service.md).
+
+---
+
 ## When to Abstract
 
 **Abstract when**:

@@ -27,7 +27,7 @@ document data or queue status into Pinia as the source of truth.
 - Treat remote adapter output metadata as pass-through data; the service does
   not interpret provider-specific cursors, request IDs, or hints.
 - Keep remote reads explicit with `syncRemoteOne` and `syncRemoteList`; normal
-  `getById` and `list` calls read local projections only.
+  `list` calls read local projections only.
 
 ## Anti-Patterns
 

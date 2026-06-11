@@ -173,11 +173,9 @@ The service validates document data before persistence. Mutating methods that
 change existing rows require `expectedVersion`, and stale versions fail with
 `CONFLICT_STALE_VERSION`.
 
-Batch methods are explicit:
+Batch writes are explicit:
 
 - `createMany` inserts a list of local projections.
-- `getByIds` returns results in the same order as the requested IDs and uses
-  `null` for missing documents.
 - `updateMany` validates every item before the repository write and uses one
   Kysely transaction for the batch update. A stale or missing item prevents
   partial writes.
@@ -269,10 +267,7 @@ remote payload
   -> upsert/update local JSONB projection
 ```
 
-Normal reads do not call remotes:
-
-- `getById` reads the local projection.
-- `list` reads the local projection.
+Normal `list` reads do not call remotes; they read local projections only.
 
 Remote refresh is explicit:
 

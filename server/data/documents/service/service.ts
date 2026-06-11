@@ -19,8 +19,6 @@ import type {
   CreateDocumentInput,
   CreateManyDocumentInput,
   DocumentServiceOptions,
-  GetDocumentInput,
-  GetDocumentsByIdsInput,
   HardDeleteDocumentInput,
   ListDocumentServiceInput,
   PatchDocumentInput,
@@ -140,74 +138,7 @@ export class DocumentService {
     });
   }
 
-  async getById<TData extends JsonObject>(
-    input: GetDocumentInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData> | null> {
-    const collection = this.getCollection(input);
-    const identity = await this.requireCollectionIdentity(input, collection);
 
-    const [document] = await this.repository.list<TData>({
-      tenantId: input.tenantId,
-      appId: identity.appId,
-      collectionId: identity.collectionId,
-      collection: input.collection,
-      query: {
-        ids: [input.id],
-        includeDeleted: input.includeDeleted,
-      },
-    });
-    if (!document) {
-      return null;
-    }
-
-    await this.authorizeDocuments(input, options, "read", [document]);
-    return document;
-  }
-
-  async getByIds<TData extends JsonObject>(
-    input: GetDocumentsByIdsInput,
-    options?: DocumentServiceOptions,
-  ): Promise<StoredDocument<TData>[]> {
-    const collection = this.getCollection<TData>(input);
-    const identity = await this.requireCollectionIdentity(input, collection);
-    let accessibleScopeIds: string[] | null | undefined;
-
-    if (hasActorOptions(options)) {
-      const auth = resolveCollectionOperationAuth(collection, "read");
-      if (auth?.resourceScope === "tenant-root") {
-        await this.assertDocumentAccess({
-          ...actorContext(input, options),
-          checks: [
-            {
-              capabilities: [
-                collectionPermissionKey(identity, auth.capability),
-              ],
-              targetScopeIds: [null],
-            },
-          ],
-        });
-      } else if (auth) {
-        accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
-          input,
-          options,
-          collectionPermissionKey(identity, auth.capability),
-        );
-      }
-    }
-
-    return this.repository.list<TData>({
-      tenantId: input.tenantId,
-      appId: identity.appId,
-      collectionId: identity.collectionId,
-      collection: input.collection,
-      query: {
-        ids: input.ids,
-        includeDeleted: input.includeDeleted,
-        accessibleScopeIds,
-      },
-    });
-  }
 
   async list<TData extends JsonObject>(
     input: ListDocumentServiceInput,
@@ -219,7 +150,10 @@ export class DocumentService {
     let accessibleScopeIds: string[] | null | undefined;
 
     if (hasActorOptions(options)) {
-      const auth = resolveCollectionOperationAuth(collection, "read");
+      const auth = resolveCollectionOperationAuth(
+        collection,
+        input.operation ?? "read",
+      );
       if (auth?.resourceScope === "tenant-root") {
         await this.assertDocumentAccess({
           ...actorContext(input, options),
@@ -793,51 +727,6 @@ export class DocumentService {
     });
   }
 
-  private async filterAccessibleDocuments<TData extends JsonObject>(
-    input: { tenantId: string; collection: string },
-    options: DocumentServiceOptions | undefined,
-    operation: CollectionOperation,
-    documents: StoredDocument<TData>[],
-  ): Promise<(StoredDocument<TData> | null)[]> {
-    if (!hasActorOptions(options)) {
-      return documents;
-    }
-
-    const collection = this.getCollection(input);
-    const auth = resolveCollectionOperationAuth(collection, operation);
-    if (!auth) {
-      return documents;
-    }
-    const identity = await this.requireCollectionIdentity(input, collection);
-
-    const access = await this.authorizer.evaluateAccess({
-      ...actorContext(input, options),
-      checks: [
-        {
-          capabilities: [collectionPermissionKey(identity, auth.capability)],
-          targetScopeIds:
-            auth.resourceScope === "tenant-root"
-              ? [null]
-              : uniq(documents.map((document) => document.authScopeId)),
-        },
-      ],
-    });
-
-    if (access.allowed) return documents;
-    else if (!access.capabilities) return [];
-
-    const deniedCaps = access.capabilities[0]!.missingCaps;
-    const approvedScopes = new Set(
-      auth.resourceScope === "tenant-root"
-        ? [null]
-        : documents.map((document) => document.authScopeId),
-    );
-    for (const { targetScopeId } of deniedCaps)
-      approvedScopes.delete(targetScopeId);
-    return documents.map((doc) =>
-      approvedScopes.has(doc.authScopeId) ? doc : null,
-    );
-  }
 
   private async assertDocumentAccess(
     input: CheckAccessManyInput,

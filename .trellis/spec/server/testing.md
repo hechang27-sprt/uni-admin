@@ -55,5 +55,5 @@ Add or update tests when changing:
 - Assert `DocumentServiceError` codes with `.toMatchObject({ code: "..." })`.
 - For remote failures, assert both the thrown remote error and unchanged local
   projection state.
-- For ordered APIs such as `getByIds`, assert result order and missing-item
-  `null` entries.
+- For `list` queries with `ids`, assert the returned item set and derive any
+  required positional behavior at the callsite.

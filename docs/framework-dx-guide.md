@@ -141,8 +141,9 @@ const updated = await service.update<TaskDocument>({
 ```
 
 Batch local writes use explicit methods instead of array-overloaded scalar
-methods. `getByIds` preserves input order and returns `null` for missing IDs;
-`updateMany` rejects the whole batch when any item is missing or stale:
+methods. Use `list` with an `ids` filter for batch reads; derive positional
+results at the callsite when needed. `updateMany` rejects the whole batch when
+any item is missing or stale:
 
 ```ts
 const batch = await service.createMany<TaskDocument>({
@@ -154,7 +155,7 @@ const batch = await service.createMany<TaskDocument>({
   ],
 });
 
-const fetched = await service.getByIds<TaskDocument>({
+const fetched = await service.list<TaskDocument>({
   tenantId: created.tenantId,
   collection: "tasks",
   ids: batch.map((item) => item.id),
@@ -318,8 +319,8 @@ const rows = await service.list<TaskDocument>({
 });
 ```
 
-`list` and `getById` do not call the remote adapter. Remote refresh is always
-explicit today.
+`list` does not call the remote adapter. Remote refresh is always explicit
+today.
 
 Run a remote-first update:
 

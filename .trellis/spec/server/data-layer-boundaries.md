@@ -37,6 +37,91 @@ surface. Current examples:
 - Consumers import document framework primitives from `#server/data/documents`
   in tests or `../server/data/documents` in docs.
 
+## Interface Shape Convention
+
+### 1. Scope / Trigger
+
+- Trigger: adding or changing related service/repository operations that share
+  the same resource, filters, authorization path, or result shape.
+- Prefer one cohesive interface with explicit parameters over multiple sibling
+  methods whose semantics can drift.
+
+### 2. Signatures
+
+```ts
+// Prefer a single query surface with extension fields.
+interface ListDocumentServiceInput extends CollectionDocumentInput, ListDocumentsInput {
+  operation?: CollectionOperation;
+}
+
+async list<TData extends JsonObject>(
+  input: ListDocumentServiceInput,
+  options?: DocumentServiceOptions,
+): Promise<ListDocumentsResult<TData>>;
+```
+
+### 3. Contracts
+
+- The owning service defines one public operation for one conceptual behavior.
+- Optional fields extend the operation when they preserve the same invariants:
+  tenant/app scoping, collection lookup, authorization, validation, pagination,
+  sorting, and error handling.
+- Callers may shape returned data locally when the shape is view-specific, such
+  as mapping list results into a single item or positional `null`s.
+- Do not introduce a new method solely to bake in one filter, one authorization
+  operation, or one result shape when the existing method can express it.
+
+### 4. Validation & Error Matrix
+
+- Shared interface rejects invalid input at the same boundary as the base
+  operation.
+- Authorization uses the same service path; extension fields choose parameters,
+  not a separate enforcement implementation.
+- Missing resources follow the base operation's result contract rather than a
+  helper-specific convention.
+
+### 5. Good/Base/Bad Cases
+
+- Good: add `operation?: CollectionOperation` to `list` so callers can reuse
+  list access filtering for `read`, `update`, or another collection operation.
+- Base: use `list({ ids })` for batch id lookup and let callers derive ordering
+  or scalar values.
+- Bad: keep `list`, `getByIds`, and `filterAccessibleDocuments` as separate
+  public/private paths with subtly different authorization and missing-item
+  semantics.
+
+### 6. Tests Required
+
+- Test the shared interface covers the old special cases before deleting helper
+  methods.
+- Test extension fields at the behavior boundary, not by snapshotting private
+  helper calls.
+- Search for removed helper names and exported contract names after the cutover.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await service.getByIds({ tenantId, collection, ids });
+await service.filterAccessibleDocuments(input, options, "update");
+```
+
+#### Correct
+
+```ts
+const result = await service.list({
+  tenantId,
+  collection,
+  ids,
+  operation: "update",
+}, options);
+```
+
+Use a new method only when the behavior is a distinct domain command with a
+different lifecycle or invariants, not just a narrower spelling of the same
+query.
+
 ## Boundary Rules
 
 - The registry validates safe app, collection, action, and definition keys.
@@ -48,7 +133,7 @@ surface. Current examples:
   app, and collection scoping.
 - Remote adapters own remote API calls and payload validation; the service owns
   local projection persistence.
-- Normal reads (`getById`, `getByIds`, `list`) read local projections only.
+- Normal reads (`list`) read local projections only.
 - Future Nuxt API routes and composables should call service methods rather
   than reaching into repository or adapter internals.
 

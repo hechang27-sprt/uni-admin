@@ -564,6 +564,10 @@ describe("auth/RBAC service integration", () => {
   it("authorizes protected document batches through one check per operation", async () => {
     const { auth, service, permissionKeys } = await createTaskServiceWithAuth();
     const evaluateAccess = vi.spyOn(auth, "evaluateAccess");
+    const listGrantedScopeIdsForCapability = vi.spyOn(
+      auth,
+      "listGrantedScopeIdsForCapability",
+    );
     const root = await auth.ensureTenantRootScope(tenantA);
     const [childA, childB] = await Promise.all([
       auth.createScope({
@@ -637,18 +641,34 @@ describe("auth/RBAC service integration", () => {
     ]);
 
     evaluateAccess.mockClear();
-    await expect(
-      service.getByIds<TaskDocument>(
-        {
-          tenantId: tenantA,
-          collection: "tasks",
-          ids: created.map((document) => document.id),
-        },
-        options,
-      ),
-    ).resolves.toHaveLength(3);
+    const readResult = await service.list<TaskDocument>(
+      {
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: created.map((document) => document.id),
+      },
+      options,
+    );
+    expect(readResult.items).toHaveLength(3);
     expect(evaluateAccess).toHaveBeenCalledTimes(1);
     expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([]);
+
+    evaluateAccess.mockClear();
+    listGrantedScopeIdsForCapability.mockClear();
+    const updateAccessResult = await service.list<TaskDocument>(
+      {
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: created.map((document) => document.id),
+        operation: "update",
+      },
+      options,
+    );
+    expect(updateAccessResult.items).toHaveLength(3);
+    expect(listGrantedScopeIdsForCapability).toHaveBeenCalledWith({
+      context: { tenantId: tenantA, actor: { userId: user.userId } },
+      capability: permissionKeys.update,
+    });
 
     evaluateAccess.mockClear();
     const updated = await service.updateMany<TaskDocument>(
@@ -752,13 +772,12 @@ describe("auth/RBAC service integration", () => {
       ],
     });
 
-    await expect(
-      service.getByIds<TaskDocument>({
-        tenantId: tenantA,
-        collection: "tasks",
-        ids: created.map((document) => document.id),
-      }),
-    ).resolves.toEqual([
+    const initialRead = await service.list<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: created.map((document) => document.id),
+    });
+    expect(initialRead.items).toEqual([
       expect.objectContaining({ authScopeId: null }),
       expect.objectContaining({ authScopeId: null }),
     ]);
@@ -780,13 +799,12 @@ describe("auth/RBAC service integration", () => {
         { actor: owner.context.actor },
       ),
     ).rejects.toMatchObject({ code: "INVALID_AUTH_SCOPE" });
-    await expect(
-      service.getByIds<TaskDocument>({
-        tenantId: tenantA,
-        collection: "tasks",
-        ids: created.map((document) => document.id),
-      }),
-    ).resolves.toEqual([
+    const afterRejectedScope = await service.list<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: created.map((document) => document.id),
+    });
+    expect(afterRejectedScope.items).toEqual([
       expect.objectContaining({ authScopeId: null }),
       expect.objectContaining({ authScopeId: null }),
     ]);

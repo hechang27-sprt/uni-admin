@@ -45,6 +45,8 @@ These guides help you **ask the right questions before coding**.
 - [ ] You're writing similar code to something that exists
 - [ ] You see the same pattern repeated 3+ times
 - [ ] You're adding a new field to multiple places
+- You're adding a new method next to an existing method that touches the same
+  resource or differs only by one filter/permission/result shape
 - [ ] **You're modifying any constant or config**
 - [ ] **You're creating a new utility/helper function** ← Search first!
 - [ ] Two files read the same untyped payload field with local casts

@@ -142,18 +142,18 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         },
       });
 
-      await expect(
-        service.getById<TaskDocument>({
-          tenantId: tenantA,
-          collection: "tasks",
-          id: created.id,
-        }),
-      ).resolves.toMatchObject({
-        data: { external_ref: "source-record" },
-      });
+    const listed = await service.list<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: [created.id],
     });
 
-    it("covers create, getById, list, update, patch, softDelete, restore, and hardDelete", async () => {
+    expect(listed.items[0]).toMatchObject({
+      data: { external_ref: "source-record" },
+    });
+    });
+
+  it("covers create, list, update, patch, softDelete, restore, and hardDelete", async () => {
       const service = createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
@@ -215,13 +215,13 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       });
 
       expect(deleted.deletedAt).toBeInstanceOf(Date);
-      await expect(
-        service.getById({
-          tenantId: tenantA,
-          collection: "tasks",
-          id: created.id,
-        }),
-      ).resolves.toBeNull();
+    const afterSoftDelete = await service.list({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: [created.id],
+    });
+
+    expect(afterSoftDelete.items).toHaveLength(0);
 
       const restored = await service.restore({
         tenantId: tenantA,
@@ -239,17 +239,17 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         confirmHardDelete: true,
       });
 
-      await expect(
-        service.getById({
-          tenantId: tenantA,
-          collection: "tasks",
-          id: created.id,
-          includeDeleted: true,
-        }),
-      ).resolves.toBeNull();
+    const afterHardDelete = await service.list({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: [created.id],
+      includeDeleted: true,
     });
 
-    it("supports batch create, get by ids, and update without partial stale writes", async () => {
+    expect(afterHardDelete.items).toHaveLength(0);
+    });
+
+  it("supports batch create, list by ids, and update without partial stale writes", async () => {
       const service = createTestService();
       const created = await service.createMany<TaskDocument>({
         tenantId: tenantA,
@@ -280,19 +280,19 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         "Batch B",
       ]);
 
-      const fetched = await service.getByIds<TaskDocument>({
-        tenantId: tenantA,
-        collection: "tasks",
-        ids: [
-          created[1]!.id,
-          "00000000-0000-4000-8000-999999999999",
-          created[0]!.id,
-        ],
-      });
-
-      expect(fetched.map((item) => item.id).toSorted()).toEqual(
-        [created[0]!.id, created[1]!.id].toSorted(),
-      );
+    const fetchedResult = await service.list<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: [
+        created[1]!.id,
+        "00000000-0000-4000-8000-999999999999",
+        created[0]!.id,
+      ],
+    });
+    const fetched = new Map(fetchedResult.items.map((item) => [item.id, item]));
+    expect([...fetched.keys()].toSorted()).toEqual(
+      [created[0]!.id, created[1]!.id].toSorted(),
+    );
 
       const updated = await service.updateMany<TaskDocument>({
         tenantId: tenantA,
@@ -356,18 +356,16 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         }),
       ).rejects.toMatchObject({ code: "CONFLICT_STALE_VERSION" });
 
-      await expect(
-        service.getById<TaskDocument>({
-          tenantId: tenantA,
-          collection: "tasks",
-          id: updated[0]!.id,
-        }),
-      ).resolves.toMatchObject({
-        data: { title: "Batch A done" },
-        version: 2,
-      });
+    const fetchedUpdated = await service.list<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      ids: [updated[0]!.id],
     });
-
+    expect(fetchedUpdated.items[0]).toMatchObject({
+      data: { title: "Batch A done" },
+      version: 2,
+    });
+  });
     it("enforces tenant isolation on reads and mutations", async () => {
       const service = createTestService();
       const created = await service.create<TaskDocument>({
@@ -376,13 +374,13 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         data: { title: "Private", status: "draft", priority: 1, tags: [] },
       });
 
-      await expect(
-        service.getById({
-          tenantId: tenantB,
-          collection: "tasks",
-          id: created.id,
-        }),
-      ).resolves.toBeNull();
+    const crossTenantRead = await service.list({
+      tenantId: tenantB,
+      collection: "tasks",
+      ids: [created.id],
+    });
+
+    expect(crossTenantRead.items).toHaveLength(0);
 
       await expect(
         service.update<TaskDocument>({
@@ -476,21 +474,20 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         data: { title: "Tenant A workflow" },
       });
 
-      await expect(
-        service.getById({
-          tenantId: tenantB,
-          collection: "tasks",
-          id: tenantADefault.id,
-        }),
-      ).resolves.toBeNull();
-      await expect(
-        service.getById({
-          tenantId: tenantA,
-          appKey: "workflow",
-          collection: "tasks",
-          id: tenantADefault.id,
-        }),
-      ).resolves.toBeNull();
+    const tenantBCrossRead = await service.list({
+      tenantId: tenantB,
+      collection: "tasks",
+      ids: [tenantADefault.id],
+    });
+    expect(tenantBCrossRead.items).toHaveLength(0);
+
+    const crossAppRead = await service.list({
+      tenantId: tenantA,
+      appKey: "workflow",
+      collection: "tasks",
+      ids: [tenantADefault.id],
+    });
+    expect(crossAppRead.items).toHaveLength(0);
 
       const tenantAWorkflowList = await service.list({
         tenantId: tenantA,
@@ -868,19 +865,14 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       expect(page.output).toEqual({ nextCursor: null });
 
       const callsBeforeRead = { ...calls };
-      await expect(
-        service.getById({
-          tenantId: tenantA,
-          collection: "remote-tasks",
-          id: syncedAgain.id,
-        }),
-      ).resolves.toMatchObject({ id: syncedAgain.id });
-      const listed = await service.list<TaskDocument>({
+      const normalRead = await service.list({
         tenantId: tenantA,
         collection: "remote-tasks",
+        ids: [syncedAgain.id],
       });
 
-      expect(listed.items).toHaveLength(1);
+      expect(normalRead.items[0]).toMatchObject({ id: syncedAgain.id });
+      expect(normalRead.items).toHaveLength(1);
       expect(calls).toEqual(callsBeforeRead);
     });
 
@@ -962,13 +954,12 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         }),
       ).rejects.toThrow("remote update failed");
 
-      await expect(
-        service.getById<TaskDocument>({
-          tenantId: tenantA,
-          collection: "remote-tasks",
-          id: updated.id,
-        }),
-      ).resolves.toMatchObject({
+      const afterFailedRemoteUpdate = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "remote-tasks",
+        ids: [updated.id],
+      });
+      expect(afterFailedRemoteUpdate.items[0]).toMatchObject({
         data: { status: "done", title: "Remote done" },
       });
     });

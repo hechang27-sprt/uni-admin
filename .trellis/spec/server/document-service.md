@@ -8,30 +8,107 @@ the main server implementation for the current framework.
 The service supports:
 
 - `create` and `createMany`
-- `getById` and `getByIds`
 - `list`
 - `update` and `updateMany`
 - `patch`
 - `softDelete`, `restore`, and `hardDelete`
 
-Follow the existing contract types in
+Follow contract types in
 `server/data/documents/service/contracts.ts` when adding or changing service
 methods.
 
-## Batch Authorization And Scalar Wrappers
+## Unified Read Interface
 
-- Scalar item methods call repository batch primitives with one item; do not
-  add scalar repository shortcuts.
-- `createMany`, `getByIds`, and `updateMany` collect distinct target auth
-  scopes and invoke `AuthRbacService.evaluateAccess(...)` once per
-  protected operation.
+### 1. Scope / Trigger
+
+- Trigger: `DocumentService.list` is the single local read/query API. Do not add
+  sibling read helpers such as `getById`, `getByIds`, or
+  `filterAccessibleDocuments` when the operation can be represented as a list
+  query plus caller-side shaping.
+
+### 2. Signatures
+
+```ts
+interface ListDocumentServiceInput extends CollectionDocumentInput, ListDocumentsInput {
+  operation?: CollectionOperation;
+}
+
+async list<TData extends JsonObject>(
+  input: ListDocumentServiceInput,
+  options?: DocumentServiceOptions,
+): Promise<ListDocumentsResult<TData>>;
+```
+
+### 3. Contracts
+
+- `ids?: string[]` narrows the list query to known document IDs.
+- `operation?: CollectionOperation` overrides the default `read` authorization
+  operation for access filtering; omit it for ordinary reads.
+- The response is always `ListDocumentsResult<TData>` with `items`, `limit`,
+  `offset`, and `hasMore`. Single-document and positional batch results are
+  derived by callers from `items`.
+- Normal `list` reads local projections only and must not call remote adapters.
+
+### 4. Validation & Error Matrix
+
+- Unknown `collection` -> `UNKNOWN_COLLECTION` from the service boundary.
+- Invalid stored/created document data -> `VALIDATION_FAILED`.
+- Actor lacks the selected operation capability -> denied documents are filtered
+  out of `items`; tenant-root protected collections may reject with
+  `AUTHORIZATION_DENIED`.
+- Missing IDs -> omitted from `items`; callers that need positional `null`s build
+  them from the returned set.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `list({ tenantId, collection, ids: [id], limit: 1 })` for single-item
+  lookup.
+- Base: `list({ tenantId, collection, ids })` for batch reads; build a `Map` when
+  preserving request order matters.
+- Bad: adding a second service method with subtly different authorization,
+  missing-item, or ordering semantics for the same local read path.
+
+### 6. Tests Required
+
+- Unit/integration tests for single-ID and multi-ID `list` queries assert item
+  presence/absence and tenant/app isolation.
+- Auth/RBAC tests for `operation` override assert that list access filtering uses
+  the overridden capability, e.g. `operation: "update"` uses the update
+  permission key.
+- Remote projection tests assert ordinary `list` reads do not call remote
+  adapters.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await service.getByIds({ tenantId, collection: "tasks", ids });
+await service.filterAccessibleDocuments(input, options, "update");
+```
+
+#### Correct
+
+```ts
+const result = await service.list<TaskDocument>({
+  tenantId,
+  collection: "tasks",
+  ids,
+  operation: "update",
+}, options);
+
+const byId = new Map(result.items.map((item) => [item.id, item]));
+const ordered = ids.map((id) => byId.get(id) ?? null);
+```
+
+## Batch Authorization
+
+- `createMany` and `updateMany` collect distinct target auth scopes and invoke
+  `AuthRbacService.evaluateAccess(...)` once per protected operation.
 - Document writes that receive non-null `authScopeId` values validate those
   scope ids through `AuthRbacService.evaluateAccess(...)` before
   repository persistence, including trusted writes without an actor and remote
   projection upserts.
-- `getByIds` maps denied documents to `null` in their original positions.
-  Protected mutation/create methods reject denied items with
-  `AUTHORIZATION_DENIED`.
 - `list` consumes `listAccessibleDocumentScopeIds(...)`, which already uses
   `null` for tenant-root documents; it must not fetch the root just to
   normalize filter IDs.

@@ -1,4 +1,5 @@
 import type { JsonPatchOperation } from "../json-patch";
+import type { CollectionOperation } from "../../collections";
 import type {
   JsonObject,
   ListDocumentsInput,
@@ -37,15 +38,6 @@ export interface VersionedDocumentInput extends CollectionDocumentInput {
   expectedVersion: number;
 }
 
-export interface GetDocumentInput extends CollectionDocumentInput {
-  id: string;
-  includeDeleted?: boolean;
-}
-
-export interface GetDocumentsByIdsInput extends CollectionDocumentInput {
-  ids: string[];
-  includeDeleted?: boolean;
-}
 
 export interface UpdateDocumentInput<
   TData extends JsonObject = JsonObject,
@@ -74,8 +66,9 @@ export interface HardDeleteDocumentInput extends CollectionDocumentInput {
 
 export interface ListDocumentServiceInput
   extends CollectionDocumentInput,
-    ListDocumentsInput {}
-
+    ListDocumentsInput {
+  operation?: CollectionOperation;
+}
 export interface SyncRemoteOneInput<
   TSyncInput = unknown,
 > extends CollectionDocumentInput {

@@ -3,8 +3,6 @@ export type {
   CreateDocumentInput,
   CreateManyDocumentInput,
   DocumentServiceOptions,
-  GetDocumentInput,
-  GetDocumentsByIdsInput,
   HardDeleteDocumentInput,
   ListDocumentServiceInput,
   PatchDocumentInput,
