@@ -78,7 +78,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       return database;
     }
 
-    function createTestService(): DocumentService {
+    async function createTestService(): Promise<DocumentService> {
       return createService(getTestDatabase());
     }
 
@@ -103,13 +103,15 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       });
       const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
       await catalog.syncRegistryCollections();
+      await catalog.enableDefaultAppForTenant(tenantA);
+      await catalog.enableDefaultAppForTenant(tenantB);
       await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
       await catalog.enableTenantApp({ tenantId: tenantB, appKey: "workflow" });
       return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
     }
 
     it("rejects unknown collections and invalid data before persistence", async () => {
-      const service = createTestService();
+      const service = await createTestService();
 
       await expect(
         service.create({
@@ -129,7 +131,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("preserves snake_case keys in document JSON through row casing conversion", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -154,7 +156,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
   it("covers create, list, update, patch, softDelete, restore, and hardDelete", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -250,7 +252,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
   it("supports batch create, list by ids, and update without partial stale writes", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.createMany<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -367,7 +369,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
   });
     it("enforces tenant isolation on reads and mutations", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -417,6 +419,9 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       registry,
     });
     const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
+    const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+    await catalog.syncRegistryCollections();
+    await catalog.enableDefaultAppForTenant(tenantA);
 
     expect(registry.has("tasks")).toBe(true);
     expect(registry.has("Task records")).toBe(false);
@@ -602,7 +607,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("supports JSONB-path filters, metadata filters, sorting, pagination bounds, and deleted inclusion", async () => {
-      const service = createTestService();
+      const service = await createTestService();
 
       const low = await service.create<TaskDocument>({
         tenantId: tenantA,
@@ -698,7 +703,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("rejects stale version updates", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -730,7 +735,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("preserves JSON Patch RFC edge behavior", async () => {
-      const service = createTestService();
+      const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
         collection: "tasks",
@@ -789,7 +794,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("exposes normalized document service errors", async () => {
-      const service = createTestService();
+      const service = await createTestService();
 
       await expect(
         service.create({
@@ -801,7 +806,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("syncs remote projections by remote identity without calling remotes during normal reads", async () => {
-      const { service, calls } = createRemoteService(getTestDatabase());
+      const { service, calls } = await createRemoteService(getTestDatabase());
 
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,
@@ -878,7 +883,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
 
     it("keeps local projections unchanged when a remote create fails", async () => {
       const { service, setRemoteFailure } =
-        createRemoteService(getTestDatabase());
+        await createRemoteService(getTestDatabase());
       setRemoteFailure(new Error("remote unavailable"));
 
       await expect(
@@ -905,7 +910,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
 
     it("applies remote updates only after the remote mutation succeeds", async () => {
       const { service, calls, setRemoteFailure } =
-        createRemoteService(getTestDatabase());
+        await createRemoteService(getTestDatabase());
       const syncedResult = await service.syncRemoteOne<
         TaskDocument,
         { remoteId: string }

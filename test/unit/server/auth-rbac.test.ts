@@ -25,6 +25,7 @@ import {
 } from "#server/data/collections";
 import type { DocumentService, RemoteCollectionAdapter } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
+import type { CatalogService } from "#server/data/catalog";
 import { tenantA, tenantB } from "./fixtures/service";
 import { ADMIN_TENANT_OVERRIDE_KEY } from "#server/auth/um/repository";
 
@@ -852,6 +853,8 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await remoteAuth.syncCollectionPermissions(registry);
+    const remoteCatalog = remoteContainer.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+    await remoteCatalog.enableDefaultAppForTenant(tenantA);
     const remoteService = remoteContainer.get<DocumentService>(
       SERVER_DI_TYPES.DocumentService,
     );
@@ -1347,6 +1350,8 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await auth.syncCollectionPermissions(registry);
+    const catalog1349 = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+    await catalog1349.enableDefaultAppForTenant(tenantA);
     const service = container.get<DocumentService>(
       SERVER_DI_TYPES.DocumentService,
     );
@@ -1409,6 +1414,9 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await auth.syncCollectionPermissions(registry);
+    const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+    await catalog.enableDefaultAppForTenant(tenantA);
+    await catalog.enableDefaultAppForTenant(tenantB);
 
     return {
       auth,

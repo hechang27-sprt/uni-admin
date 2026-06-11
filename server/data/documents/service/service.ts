@@ -2,7 +2,6 @@ import { applyJsonPatch } from "../json-patch";
 import { normalizeListInput, type DocumentRepository } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
-  DEFAULT_APP_KEY,
   resolveCollectionOperationAuth,
   type CollectionOperation,
   type CollectionRegistry,
@@ -137,8 +136,6 @@ export class DocumentService {
       items,
     });
   }
-
-
 
   async list<TData extends JsonObject>(
     input: ListDocumentServiceInput,
@@ -727,7 +724,6 @@ export class DocumentService {
     });
   }
 
-
   private async assertDocumentAccess(
     input: CheckAccessManyInput,
   ): Promise<void> {
@@ -970,11 +966,6 @@ export class DocumentService {
     input: { tenantId: string; appKey?: string; collection: string },
     collection = this.getCollection(input),
   ): Promise<CatalogCollection> {
-    await this.catalog.syncRegistryCollections();
-    if (collection.appKey === DEFAULT_APP_KEY) {
-      await this.catalog.enableDefaultAppForTenant(input.tenantId);
-    }
-
     const identity = await this.catalog.findTenantCollectionIdentity({
       tenantId: input.tenantId,
       appKey: collection.appKey,

@@ -7,6 +7,7 @@ import {
   type RemoteCollectionAdapter,
 } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
+import type { CatalogService } from "#server/data/catalog";
 
 export const tenantA = "00000000-0000-4000-8000-000000000001";
 export const tenantB = "00000000-0000-4000-8000-000000000002";
@@ -56,7 +57,7 @@ const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
   }),
 });
 
-export function createService(database: DatabaseClient): DocumentService {
+export async function createService(database: DatabaseClient): Promise<DocumentService> {
   const registry = createCollectionRegistry([
     {
       name: "tasks",
@@ -65,7 +66,10 @@ export function createService(database: DatabaseClient): DocumentService {
     },
   ]);
   const container = createServerContainer({ database, registry });
-
+  const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+  await catalog.syncRegistryCollections();
+  await catalog.enableDefaultAppForTenant(tenantA);
+  await catalog.enableDefaultAppForTenant(tenantB);
   return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 }
 
@@ -85,11 +89,11 @@ export interface RemoteAdapterOutputs {
   delete: { requestId: string };
 }
 
-export function createRemoteService(database: DatabaseClient): {
+export async function createRemoteService(database: DatabaseClient): Promise<{
   service: DocumentService;
   calls: RemoteAdapterCalls;
   setRemoteFailure: (failure: Error | null) => void;
-} {
+}> {
   const calls: RemoteAdapterCalls = {
     syncOne: 0,
     syncList: 0,
@@ -198,6 +202,10 @@ export function createRemoteService(database: DatabaseClient): {
     },
   ]);
   const container = createServerContainer({ database, registry });
+  const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+  await catalog.syncRegistryCollections();
+  await catalog.enableDefaultAppForTenant(tenantA);
+  await catalog.enableDefaultAppForTenant(tenantB);
 
   return {
     service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),
