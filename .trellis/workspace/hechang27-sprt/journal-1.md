@@ -1114,3 +1114,23 @@ Removed legacy DocumentService read helpers, unified read/access filtering throu
 ### Next Steps
 
 - None - task complete
+
+## Session 35: Catalog sync source of truth
+
+### Task
+06-09-catalog-sync-source-of-truth (was on_hold, now completed)
+
+### Changes
+- `server/data/documents/service/service.ts` — removed implicit `syncRegistryCollections()` from `requireCollectionIdentity`. DB is now the authoritative identity source; sync is an explicit bootstrap step only.
+- `test/unit/server/fixtures/service.ts` — `createService` and `createRemoteService` made async; call `syncRegistryCollections()` + `enableDefaultAppForTenant()` explicitly.
+- `test/unit/server/service.test.ts` — all `createTestService()` / `createRemoteService()` call sites awaited; two inline containers given explicit sync + tenant enable.
+- `test/unit/server/auth-rbac.test.ts` — `createTaskServiceWithAuth` and two inline containers given explicit `enableDefaultAppForTenant` after `syncCollectionPermissions`.
+- `vitest.config.ts` — unit `testTimeout` raised to 15 s (PGlite concurrent load).
+- `.trellis/tasks/06-09-catalog-sync-source-of-truth/prd.md` — drift rules documented; all acceptance criteria checked off.
+
+### Testing
+- 54/54 unit tests pass.
+
+### Status
+
+[OK] **Completed**
