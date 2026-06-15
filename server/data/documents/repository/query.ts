@@ -5,7 +5,6 @@ import type {
   DocumentField,
   DocumentFilter,
   DocumentSort,
-  JsonValue,
   ListDocumentsInput,
   NormalizedListDocumentsInput,
   StoredDocument,

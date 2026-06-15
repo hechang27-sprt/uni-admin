@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type {
   ActorContext,
   TenantActorContext,
@@ -93,14 +95,31 @@ export interface CreateRoleInput {
   name?: string | null;
 }
 
-export interface PermissionDefinitionInput {
-  key?: string;
-  appKey?: string | null;
-  collectionKey?: string | null;
-  capabilityId?: string;
-  source: string;
-  description?: string | null;
-}
+export const permissionDefinitionInputSchema = z.object({
+  key: z.string().optional(),
+  appKey: z.string().nullable().optional(),
+  collectionKey: z.string().nullable().optional(),
+  capabilityId: z.string().optional(),
+  source: z.string(),
+  description: z.string().nullable().optional(),
+});
+
+export const resolvedPermissionDefinitionSchema =
+  permissionDefinitionInputSchema
+    .required()
+    .omit({ appKey: true, collectionKey: true })
+    .extend({
+      appId: z.string().nullable(),
+      collectionId: z.string().nullable(),
+    });
+
+export type PermissionDefinitionInput = z.infer<
+  typeof permissionDefinitionInputSchema
+>;
+
+export type ResolvedPermissionDefinition = z.infer<
+  typeof resolvedPermissionDefinitionSchema
+>;
 
 export interface GrantPermissionInput {
   tenantId: string;

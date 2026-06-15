@@ -13,19 +13,22 @@ import {
   type UsersTable,
 } from "#server/db/schema";
 import { AuthRbacError } from "./errors";
-import type {
-  AuthScope,
-  AuthUser,
-  CapabilityAccessCheck,
-  CapabilityEvaluation,
-  Permission,
-  PermissionDefinitionInput,
-  Role,
-  TenantMembership,
-  UsernamePasswordCredential,
+import {
+  type AuthScope,
+  type AuthUser,
+  type CapabilityAccessCheck,
+  type CapabilityEvaluation,
+  type Permission,
+  permissionDefinitionInputSchema,
+  type PermissionDefinitionInput,
+  type Role,
+  type TenantMembership,
+  type UsernamePasswordCredential,
+  type ResolvedPermissionDefinition,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import { selectGrantedPermissions, selectTenantUsers } from "../../db/query";
+import { pivotToColumns } from "../../utils/pivot";
 import { unnest } from "../../utils/unnest";
 
 export const tenantRootScopeKey = "__tenant_root";
@@ -436,23 +439,12 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       return [];
     }
 
-    const values = await Promise.all(
-      input.map((permission) => this.resolvePermissionValue(permission)),
-    );
+    const values = await this.resolvePermissionValues(input);
+
     const now = new Date();
     const rows = await this.database
       .insertInto("permissions")
-      .values(
-        values.map((permission) => ({
-          key: permission.key,
-          appId: permission.appId,
-          collectionId: permission.collectionId,
-          capabilityId: permission.capabilityId,
-          source: permission.source,
-          description: permission.description,
-          updatedAt: now,
-        })),
-      )
+      .values(values)
       .onConflict((conflict) =>
         conflict.column("key").doUpdateSet(({ ref }) => ({
           appId: ref("excluded.appId"),
@@ -935,64 +927,104 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => (row.isRootScope ? null : row.scopeId));
   }
 
-  private async resolvePermissionValue(
-    permission: PermissionDefinitionInput,
-  ): Promise<{
-    key: string;
-    appId: string | null;
-    collectionId: string | null;
-    capabilityId: string;
-    source: string;
-    description: string | null;
-  }> {
-    const capabilityId =
-      permission.capabilityId ?? inferCapabilityId(permission);
-
-    if (permission.collectionKey) {
-      const collection = await this.database
-        .selectFrom("collections")
-        .innerJoin("apps", "apps.appId", "collections.appId")
-        .select(["apps.appId", "collections.collectionId"])
-        .where("apps.key", "=", permission.appKey ?? DEFAULT_APP_KEY)
-        .where("collections.key", "=", permission.collectionKey)
-        .executeTakeFirstOrThrow();
-
-      return {
-        key: `${collection.appId}:${collection.collectionId}:${capabilityId}`,
-        appId: collection.appId,
-        collectionId: collection.collectionId,
-        capabilityId,
-        source: permission.source,
-        description: permission.description ?? null,
-      };
-    }
-
-    if (permission.appKey) {
-      const app = await this.database
-        .selectFrom("apps")
-        .select("appId")
-        .where("key", "=", permission.appKey)
-        .executeTakeFirstOrThrow();
-
-      return {
-        key: `${app.appId}:${capabilityId}`,
-        appId: app.appId,
-        collectionId: null,
-        capabilityId,
-        source: permission.source,
-        description: permission.description ?? null,
-      };
-    }
-
-    const key = permission.key ?? `${permission.source}:${capabilityId}`;
-    return {
-      key,
-      appId: null,
-      collectionId: null,
-      capabilityId,
-      source: permission.source,
+  private async resolvePermissionValues(
+    permissions: PermissionDefinitionInput[],
+  ): Promise<ResolvedPermissionDefinition[]> {
+    const normalizedPermissionDefinitionSchema =
+      permissionDefinitionInputSchema.required({
+        capabilityId: true,
+        description: true,
+      });
+    const normalizedPermissions = permissions.map((permission) => ({
+      ...permission,
+      capabilityId: permission.capabilityId ?? inferCapabilityId(permission),
       description: permission.description ?? null,
-    };
+    }));
+    const { key, appKey, collectionKey, capabilityId, source, description } =
+      pivotToColumns(
+        normalizedPermissions,
+        normalizedPermissionDefinitionSchema,
+      );
+
+    const rows = await this.database
+      .selectFrom(({ selectFrom }) =>
+        selectFrom(
+          unnest(
+            "input",
+            { key, appKey, collectionKey, capabilityId, source, description },
+            { withOrdinality: "inputOrder" },
+          ),
+        )
+          .selectAll("input")
+          .select(({ eb, val, fn }) =>
+            eb
+              .case()
+              .when("input.collectionKey", "is not", null)
+              .then(fn.coalesce("input.appKey", val(DEFAULT_APP_KEY)))
+              .elseRef("input.appKey")
+              .end()
+              .as("normalizedAppKey"),
+          )
+          .as("input"),
+      )
+      .leftJoin("apps", "apps.key", "input.normalizedAppKey")
+      .leftJoin("collections", (join) =>
+        join
+          .onRef("collections.appId", "=", "apps.appId")
+          .onRef("collections.key", "=", "input.collectionKey"),
+      )
+      .selectAll("input")
+      .select(({ eb, ref }) => [
+        "apps.appId as resolvedAppId",
+        "collections.collectionId as resolvedCollectionId",
+        eb
+          .case()
+          .when("input.collectionKey", "is not", null)
+          .then(
+            sql<string>`concat(${ref("apps.appId")}, ':', ${ref("collections.collectionId")}, ':', ${ref("input.capabilityId")})`,
+          )
+          .when("input.appKey", "is not", null)
+          .then(
+            sql<string>`concat(${ref("apps.appId")}, ':', ${ref("input.capabilityId")})`,
+          )
+          .else(
+            sql<string>`coalesce(${ref("input.key")}, concat(${ref("input.source")}, ':', ${ref("input.capabilityId")}))`,
+          )
+          .end()
+          .as("resolvedKey"),
+      ])
+      .orderBy("input.inputOrder")
+      .execute();
+
+    return rows.map((row) => {
+      if (
+        row.collectionKey &&
+        (!row.resolvedAppId || !row.resolvedCollectionId)
+      ) {
+        throw new AuthRbacError(
+          "AUTH_PERMISSION_NOT_FOUND",
+          "Permission definition requires a valid collection",
+          { permissionKey: row.key ?? undefined },
+        );
+      }
+
+      if (row.appKey && !row.resolvedAppId) {
+        throw new AuthRbacError(
+          "AUTH_PERMISSION_NOT_FOUND",
+          "Permission definition requires a valid app",
+          { permissionKey: row.key ?? undefined },
+        );
+      }
+
+      return {
+        key: row.resolvedKey,
+        appId: row.collectionKey || row.appKey ? row.resolvedAppId : null,
+        collectionId: row.collectionKey ? row.resolvedCollectionId : null,
+        capabilityId: row.capabilityId,
+        source: row.source,
+        description: row.description,
+      };
+    });
   }
 
   async findTenantRootScope(
@@ -1011,10 +1043,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
 function inferCapabilityId(permission: PermissionDefinitionInput): string {
   if (permission.key?.startsWith("admin:")) {
-    return permission.key.slice("admin:".length).replaceAll(":", "-");
+    return permission.key.slice("admin:".length);
   }
   if (permission.key?.startsWith("global:")) {
-    return permission.key.slice("global:".length).replaceAll(":", "-");
+    return permission.key.slice("global:".length);
   }
   if (permission.key) {
     return permission.key;
