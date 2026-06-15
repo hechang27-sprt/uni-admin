@@ -1230,3 +1230,35 @@ Moved collection auth and permission derivation ownership into CollectionRegistr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 38: Batch permission resolution refactor
+
+**Date**: 2026-06-15
+**Task**: Batch permission resolution refactor
+
+### Summary
+
+Refactored auth permission upsert to batch-resolve permission definitions in one SQL query, preserved raw built-in capability suffixes, added a Zod schema for permission definition input, and cleaned resolver query shaping with normalized app-key joins.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `755e0b29` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
