@@ -1134,3 +1134,35 @@ Removed legacy DocumentService read helpers, unified read/access filtering throu
 ### Status
 
 [OK] **Completed**
+
+
+## Session 35: Align catalog service with batched app APIs
+
+**Date**: 2026-06-15
+**Task**: Align catalog service with batched app APIs
+
+### Summary
+
+Reviewed the rqy catalog repository changes, refactored CatalogService and dependent tests to use batched app APIs, added explicit unknown-app failures, fixed merge SQL typing/targets, and verified the affected catalog, document, and auth unit suites.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fcfd479b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

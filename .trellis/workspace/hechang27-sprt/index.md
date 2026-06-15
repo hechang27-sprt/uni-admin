@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 34
-- **Last Active**: 2026-06-11
+- **Total Sessions**: 35
+- **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1116 | Active |
+| `journal-1.md` | ~1168 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 35 | 2026-06-15 | Align catalog service with batched app APIs | `fcfd479b` | `-` |
 | 34 | 2026-06-11 | Unify DocumentService reads around list | `e5961134` | `-` |
 | 33 | 2026-06-10 | Register custom action callbacks | `a26ae346` | `-` |
 | 32 | 2026-06-10 | Tighten collection registration typing | `65529beb` | `-` |
