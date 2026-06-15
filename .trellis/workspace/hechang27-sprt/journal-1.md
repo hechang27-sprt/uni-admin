@@ -1166,3 +1166,35 @@ Reviewed the rqy catalog repository changes, refactored CatalogService and depen
 ### Next Steps
 
 - None - task complete
+
+
+## Session 36: Remove documents collection column
+
+**Date**: 2026-06-15
+**Task**: Remove documents collection column
+
+### Summary
+
+Dropped the legacy documents.collection column from schema and repository persistence, updated document service types/specs, validated targeted server tests, and archived the child task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `59bd6d1c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
