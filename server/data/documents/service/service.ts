@@ -77,13 +77,12 @@ export class DocumentService {
       input.data,
       input.collection,
     );
-
     const identity = await this.requireCollectionIdentity(input, collection);
+
     const [created] = await this.repository.insertMany<TData>({
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       schemaVersion: collection.schemaVersion,
       items: [
         {
@@ -130,7 +129,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       schemaVersion: collection.schemaVersion,
       items,
     });
@@ -175,7 +173,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       query: {
         ...query,
         limit: query.limit + 1,
@@ -221,7 +218,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       query: { ids: items.map((item) => item.id) },
     });
     const existingDocumentsById = new Map(
@@ -265,7 +261,6 @@ export class DocumentService {
     const records = items.map((item) => ({
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       id: item.id,
       expectedVersion: item.expectedVersion,
       schemaVersion: collection.schemaVersion,
@@ -356,7 +351,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       query: { ids: [input.id], includeDeleted: true },
     });
     if (!existing) {
@@ -371,7 +365,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       ids: [input.id],
     });
 
@@ -808,7 +801,6 @@ export class DocumentService {
       tenantId: input.tenantId,
       appId: identity.appId,
       collectionId: identity.collectionId,
-      collection: input.collection,
       query: { ids: [input.id], includeDeleted },
     });
 
@@ -874,7 +866,6 @@ export class DocumentService {
       appId: identity.appId,
       collectionId: identity.collectionId,
       tenantId: input.tenantId,
-      collection: input.collection,
       schemaVersion: collection.schemaVersion,
       remoteSource: adapter.remoteSource,
       projections: parsedProjections,
@@ -916,7 +907,6 @@ export class DocumentService {
         {
           appId: identity.appId,
           collectionId: identity.collectionId,
-          collection: input.collection,
           id: input.id,
           expectedVersion: input.expectedVersion,
           data,

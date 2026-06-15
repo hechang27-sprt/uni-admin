@@ -61,7 +61,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
         "tenantId",
         "appId",
         "collectionId",
-        "collection",
         "schemaVersion",
         "data",
         "authScopeId",
@@ -77,7 +76,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
           val(input.tenantId).as("tenantId"),
           val(input.appId).as("appId"),
           val(input.collectionId).as("collectionId"),
-          val(input.collection).as("collection"),
           val(input.schemaVersion).as("schemaVersion"),
           "input.data",
           "input.authScopeId",
@@ -94,7 +92,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     remoteSource: string;
     remoteId: string;
     includeDeleted?: boolean;
@@ -105,7 +102,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .where("tenantId", "=", input.tenantId)
       .where("appId", "=", input.appId)
       .where("collectionId", "=", input.collectionId)
-      .where("collection", "=", input.collection)
       .where("remoteSource", "=", input.remoteSource)
       .where("remoteId", "=", input.remoteId);
     if (!input.includeDeleted) {
@@ -119,7 +115,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]> {
     const normalized = normalizeListInput(input.query);
@@ -129,8 +124,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .selectAll()
       .where("tenantId", "=", input.tenantId)
       .where("appId", "=", input.appId)
-      .where("collectionId", "=", input.collectionId)
-      .where("collection", "=", input.collection);
+      .where("collectionId", "=", input.collectionId);
 
     if (!normalized.includeDeleted) {
       query = query.where("deletedAt", "is", null);
@@ -212,7 +206,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
                 ${columns.id}::uuid[],
                 ${columns.appId}::uuid[],
                 ${columns.collectionId}::uuid[],
-                ${columns.collection}::text[],
                 ${columns.expectedVersion}::int[],
                 ${columns.schemaVersion}::int[],
                 ${columns.data}::jsonb[],
@@ -230,7 +223,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
               sql`
                 updates(
                   id, app_id, collection_id,
-                  collection, expected_version, schema_version,
+                  expected_version, schema_version,
                   data, set_data,
                   auth_scope_id, set_auth_scope_id,
                   deleted_at, set_deleted_at,
@@ -244,7 +237,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
           .whereRef("documents.appId", "=", "updates.appId")
           .whereRef("documents.collectionId", "=", "updates.collectionId")
           .where("documents.tenantId", "=", input.tenantId)
-          .whereRef("documents.collection", "=", "updates.collection")
           .whereRef("documents.version", "=", "updates.expectedVersion")
           .set(({ eb, fn }) => ({
             version: eb("documents.version", "+", 1),
@@ -324,7 +316,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
         "appId",
         "collectionId",
         "tenantId",
-        "collection",
         "schemaVersion",
         "data",
         "authScopeId",
@@ -341,7 +332,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
           val(record.appId).as("appId"),
           val(record.collectionId).as("collectionId"),
           val(record.tenantId).as("tenantId"),
-          val(record.collection).as("collection"),
           val(record.schemaVersion).as("schemaVersion"),
           "input.data",
           "input.authScopeId",
@@ -383,7 +373,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     ids: string[];
   }): Promise<string[]> {
     if (input.ids.length === 0) {
@@ -409,7 +398,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
           .where("tenantId", "=", input.tenantId)
           .where("appId", "=", input.appId)
           .where("collectionId", "=", input.collectionId)
-          .where("collection", "=", input.collection)
           .where("id", "in", db.selectFrom("input").select("id"))
           .returning("id"),
       )
@@ -433,7 +421,6 @@ function mapDocumentRow<TData extends JsonObject>(
   return {
     id: row.id,
     tenantId: row.tenantId,
-    collection: row.collection,
     schemaVersion: row.schemaVersion,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Document JSON is schema-validated before repository writes.
     data: row.data as TData,

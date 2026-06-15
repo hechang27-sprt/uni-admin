@@ -442,7 +442,11 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       data: { title: "Keyed" },
     });
 
-    expect(created.collection).toBe("tasks");
+    expect(created).toMatchObject({
+      tenantId: tenantA,
+      schemaVersion: 1,
+      data: { title: "Keyed" },
+    });
 
     const catalogRow = await getTestDatabase()
       .selectFrom("collections")
@@ -587,7 +591,6 @@ describe.each([{ name: "pgLite Kysely repository" }])(
             tenantId: tenantA,
             appId: identity!.appId,
             collectionId: identity!.collectionId,
-            collection: "tasks",
             schemaVersion: 1,
             data: { title: `Remote ${index}` },
             remoteSource: "linear",

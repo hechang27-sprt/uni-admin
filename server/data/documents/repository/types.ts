@@ -14,7 +14,6 @@ export const insertManyDocumentsRecordSchema = z.object({
   tenantId: z.string(),
   appId: z.string(),
   collectionId: z.string(),
-  collection: z.string(),
   schemaVersion: z.number(),
   items: z.array(insertManyDocumentsItemSchema),
 });
@@ -32,7 +31,6 @@ export type InsertManyDocumentsRecord<TData extends JsonObject = JsonObject> =
 export const updateDocumentRecordSchema = z.object({
   appId: z.string(),
   collectionId: z.string(),
-  collection: z.string(),
   id: z.string(),
   expectedVersion: z.number(),
   schemaVersion: z.number().optional(),
@@ -78,7 +76,6 @@ export const upsertRemoteProjectionsRecordSchema = z.object({
   tenantId: z.string(),
   appId: z.string(),
   collectionId: z.string(),
-  collection: z.string(),
   schemaVersion: z.number(),
   remoteSource: z.string(),
   projections: z.array(upsertRemoteProjectionSchema),
@@ -103,7 +100,6 @@ export interface DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     remoteSource: string;
     remoteId: string;
     includeDeleted?: boolean;
@@ -112,7 +108,6 @@ export interface DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     query?: ListDocumentsInput;
   }): Promise<StoredDocument<TData>[]>;
   updateMany<TData extends JsonObject>(
@@ -125,7 +120,6 @@ export interface DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     ids: string[];
   }): Promise<string[]>;
 }

@@ -13,7 +13,6 @@ export interface TenantActorContext extends TenantContext, ActorContext {}
 export interface StoredDocument<TData extends JsonObject = JsonObject> {
   id: string;
   tenantId: string;
-  collection: string;
   schemaVersion: number;
   data: TData;
   authScopeId: string | null;
@@ -55,7 +54,6 @@ export interface DocumentErrorDetails {
 export type MetadataField =
   | "id"
   | "tenantId"
-  | "collection"
   | "schemaVersion"
   | "version"
   | "createdAt"

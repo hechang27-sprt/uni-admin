@@ -129,7 +129,6 @@ export interface DocumentsTable {
   tenantId: string;
   appId: string;
   collectionId: string;
-  collection: string;
   schemaVersion: number;
   data: JsonObject;
   authScopeId: string | null;

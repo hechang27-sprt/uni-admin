@@ -13,10 +13,9 @@ repository implementation.
 - `collections`
 - `documents`
 
-Document rows include framework identity, tenant boundary, structured app and
-collection ids, a legacy-compatible collection name mirror, schema version,
-JSONB projection data, optional remote identity, optimistic version, timestamps,
-and soft-delete timestamp.
+Document rows include tenant boundary, structured app and collection ids,
+schema version, JSONB projection data, optional remote identity, optimistic
+version, timestamps, and soft-delete timestamp.
 
 The remote identity unique index is partial:
 
@@ -26,7 +25,7 @@ where remote_source is not null and remote_id is not null
 ```
 
 Preserve this distinction between local-only rows and remote-backed rows. Do not
-scope document persistence by the legacy `collection` string alone.
+scope document persistence by the structured `collection` string alone.
 
 ## Scenario: Kysely Client And Baseline Migration Boundary
 
@@ -126,8 +125,9 @@ type RegisteredCollection<TSchema extends CollectionSchema = CollectionSchema> =
 - `apps.key` is unique.
 - `tenant_apps` is keyed by `(tenant_id, app_id)`.
 - `collections` is unique on `(app_id, key)` and `(app_id, collection_id)`.
-- `documents.app_id` and `documents.collection_id` are required persistence
-  identity. `documents.collection` remains a compatibility mirror only.
+- `documents.app_id` and `documents.collection_id` are the persisted document
+  identity within a tenant/app boundary; there is no mirrored persisted
+  `documents.collection` column.
 - The document service syncs registry collections and enables the default app
   automatically before document persistence. Non-default apps require explicit
   tenant enablement.
@@ -150,10 +150,10 @@ type RegisteredCollection<TSchema extends CollectionSchema = CollectionSchema> =
 
 - Good: `DocumentService` resolves `{ tenantId, appKey, collection }` to
   `CatalogCollection` and passes `appId + collectionId` into the repository.
-- Base: default-app callers omit `appKey`; the service still stores structured
-  ids and keeps `documents.collection` populated.
+- Base: default-app callers omit `appKey`; the service still resolves the
+  default app and persists by structured ids.
 - Bad: repository code reads or writes documents filtered only by
-  `tenantId + collection`.
+  `tenantId + collection` instead of `tenantId + appId + collectionId`.
 
 ### 6. Tests Required
 
@@ -178,7 +178,6 @@ await repository.list({
   tenantId,
   appId: identity.appId,
   collectionId: identity.collectionId,
-  collection: input.collection,
   query,
 });
 ```
@@ -202,8 +201,9 @@ through `SERVER_DI_TYPES.AuthRbacRepository` and
 
 Important patterns:
 
-- Scope all document queries by `tenantId`, `appId`, and `collectionId`; keep
-  `collection` only as public input and compatibility row data.
+- Scope all document queries by `tenantId`, `appId`, and `collectionId`.
+- Keep `collection` only as a public service input for registry/catalog
+  resolution and validation.
 - Use `.returning()` and row mappers for writes.
 - Item persistence primitives are batch-only: `insertMany`, `findByIds`,
   `updateMany`, and `hardDeleteMany`. Scalar service methods pass one-item
@@ -256,7 +256,6 @@ interface DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     ids: string[];
     includeDeleted?: boolean;
   }): Promise<(StoredDocument<T> | null)[]>;
@@ -267,7 +266,6 @@ interface DocumentRepository {
     tenantId: string;
     appId: string;
     collectionId: string;
-    collection: string;
     ids: string[];
   }): Promise<string[]>;
 }
@@ -309,7 +307,7 @@ interface DocumentRepository {
 ```ts
 // Wrong: repository write method owns auth-scope validity policy.
 await repository.assertAuthScopesBelongToTenant(tenantId, scopeIds);
-await repository.insertMany({ tenantId, collection, schemaVersion, items });
+await repository.insertMany({ tenantId, appId, collectionId, schemaVersion, items });
 
 // Wrong: hides a composable repository query inside one raw SQL statement.
 await sql`with input as (...) select exists (...)`.execute(db);

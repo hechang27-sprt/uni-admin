@@ -1,7 +1,7 @@
 {
-  "id": "app-catalog-identity-migration",
-  "name": "app-catalog-identity-migration",
-  "title": "Design app catalog identity migration",
+  "id": "documents-collection-column",
+  "name": "documents-collection-column",
+  "title": "Remove documents collection column",
   "description": "",
   "status": "in_progress",
   "dev_type": null,
@@ -10,7 +10,7 @@
   "priority": "P2",
   "creator": "hechang27-sprt",
   "assignee": "hechang27-sprt",
-  "createdAt": "2026-06-08",
+  "createdAt": "2026-06-15",
   "completedAt": null,
   "branch": null,
   "base_branch": "main",
@@ -18,10 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "06-15-documents-collection-column"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "06-08-app-catalog-identity-migration",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

@@ -282,7 +282,6 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col.references("apps.app_id").onDelete("restrict").notNull(),
     )
     .addColumn("collection_id", "uuid", (col) => col.notNull())
-    .addColumn("collection", "text", (col) => col.notNull())
     .addColumn("schema_version", "integer", (col) => col.notNull())
     .addColumn("data", "jsonb", (col) => col.notNull())
     .addColumn("auth_scope_id", "uuid", (col) =>
