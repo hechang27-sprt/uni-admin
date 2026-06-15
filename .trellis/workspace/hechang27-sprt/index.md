@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
+- **Total Sessions**: 37
 - **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1200 | Active |
+| `journal-1.md` | ~1232 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 37 | 2026-06-15 | Refactor collection registry APIs | `8fc57170` | `-` |
 | 36 | 2026-06-15 | Remove documents collection column | `59bd6d1c` | `-` |
 | 35 | 2026-06-15 | Align catalog service with batched app APIs | `fcfd479b` | `-` |
 | 34 | 2026-06-11 | Unify DocumentService reads around list | `e5961134` | `-` |

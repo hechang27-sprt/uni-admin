@@ -1198,3 +1198,35 @@ Dropped the legacy documents.collection column from schema and repository persis
 ### Next Steps
 
 - None - task complete
+
+
+## Session 37: Refactor collection registry APIs
+
+**Date**: 2026-06-15
+**Task**: Refactor collection registry APIs
+
+### Summary
+
+Moved collection auth and permission derivation ownership into CollectionRegistry, removed thin registry factory helpers, and updated callsites/tests to use CollectionRegistry class APIs directly.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8fc57170` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
