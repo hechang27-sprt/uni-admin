@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { createCollectionRegistry } from "#server/data/collections";
+import { CollectionRegistry } from "#server/data/collections"
 import {
   createRemoteProjectionMapper,
   type DocumentService,
@@ -58,7 +58,7 @@ const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
 });
 
 export async function createService(database: DatabaseClient): Promise<DocumentService> {
-  const registry = createCollectionRegistry([
+  const registry = CollectionRegistry.fromRegistrations([
     {
       name: "tasks",
       schema: taskSchema,
@@ -193,7 +193,7 @@ export async function createRemoteService(database: DatabaseClient): Promise<{
     },
   };
 
-  const registry = createCollectionRegistry([
+  const registry = CollectionRegistry.fromRegistrations([
     {
       name: "remote-tasks",
       schema: taskSchema,

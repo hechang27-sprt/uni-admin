@@ -11,7 +11,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
-import { createCollectionRegistry } from "#server/data/collections";
+import { CollectionRegistry } from "#server/data/collections"
 import {
   DocumentServiceError,
   type DocumentService,
@@ -83,7 +83,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     }
 
     async function createTwoAppTaskService(): Promise<DocumentService> {
-      const registry = createCollectionRegistry([
+      const registry = CollectionRegistry.fromRegistrations([
         {
           appKey: "default",
           name: "tasks",
@@ -401,7 +401,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("uses registration key as collection identity and name as description", async () => {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         key: "tasks",
         name: "Task records",
@@ -523,7 +523,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("requires tenant app enablement for non-default app writes", async () => {
-      const registry = createCollectionRegistry([
+      const registry = CollectionRegistry.fromRegistrations([
         {
           appKey: "workflow",
           name: "tasks",
@@ -548,7 +548,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("scopes remote upsert uniqueness by app and collection identity", async () => {
-      const registry = createCollectionRegistry([
+      const registry = CollectionRegistry.fromRegistrations([
         {
           appKey: "default",
           name: "tasks",

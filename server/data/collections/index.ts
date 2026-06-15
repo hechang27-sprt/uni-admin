@@ -2,10 +2,6 @@ export {
   DEFAULT_APP_KEY,
   CollectionRegistry,
   defineCollection,
-  createCollectionRegistry,
-  deriveCollectionPermissionDefinitions,
-  resolveCollectionActionAuth,
-  resolveCollectionOperationAuth,
   collectionRegistrationBaseSchema,
 } from "./registry";
 export type {

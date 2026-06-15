@@ -52,7 +52,7 @@ const collectionAuthDeclarationSchema = z.object({
   patch: collectionOperationAuthInputSchema.optional(),
   delete: collectionOperationAuthInputSchema.optional(),
   restore: collectionOperationAuthInputSchema.optional(),
-  hardDelete: collectionOperationAuthInputSchema.optional(),
+  "hard-delete": collectionOperationAuthInputSchema.optional(),
   actions: z
     .record(safePermissionSegmentSchema, collectionOperationAuthInputSchema)
     .optional(),
@@ -239,11 +239,61 @@ export function defineCollection<
 export class CollectionRegistry {
   private readonly collections = new Map<string, RegisteredCollection>();
 
+  static fromRegistrations(
+    registrations: CollectionRegistration[] = [],
+  ): CollectionRegistry {
+    const registry = new CollectionRegistry();
+
+    for (const registration of registrations) {
+      registry.register(registration);
+    }
+
+    return registry;
+  }
+
+  static resolveOperationAuth(
+    collection: CollectionRegistration,
+    operation: CollectionOperation,
+  ): ResolvedCollectionOperationAuth | null {
+    const declaration = collection.auth?.[operation];
+
+    if (declaration === false) {
+      return null;
+    }
+
+    return {
+      capability: operation,
+      resourceScope:
+        declaration?.resourceScope ??
+        collection.auth?.resourceScope ??
+        "document",
+    };
+  }
+
+  static resolveActionAuth(
+    collection: CollectionRegistration,
+    action: string,
+  ): ResolvedCollectionOperationAuth | null {
+    const declaration = collection.auth?.actions?.[action];
+
+    if (declaration === false) {
+      return null;
+    }
+
+    return {
+      capability: `action-${action}`,
+      resourceScope:
+        declaration?.resourceScope ??
+        collection.auth?.resourceScope ??
+        "document",
+    };
+  }
+
   register<TSchema extends CollectionSchema>(
     registration: CollectionRegistration<TSchema>,
   ): this {
     const collection = parseRegistration(registration);
-    const registryKey = collectionRegistryKey(
+    const registryKey = CollectionRegistry.registryKey(
       collection.appKey,
       collection.key,
     );
@@ -282,7 +332,7 @@ export class CollectionRegistry {
   ): RegisteredCollection<TSchema>;
   get(key: string): RegisteredCollection {
     const collection = this.collections.get(
-      collectionRegistryKey(DEFAULT_APP_KEY, key),
+      CollectionRegistry.registryKey(DEFAULT_APP_KEY, key),
     );
 
     if (!collection) {
@@ -299,7 +349,9 @@ export class CollectionRegistry {
   }
 
   has(key: string): boolean {
-    return this.collections.has(collectionRegistryKey(DEFAULT_APP_KEY, key));
+    return this.collections.has(
+      CollectionRegistry.registryKey(DEFAULT_APP_KEY, key),
+    );
   }
 
   getForApp<TSchema extends CollectionSchema = CollectionSchema>(
@@ -307,7 +359,9 @@ export class CollectionRegistry {
     key: string,
   ): RegisteredCollection<TSchema>;
   getForApp(appKey: string, key: string): RegisteredCollection {
-    const collection = this.collections.get(collectionRegistryKey(appKey, key));
+    const collection = this.collections.get(
+      CollectionRegistry.registryKey(appKey, key),
+    );
 
     if (!collection) {
       throw new DocumentServiceError(
@@ -324,7 +378,7 @@ export class CollectionRegistry {
   }
 
   hasForApp(appKey: string, key: string): boolean {
-    return this.collections.has(collectionRegistryKey(appKey, key));
+    return this.collections.has(CollectionRegistry.registryKey(appKey, key));
   }
 
   list(): RegisteredCollection[] {
@@ -337,145 +391,91 @@ export class CollectionRegistry {
       .filter((collection) => collection.appKey === appKey)
       .toArray();
   }
-}
 
-export function createCollectionRegistry(
-  registrations: CollectionRegistration[] = [],
-): CollectionRegistry {
-  const registry = new CollectionRegistry();
+  derivePermissionDefinitions(): PermissionDefinition[] {
+    const permissions = new Map<string, PermissionDefinition>();
 
-  for (const registration of registrations) {
-    registry.register(registration);
-  }
+    for (const collection of this.list()) {
+      for (const operation of collectionOperations) {
+        const auth = CollectionRegistry.resolveOperationAuth(
+          collection,
+          operation,
+        );
+        if (auth) {
+          CollectionRegistry.addPermissionDefinition(permissions, {
+            appKey: collection.appKey,
+            collectionKey: collection.key,
+            capabilityId: auth.capability,
+            source: "collection",
+          });
+        }
+      }
 
-  return registry;
-}
-
-export function resolveCollectionOperationAuth(
-  collection: CollectionRegistration,
-  operation: CollectionOperation,
-): ResolvedCollectionOperationAuth | null {
-  const declaration = getOperationDeclaration(collection.auth, operation);
-
-  if (declaration === false) {
-    return null;
-  }
-
-  return {
-    capability: operation,
-    resourceScope:
-      declaration?.resourceScope ??
-      collection.auth?.resourceScope ??
-      "document",
-  };
-}
-
-export function resolveCollectionActionAuth(
-  collection: CollectionRegistration,
-  action: string,
-): ResolvedCollectionOperationAuth | null {
-  const declaration = collection.auth?.actions?.[action];
-
-  if (declaration === false) {
-    return null;
-  }
-
-  return {
-    capability: `action-${action}`,
-    resourceScope:
-      declaration?.resourceScope ??
-      collection.auth?.resourceScope ??
-      "document",
-  };
-}
-
-export function deriveCollectionPermissionDefinitions(
-  registry: CollectionRegistry,
-): PermissionDefinition[] {
-  const permissions = new Map<string, PermissionDefinition>();
-
-  for (const collection of registry.list()) {
-    for (const operation of collectionOperations) {
-      const auth = resolveCollectionOperationAuth(collection, operation);
-      if (auth) {
-        addPermissionDefinition(permissions, {
-          appKey: collection.appKey,
-          collectionKey: collection.key,
-          capabilityId: auth.capability,
-          source: "collection",
-        });
+      for (const action of Object.keys(collection.actions ?? {})) {
+        const auth = CollectionRegistry.resolveActionAuth(collection, action);
+        if (auth) {
+          CollectionRegistry.addPermissionDefinition(permissions, {
+            appKey: collection.appKey,
+            collectionKey: collection.key,
+            capabilityId: auth.capability,
+            source: "collection",
+          });
+        }
       }
     }
 
-    for (const action of Object.keys(collection.actions ?? {})) {
-      const auth = resolveCollectionActionAuth(collection, action);
-      if (auth) {
-        addPermissionDefinition(permissions, {
-          appKey: collection.appKey,
-          collectionKey: collection.key,
-          capabilityId: auth.capability,
-          source: "collection",
-        });
-      }
+    return permissions.values().toArray();
+  }
+
+  private static addPermissionDefinition(
+    permissions: Map<string, PermissionDefinition>,
+    definition: PermissionDefinition,
+  ): void {
+    permissionDefinitionSchema.parse(definition);
+
+    const derivedKey =
+      CollectionRegistry.permissionDefinitionIdentity(definition);
+    const existing = permissions.get(derivedKey);
+
+    if (existing) {
+      throw new DocumentServiceError(
+        "VALIDATION_FAILED",
+        `Duplicate derived permission key: ${derivedKey}`,
+        {
+          capability: definition.capabilityId ?? definition.key,
+          operation: `${existing.source}->${definition.source}`,
+        },
+      );
     }
+
+    permissions.set(derivedKey, definition);
   }
 
-  return permissions.values().toArray();
-}
-
-function addPermissionDefinition(
-  permissions: Map<string, PermissionDefinition>,
-  definition: PermissionDefinition,
-): void {
-  permissionDefinitionSchema.parse(definition);
-
-  const derivedKey = permissionDefinitionIdentity(definition);
-  const existing = permissions.get(derivedKey);
-
-  if (existing) {
-    throw new DocumentServiceError(
-      "VALIDATION_FAILED",
-      `Duplicate derived permission key: ${derivedKey}`,
-      {
-        capability: definition.capabilityId ?? definition.key,
-        operation: `${existing.source}->${definition.source}`,
-      },
-    );
+  private static permissionDefinitionIdentity(
+    definition: PermissionDefinition,
+  ): string {
+    return [
+      definition.appKey ?? "",
+      definition.collectionKey ?? "",
+      definition.capabilityId ?? definition.key ?? "",
+    ].join(":");
   }
 
-  permissions.set(derivedKey, definition);
-}
-
-function permissionDefinitionIdentity(
-  definition: PermissionDefinition,
-): string {
-  return [
-    definition.appKey ?? "",
-    definition.collectionKey ?? "",
-    definition.capabilityId ?? definition.key ?? "",
-  ].join(":");
-}
-
-function collectionRegistryKey(appKey: string, key: string): string {
-  return `${appKey}:${key}`;
+  private static registryKey(appKey: string, key: string): string {
+    return `${appKey}:${key}`;
+  }
 }
 
 function parseRegistration<TSchema extends CollectionSchema>(
   registration: CollectionRegistration<TSchema>,
 ): RegisteredCollection<TSchema> {
-  const result = registeredCollectionSchema<TSchema>().safeParse(registration);
+  const { success, data, error } =
+    registeredCollectionSchema<TSchema>().safeParse(registration);
 
-  if (result.success) {
-    return result.data;
+  if (success) {
+    return data;
   }
 
-  return throwRegistrationError(registration, result.error);
-}
-
-function throwRegistrationError(
-  registration: CollectionRegistration,
-  error: z.ZodError,
-): never {
   const invalidPath = error.issues[0]?.path.join(".");
   const message = invalidPath
     ? `Collection registration is invalid at ${invalidPath}`
@@ -489,14 +489,3 @@ function throwRegistrationError(
 
 const collectionOperations: CollectionOperation[] =
   collectionOperationSchema.options;
-
-function getOperationDeclaration(
-  auth: CollectionAuthDeclaration | undefined,
-  operation: CollectionOperation,
-): CollectionOperationAuthInput | undefined {
-  if (operation === "hard-delete") {
-    return auth?.hardDelete;
-  }
-
-  return auth?.[operation];
-}

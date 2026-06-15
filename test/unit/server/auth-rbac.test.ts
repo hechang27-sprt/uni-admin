@@ -17,12 +17,7 @@ import {
   type AuthRbacRepository,
 } from "#server/auth/um";
 import { migrateToLatest } from "#server/db/migrate";
-import {
-  createCollectionRegistry,
-  defineCollection,
-  resolveCollectionActionAuth,
-  resolveCollectionOperationAuth,
-} from "#server/data/collections";
+import { CollectionRegistry, defineCollection } from "#server/data/collections"
 import type { DocumentService, RemoteCollectionAdapter } from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import type { CatalogService } from "#server/data/catalog";
@@ -128,7 +123,7 @@ describe("auth/RBAC service integration", () => {
     ).rejects.toMatchObject({ code: "AUTH_TENANT_MEMBERSHIP_REQUIRED" });
   });
   it("resolves tenant-root collection auth declarations explicitly", () => {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "tasks",
         schema: taskSchema,
@@ -150,18 +145,18 @@ describe("auth/RBAC service integration", () => {
     ]);
     const collection = registry.get("tasks");
 
-    expect(resolveCollectionOperationAuth(collection, "read")).toEqual({
+    expect(CollectionRegistry.resolveOperationAuth(collection, "read")).toEqual({
       capability: "read",
       resourceScope: "tenant-root",
     });
-    expect(resolveCollectionActionAuth(collection, "archive")).toEqual({
+    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual({
       capability: "action-archive",
       resourceScope: "tenant-root",
     });
   });
 
   it("defaults collection app and definition metadata", () => {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "tasks",
         schema: taskSchema,
@@ -188,12 +183,12 @@ describe("auth/RBAC service integration", () => {
 
     expect(() =>
       // @ts-expect-error Runtime validation still rejects untyped callers.
-      createCollectionRegistry([invalidRegistration]),
+      CollectionRegistry.fromRegistrations([invalidRegistration]),
     ).toThrow(/schema/i);
   });
   it("rejects duplicate collection names within the same app", () => {
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           appKey: "crm",
           name: "tasks",
@@ -211,7 +206,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("allows duplicate collection names across different apps", () => {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         appKey: "crm",
         name: "tasks",
@@ -242,7 +237,7 @@ describe("auth/RBAC service integration", () => {
   });
 
   it("derives distinct canonical permission keys for same collection key across apps", async () => {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         appKey: "crm",
         name: "tasks",
@@ -279,7 +274,7 @@ describe("auth/RBAC service integration", () => {
   });
   it("rejects unsafe collection keys and action names before deriving permissions", () => {
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           name: "tasks",
           schema: taskSchema,
@@ -294,7 +289,7 @@ describe("auth/RBAC service integration", () => {
     ).toThrow(/action/i);
 
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           key: "tasks:archive",
           schema: taskSchema,
@@ -307,7 +302,7 @@ describe("auth/RBAC service integration", () => {
 
   it("rejects action auth without a matching action callback", () => {
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           name: "tasks",
           schema: taskSchema,
@@ -345,7 +340,7 @@ describe("auth/RBAC service integration", () => {
       },
     });
 
-    expect(resolveCollectionActionAuth(collection, "archive")).toEqual({
+    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual({
       capability: "action-archive",
       resourceScope: "document",
     });
@@ -371,7 +366,7 @@ describe("auth/RBAC service integration", () => {
   });
   it("rejects built-in collection capability overrides", () => {
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           name: "tasks",
           schema: taskSchema,
@@ -387,7 +382,7 @@ describe("auth/RBAC service integration", () => {
 
   it("rejects custom action capability overrides", () => {
     expect(() =>
-      createCollectionRegistry([
+      CollectionRegistry.fromRegistrations([
         {
           name: "tasks",
           schema: taskSchema,
@@ -839,7 +834,7 @@ describe("auth/RBAC service integration", () => {
         throw new Error("not used");
       },
     };
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "remote-tasks",
         schema: taskSchema,
@@ -1337,7 +1332,7 @@ describe("auth/RBAC service integration", () => {
         throw new Error("not used");
       },
     };
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "tasks",
         schema: taskSchema,
@@ -1402,7 +1397,7 @@ describe("auth/RBAC service integration", () => {
     service: DocumentService;
     permissionKeys: Record<"create" | "read" | "update" | "delete", string>;
   }> {
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "tasks",
         schema: taskSchema,
@@ -1446,7 +1441,7 @@ describe("auth/RBAC service integration", () => {
   }
 
   function createTestContainer(
-    registry = createCollectionRegistry([]),
+    registry = CollectionRegistry.fromRegistrations([]),
   ): ReturnType<typeof createServerContainer> {
     return createServerContainer({
       database: getTestDatabase(),

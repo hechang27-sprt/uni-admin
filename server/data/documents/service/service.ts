@@ -2,9 +2,8 @@ import { applyJsonPatch } from "../json-patch";
 import { normalizeListInput, type DocumentRepository } from "../repository";
 import { DocumentServiceError } from "../errors";
 import {
-  resolveCollectionOperationAuth,
+  CollectionRegistry,
   type CollectionOperation,
-  type CollectionRegistry,
   type CollectionSchema,
   type RegisteredCollection,
 } from "../../collections";
@@ -144,7 +143,7 @@ export class DocumentService {
     let accessibleScopeIds: string[] | null | undefined;
 
     if (hasActorOptions(options)) {
-      const auth = resolveCollectionOperationAuth(
+      const auth = CollectionRegistry.resolveOperationAuth(
         collection,
         input.operation ?? "read",
       );
@@ -632,7 +631,7 @@ export class DocumentService {
   ): Promise<(string | null)[]> {
     const authenticatedOptions = this.requireActorOptions(input, options);
     const collection = this.getCollection(input);
-    const auth = resolveCollectionOperationAuth(collection, "create");
+    const auth = CollectionRegistry.resolveOperationAuth(collection, "create");
     if (!auth) {
       return [];
     }
@@ -667,7 +666,7 @@ export class DocumentService {
     }
 
     const collection = this.getCollection(input);
-    const auth = resolveCollectionOperationAuth(collection, "create");
+    const auth = CollectionRegistry.resolveOperationAuth(collection, "create");
     if (!auth) {
       return;
     }
@@ -696,7 +695,7 @@ export class DocumentService {
     }
 
     const collection = this.getCollection(input);
-    const auth = resolveCollectionOperationAuth(collection, operation);
+    const auth = CollectionRegistry.resolveOperationAuth(collection, operation);
     if (!auth) {
       return;
     }

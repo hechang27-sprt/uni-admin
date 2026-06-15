@@ -454,14 +454,14 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         })),
       )
       .onConflict((conflict) =>
-        conflict.column("key").doUpdateSet({
-          appId: sql`excluded.app_id`,
-          collectionId: sql`excluded.collection_id`,
-          capabilityId: sql`excluded.capability_id`,
-          source: sql`excluded.source`,
-          description: sql`excluded.description`,
+        conflict.column("key").doUpdateSet(({ ref }) => ({
+          appId: ref("excluded.appId"),
+          collectionId: ref("excluded.collectionId"),
+          capabilityId: ref("excluded.capabilityId"),
+          source: ref("excluded.source"),
+          description: ref("excluded.description"),
           updatedAt: now,
-        }),
+        })),
       )
       .returningAll()
       .execute();
@@ -935,7 +935,9 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return rows.map((row) => (row.isRootScope ? null : row.scopeId));
   }
 
-  private async resolvePermissionValue(permission: PermissionDefinitionInput): Promise<{
+  private async resolvePermissionValue(
+    permission: PermissionDefinitionInput,
+  ): Promise<{
     key: string;
     appId: string | null;
     collectionId: string | null;
@@ -943,7 +945,8 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     source: string;
     description: string | null;
   }> {
-    const capabilityId = permission.capabilityId ?? inferCapabilityId(permission);
+    const capabilityId =
+      permission.capabilityId ?? inferCapabilityId(permission);
 
     if (permission.collectionKey) {
       const collection = await this.database

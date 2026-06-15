@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
 import { CatalogService, KyselyCatalogRepository } from "#server/data/catalog";
-import { createCollectionRegistry } from "#server/data/collections";
+import { CollectionRegistry } from "#server/data/collections"
 import { createInMemoryDb } from "#server/utils/kysely";
 import { pivotToColumns } from "#server/utils/pivot";
 
@@ -193,7 +193,7 @@ describe("baseline migration catalog tables", () => {
 
   it("syncs registry collections into app-scoped catalog rows", async () => {
     const db = getTestDatabase();
-    const registry = createCollectionRegistry([
+    const registry = CollectionRegistry.fromRegistrations([
       {
         name: "tasks",
         schema: z.object({ title: z.string() }),
@@ -260,7 +260,7 @@ describe("baseline migration catalog tables", () => {
       .executeTakeFirstOrThrow();
     const service = new CatalogService(
       new KyselyCatalogRepository(db),
-      createCollectionRegistry(),
+      CollectionRegistry.fromRegistrations(),
     );
 
     const first = await service.enableDefaultAppForTenant(tenant.id);
@@ -284,7 +284,7 @@ describe("baseline migration catalog tables", () => {
       .executeTakeFirstOrThrow();
     const service = new CatalogService(
       new KyselyCatalogRepository(db),
-      createCollectionRegistry(),
+      CollectionRegistry.fromRegistrations(),
     );
 
     await expect(

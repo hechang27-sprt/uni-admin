@@ -1,7 +1,4 @@
-import {
-  deriveCollectionPermissionDefinitions,
-  type CollectionRegistry,
-} from "#server/data/collections";
+import { type CollectionRegistry } from "#server/data/collections";
 import type {
   ActorContext,
   TenantActorContext,
@@ -185,7 +182,7 @@ export class AuthRbacService {
   async syncCollectionPermissions(registry: CollectionRegistry) {
     await this.catalog.syncRegistryCollections(registry);
     return this.repository.upsertPermissions(
-      deriveCollectionPermissionDefinitions(registry),
+      registry.derivePermissionDefinitions(),
     );
   }
 
