@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 41
+- **Total Sessions**: 42
 - **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1360 | Active |
+| `journal-1.md` | ~1392 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 42 | 2026-06-16 | Catalog identity review and session readiness | `69a2fcf0,e7a3a0a0,06e792df` | `-` |
 | 41 | 2026-06-16 | Use unnest helper in repositories | `a9b92b1e` | `-` |
 | 40 | 2026-06-16 | Fix permission keys and remote index | `87007306` | `-` |
 | 39 | 2026-06-16 | Catalog identity lookup cache | `a841af25` | `-` |

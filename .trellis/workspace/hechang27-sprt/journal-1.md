@@ -1358,3 +1358,35 @@ Converted remaining raw Kysely sql unnest input relations in auth/RBAC and docum
 ### Next Steps
 
 - None - task complete
+
+
+## Session 42: Catalog identity review and session readiness
+
+**Date**: 2026-06-16
+**Task**: Catalog identity review and session readiness
+
+### Summary
+
+Validated app catalog identity migration, fixed app-aware remote collection lookup and unknown permission grant handling, refreshed session planning artifacts for Kysely, updated docs/specs, and passed targeted tests/typecheck/lint.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `69a2fcf0,e7a3a0a0,06e792df` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
