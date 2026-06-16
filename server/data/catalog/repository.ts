@@ -244,7 +244,7 @@ export class KyselyCatalogRepository implements CatalogRepository {
             schemaVersion,
             setSchemaVersion,
           },
-          { types: { appId: "uuid" } },
+          { types: { appId: "uuid", appKey: "text" } },
         ),
         (join) =>
           join
@@ -300,10 +300,10 @@ export class KyselyCatalogRepository implements CatalogRepository {
         schemaVersion: ref("reg.schemaVersion"),
       }))
       .returningAll("collections")
-      .returning("reg.appId")
+      .returning("reg.appKey")
       .execute();
 
-    return rows.map((row) => mapCollection(row, row.appId));
+    return rows.map((row) => mapCollection(row, row.appKey));
   }
 
   async findCollection(

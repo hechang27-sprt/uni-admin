@@ -17,8 +17,11 @@ import {
   type AuthRbacRepository,
 } from "#server/auth/um";
 import { migrateToLatest } from "#server/db/migrate";
-import { CollectionRegistry, defineCollection } from "#server/data/collections"
-import type { DocumentService, RemoteCollectionAdapter } from "#server/data/documents";
+import { CollectionRegistry, defineCollection } from "#server/data/collections";
+import type {
+  DocumentService,
+  RemoteCollectionAdapter,
+} from "#server/data/documents";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import type { CatalogService } from "#server/data/catalog";
 import { tenantA, tenantB } from "./fixtures/service";
@@ -145,14 +148,18 @@ describe("auth/RBAC service integration", () => {
     ]);
     const collection = registry.get("tasks");
 
-    expect(CollectionRegistry.resolveOperationAuth(collection, "read")).toEqual({
-      capability: "read",
-      resourceScope: "tenant-root",
-    });
-    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual({
-      capability: "action-archive",
-      resourceScope: "tenant-root",
-    });
+    expect(CollectionRegistry.resolveOperationAuth(collection, "read")).toEqual(
+      {
+        capability: "read",
+        resourceScope: "tenant-root",
+      },
+    );
+    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual(
+      {
+        capability: "action-archive",
+        resourceScope: "tenant-root",
+      },
+    );
   });
 
   it("defaults collection app and definition metadata", () => {
@@ -172,7 +179,6 @@ describe("auth/RBAC service integration", () => {
     expect(registry.has("tasks")).toBe(true);
     expect(registry.hasForApp("default", "tasks")).toBe(true);
   });
-
 
   it("rejects non-object collection schemas", () => {
     const invalidRegistration = {
@@ -259,7 +265,11 @@ describe("auth/RBAC service integration", () => {
 
     const rows = await getTestDatabase()
       .selectFrom("permissions")
-      .innerJoin("collections", "collections.collectionId", "permissions.collectionId")
+      .innerJoin(
+        "collections",
+        "collections.collectionId",
+        "permissions.collectionId",
+      )
       .innerJoin("apps", "apps.appId", "permissions.appId")
       .select(["apps.key as appKey", "permissions.key"])
       .where("collections.key", "=", "tasks")
@@ -299,7 +309,6 @@ describe("auth/RBAC service integration", () => {
     ).toThrow(/collection/i);
   });
 
-
   it("rejects action auth without a matching action callback", () => {
     expect(() =>
       CollectionRegistry.fromRegistrations([
@@ -330,7 +339,7 @@ describe("auth/RBAC service integration", () => {
       schemaVersion: 1,
       actions: {
         archive: {
-        handler: () => {},
+          handler: () => {},
         },
       },
       auth: {
@@ -340,10 +349,12 @@ describe("auth/RBAC service integration", () => {
       },
     });
 
-    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual({
-      capability: "action-archive",
-      resourceScope: "document",
-    });
+    expect(CollectionRegistry.resolveActionAuth(collection, "archive")).toEqual(
+      {
+        capability: "action-archive",
+        resourceScope: "document",
+      },
+    );
 
     expect(() =>
       defineCollection({
@@ -848,8 +859,10 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await remoteAuth.syncCollectionPermissions(registry);
-    const remoteCatalog = remoteContainer.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-    await remoteCatalog.enableDefaultAppForTenant(tenantA);
+    const remoteCatalog = remoteContainer.get<CatalogService>(
+      SERVER_DI_TYPES.CatalogService,
+    );
+    await remoteCatalog.enableTenantApp({ tenantId: tenantA });
     const remoteService = remoteContainer.get<DocumentService>(
       SERVER_DI_TYPES.DocumentService,
     );
@@ -1345,8 +1358,10 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await auth.syncCollectionPermissions(registry);
-    const catalog1349 = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-    await catalog1349.enableDefaultAppForTenant(tenantA);
+    const catalog1349 = container.get<CatalogService>(
+      SERVER_DI_TYPES.CatalogService,
+    );
+    await catalog1349.enableTenantApp({ tenantId: tenantA });
     const service = container.get<DocumentService>(
       SERVER_DI_TYPES.DocumentService,
     );
@@ -1409,9 +1424,11 @@ describe("auth/RBAC service integration", () => {
       SERVER_DI_TYPES.AuthRbacService,
     );
     await auth.syncCollectionPermissions(registry);
-    const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-    await catalog.enableDefaultAppForTenant(tenantA);
-    await catalog.enableDefaultAppForTenant(tenantB);
+    const catalog = container.get<CatalogService>(
+      SERVER_DI_TYPES.CatalogService,
+    );
+    await catalog.enableTenantApp({ tenantId: tenantA });
+    await catalog.enableTenantApp({ tenantId: tenantB });
 
     return {
       auth,

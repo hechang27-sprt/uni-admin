@@ -9,6 +9,7 @@
         "@nuxt/eslint": "1.15.2",
         "@pinia/nuxt": "0.11.3",
         "@tailwindcss/vite": "^4.3.0",
+        "associum": "0.2.1",
         "dotenv": "^17.4.2",
         "es-toolkit": "^1.47.0",
         "inversify": "^8.1.0",
@@ -796,6 +797,8 @@
 
     "assertion-error": ["assertion-error@2.0.1", "", {}, "sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA=="],
 
+    "associum": ["associum@0.2.1", "", { "dependencies": { "identigenium": "^1.0.2" } }, "sha512-Hnp5i8kUBkvJN7ZCKVww0LVCqqCWKq8NXua2KcUQ9skznPNkpYQXLrLok3ApD5bVWF8hSTLUe6HMPBcXyklHWg=="],
+
     "ast-kit": ["ast-kit@2.2.0", "", { "dependencies": { "@babel/parser": "^7.28.5", "pathe": "^2.0.3" } }, "sha512-m1Q/RaVOnTp9JxPX+F+Zn7IcLYMzM8kZofDImfsKZd8MbR+ikdOzTeztStWqfrqIxZnYWryyI9ePm3NGjnZgGw=="],
 
     "ast-v8-to-istanbul": ["ast-v8-to-istanbul@1.0.2", "", { "dependencies": { "@jridgewell/trace-mapping": "^0.3.31", "estree-walker": "^3.0.3", "js-tokens": "^10.0.0" } }, "sha512-dKmJxJsGItLmc5CYZKuEjuG6GnBs6PG4gohMhyFOWKaNQoYCuRZJDECaBlHmcG0lv2wc2E0uU8lESmBEumC3DQ=="],
@@ -1247,6 +1250,8 @@
     "httpxy": ["httpxy@0.5.1", "", {}, "sha512-JPhqYiixe1A1I+MXDewWDZqeudBGU8Q9jCHYN8ML+779RQzLjTi78HBvWz4jMxUD6h2/vUL12g4q/mFM0OUw1A=="],
 
     "human-signals": ["human-signals@5.0.0", "", {}, "sha512-AXcZb6vzzrFAUE61HnN4mpLqd/cSIwNQjtNWR0euPm6y0iqx3G4gOXaIDdtdDwZmhwe82LA6+zinmW4UBWVePQ=="],
+
+    "identigenium": ["identigenium@1.0.2", "", {}, "sha512-xqdgj4cc1KoGpteKchyl7/LkH8TdT5ZLQfWhyPGPyjQj2MzoB1/qAHho/mxvfh0m0F14x8/EDJ6iYDQEpPsplg=="],
 
     "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
 

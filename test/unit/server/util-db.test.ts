@@ -1,10 +1,19 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { sql } from "kysely";
 import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
 import { CatalogService, KyselyCatalogRepository } from "#server/data/catalog";
-import { CollectionRegistry } from "#server/data/collections"
+import { CollectionRegistry } from "#server/data/collections";
 import { createInMemoryDb } from "#server/utils/kysely";
 import { pivotToColumns } from "#server/utils/pivot";
 
@@ -190,7 +199,6 @@ describe("baseline migration catalog tables", () => {
     ).rejects.toThrow("collections_app_key_unique");
   });
 
-
   it("syncs registry collections into app-scoped catalog rows", async () => {
     const db = getTestDatabase();
     const registry = CollectionRegistry.fromRegistrations([
@@ -212,7 +220,6 @@ describe("baseline migration catalog tables", () => {
       registry,
     );
 
-    const defaultApp = await service.ensureDefaultApp();
     const firstSync = await service.syncRegistryCollections();
     const secondSync = await service.syncRegistryCollections();
     const defaultTasks = await service.findCollectionIdentity({
@@ -224,14 +231,17 @@ describe("baseline migration catalog tables", () => {
       collectionKey: "tasks",
     });
 
-    expect(defaultApp).toMatchObject({ key: "default", name: "Default" });
+    expect(
+      firstSync.find((collection) => collection.appKey === "default")?.appId,
+    ).toBe(defaultTasks?.appId);
     expect(firstSync).toHaveLength(2);
-    expect(secondSync.map((collection) => collection.collectionId).toSorted()).toEqual(
+    expect(
+      secondSync.map((collection) => collection.collectionId).toSorted(),
+    ).toEqual(
       firstSync.map((collection) => collection.collectionId).toSorted(),
     );
     expect(defaultTasks).toMatchObject({
       appKey: "default",
-      appId: defaultApp.appId,
       key: "tasks",
       definitionKey: "tasks",
       schemaVersion: 1,
@@ -251,6 +261,109 @@ describe("baseline migration catalog tables", () => {
     ).toBeNull();
   });
 
+  it("reuses warm collection lookups and refreshes only touched tenant identities on sync", async () => {
+    const db = getTestDatabase();
+    const registry = CollectionRegistry.fromRegistrations([
+      {
+        name: "tasks",
+        schema: z.object({ title: z.string() }),
+        schemaVersion: 1,
+      },
+      {
+        appKey: "crm",
+        name: "tasks",
+        definitionKey: "crm-tasks",
+        schema: z.object({ company: z.string() }),
+        schemaVersion: 1,
+      },
+    ]);
+    const repository = new KyselyCatalogRepository(db);
+    const service = new CatalogService(repository, registry);
+
+    await service.syncRegistryCollections();
+
+    const findCollection = vi.spyOn(repository, "findCollection");
+    const findTenantCollection = vi.spyOn(repository, "findTenantCollection");
+
+    const warmDefault = await service.findCollectionIdentity({
+      appKey: "default",
+      collectionKey: "tasks",
+    });
+    const warmCrm = await service.findCollectionIdentity({
+      appKey: "crm",
+      collectionKey: "tasks",
+    });
+
+    const tenantId = "00000000-0000-4000-8000-000000000011";
+    await db
+      .insertInto("tenants")
+      .values({ id: tenantId, name: "Cache Tenant" })
+      .execute();
+    await service.enableTenantApp({ tenantId });
+    await service.enableTenantApp({ tenantId, appKey: "crm" });
+
+    const warmTenantDefault = await service.findTenantCollectionIdentity({
+      tenantId,
+      appKey: "default",
+      collectionKey: "tasks",
+    });
+    const warmTenantCrm = await service.findTenantCollectionIdentity({
+      tenantId,
+      appKey: "crm",
+      collectionKey: "tasks",
+    });
+
+    const refreshedRegistry = CollectionRegistry.fromRegistrations([
+      {
+        name: "tasks",
+        schema: z.object({ title: z.string(), body: z.string().optional() }),
+        schemaVersion: 2,
+      },
+      {
+        appKey: "crm",
+        name: "tasks",
+        definitionKey: "crm-tasks",
+        schema: z.object({ company: z.string() }),
+        schemaVersion: 1,
+      },
+    ]);
+    const syncedCollections =
+      await service.syncRegistryCollections(refreshedRegistry);
+    expect(syncedCollections).toHaveLength(2);
+    expect(syncedCollections[0]).toMatchObject({ schemaVersion: 2 });
+    expect(syncedCollections[1]).toMatchObject({ schemaVersion: 1 });
+
+    const defaultAfterSync = await service.findCollectionIdentity({
+      appKey: "default",
+      collectionKey: "tasks",
+    });
+    const crmAfterSync = await service.findCollectionIdentity({
+      appKey: "crm",
+      collectionKey: "tasks",
+    });
+    const tenantDefaultAfterSync = await service.findTenantCollectionIdentity({
+      tenantId,
+      appKey: "default",
+      collectionKey: "tasks",
+    });
+    const tenantCrmAfterSync = await service.findTenantCollectionIdentity({
+      tenantId,
+      appKey: "crm",
+      collectionKey: "tasks",
+    });
+
+    expect(warmDefault).toMatchObject({ key: "tasks", schemaVersion: 1 });
+    expect(warmCrm).toMatchObject({ key: "tasks", schemaVersion: 1 });
+    expect(warmTenantDefault).toMatchObject({ key: "tasks", schemaVersion: 1 });
+    expect(warmTenantCrm).toMatchObject({ key: "tasks", schemaVersion: 1 });
+    expect(defaultAfterSync).toMatchObject({ schemaVersion: 2 });
+    expect(crmAfterSync).toMatchObject({ schemaVersion: 1 });
+    expect(tenantDefaultAfterSync).toMatchObject({ schemaVersion: 2 });
+    expect(tenantCrmAfterSync).toMatchObject({ schemaVersion: 1 });
+    expect(findCollection).toHaveBeenCalledTimes(0);
+    expect(findTenantCollection).toHaveBeenCalledTimes(4);
+  });
+
   it("enables tenant apps idempotently", async () => {
     const db = getTestDatabase();
     const tenant = await db
@@ -263,8 +376,8 @@ describe("baseline migration catalog tables", () => {
       CollectionRegistry.fromRegistrations(),
     );
 
-    const first = await service.enableDefaultAppForTenant(tenant.id);
-    const second = await service.enableDefaultAppForTenant(tenant.id);
+    const first = await service.enableTenantApp({ tenantId: tenant.id });
+    const second = await service.enableTenantApp({ tenantId: tenant.id });
     const tenantApps = await db
       .selectFrom("tenantApps")
       .select(["tenantId", "appId"])

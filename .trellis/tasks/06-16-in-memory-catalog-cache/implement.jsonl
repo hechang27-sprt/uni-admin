@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Catalog repository and persistence contracts for app, tenant-app, and collection identity."}
+{"file": ".trellis/spec/server/data-layer-boundaries.md", "reason": "Keep catalog lookup in CatalogService and avoid leaking caching into repositories or auth policy."}
+{"file": ".trellis/spec/server/testing.md", "reason": "Targeted pgLite-backed unit test expectations for catalog and document service changes."}

@@ -6,17 +6,18 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { sql } from "kysely";
 import { z } from "zod";
 
 import { migrateToLatest } from "#server/db/migrate";
-import { CollectionRegistry } from "#server/data/collections"
+import { CollectionRegistry } from "#server/data/collections";
 import {
   DocumentServiceError,
   type DocumentService,
 } from "#server/data/documents";
-import type { CatalogService } from "#server/data/catalog";
+import { CatalogService, type CatalogRepository } from "#server/data/catalog";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import {
   createRemoteService,
@@ -101,9 +102,11 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         database: getTestDatabase(),
         registry,
       });
-      const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-      await catalog.enableDefaultAppForTenant(tenantA);
-      await catalog.enableDefaultAppForTenant(tenantB);
+      const catalog = container.get<CatalogService>(
+        SERVER_DI_TYPES.CatalogService,
+      );
+      await catalog.enableTenantApp({ tenantId: tenantA });
+      await catalog.enableTenantApp({ tenantId: tenantB });
       await catalog.syncRegistryCollections();
       await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
       await catalog.enableTenantApp({ tenantId: tenantB, appKey: "workflow" });
@@ -144,18 +147,18 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         },
       });
 
-    const listed = await service.list<TaskDocument>({
-      tenantId: tenantA,
-      collection: "tasks",
-      ids: [created.id],
+      const listed = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [created.id],
+      });
+
+      expect(listed.items[0]).toMatchObject({
+        data: { external_ref: "source-record" },
+      });
     });
 
-    expect(listed.items[0]).toMatchObject({
-      data: { external_ref: "source-record" },
-    });
-    });
-
-  it("covers create, list, update, patch, softDelete, restore, and hardDelete", async () => {
+    it("covers create, list, update, patch, softDelete, restore, and hardDelete", async () => {
       const service = await createTestService();
       const created = await service.create<TaskDocument>({
         tenantId: tenantA,
@@ -217,13 +220,13 @@ describe.each([{ name: "pgLite Kysely repository" }])(
       });
 
       expect(deleted.deletedAt).toBeInstanceOf(Date);
-    const afterSoftDelete = await service.list({
-      tenantId: tenantA,
-      collection: "tasks",
-      ids: [created.id],
-    });
+      const afterSoftDelete = await service.list({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [created.id],
+      });
 
-    expect(afterSoftDelete.items).toHaveLength(0);
+      expect(afterSoftDelete.items).toHaveLength(0);
 
       const restored = await service.restore({
         tenantId: tenantA,
@@ -241,17 +244,17 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         confirmHardDelete: true,
       });
 
-    const afterHardDelete = await service.list({
-      tenantId: tenantA,
-      collection: "tasks",
-      ids: [created.id],
-      includeDeleted: true,
+      const afterHardDelete = await service.list({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [created.id],
+        includeDeleted: true,
+      });
+
+      expect(afterHardDelete.items).toHaveLength(0);
     });
 
-    expect(afterHardDelete.items).toHaveLength(0);
-    });
-
-  it("supports batch create, list by ids, and update without partial stale writes", async () => {
+    it("supports batch create, list by ids, and update without partial stale writes", async () => {
       const service = await createTestService();
       const created = await service.createMany<TaskDocument>({
         tenantId: tenantA,
@@ -282,19 +285,21 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         "Batch B",
       ]);
 
-    const fetchedResult = await service.list<TaskDocument>({
-      tenantId: tenantA,
-      collection: "tasks",
-      ids: [
-        created[1]!.id,
-        "00000000-0000-4000-8000-999999999999",
-        created[0]!.id,
-      ],
-    });
-    const fetched = new Map(fetchedResult.items.map((item) => [item.id, item]));
-    expect([...fetched.keys()].toSorted()).toEqual(
-      [created[0]!.id, created[1]!.id].toSorted(),
-    );
+      const fetchedResult = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [
+          created[1]!.id,
+          "00000000-0000-4000-8000-999999999999",
+          created[0]!.id,
+        ],
+      });
+      const fetched = new Map(
+        fetchedResult.items.map((item) => [item.id, item]),
+      );
+      expect([...fetched.keys()].toSorted()).toEqual(
+        [created[0]!.id, created[1]!.id].toSorted(),
+      );
 
       const updated = await service.updateMany<TaskDocument>({
         tenantId: tenantA,
@@ -358,16 +363,16 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         }),
       ).rejects.toMatchObject({ code: "CONFLICT_STALE_VERSION" });
 
-    const fetchedUpdated = await service.list<TaskDocument>({
-      tenantId: tenantA,
-      collection: "tasks",
-      ids: [updated[0]!.id],
+      const fetchedUpdated = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        collection: "tasks",
+        ids: [updated[0]!.id],
+      });
+      expect(fetchedUpdated.items[0]).toMatchObject({
+        data: { title: "Batch A done" },
+        version: 2,
+      });
     });
-    expect(fetchedUpdated.items[0]).toMatchObject({
-      data: { title: "Batch A done" },
-      version: 2,
-    });
-  });
     it("enforces tenant isolation on reads and mutations", async () => {
       const service = await createTestService();
       const created = await service.create<TaskDocument>({
@@ -376,13 +381,13 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         data: { title: "Private", status: "draft", priority: 1, tags: [] },
       });
 
-    const crossTenantRead = await service.list({
-      tenantId: tenantB,
-      collection: "tasks",
-      ids: [created.id],
-    });
+      const crossTenantRead = await service.list({
+        tenantId: tenantB,
+        collection: "tasks",
+        ids: [created.id],
+      });
 
-    expect(crossTenantRead.items).toHaveLength(0);
+      expect(crossTenantRead.items).toHaveLength(0);
 
       await expect(
         service.update<TaskDocument>({
@@ -401,69 +406,77 @@ describe.each([{ name: "pgLite Kysely repository" }])(
     });
 
     it("uses registration key as collection identity and name as description", async () => {
-    const registry = CollectionRegistry.fromRegistrations([
-      {
+      const registry = CollectionRegistry.fromRegistrations([
+        {
+          key: "tasks",
+          name: "Task records",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+        {
+          name: "legacy-tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const container = createServerContainer({
+        database: getTestDatabase(),
+        registry,
+      });
+      const service = container.get<DocumentService>(
+        SERVER_DI_TYPES.DocumentService,
+      );
+      const catalog = container.get<CatalogService>(
+        SERVER_DI_TYPES.CatalogService,
+      );
+      await catalog.syncRegistryCollections();
+      await catalog.enableTenantApp({ tenantId: tenantA });
+
+      expect(registry.has("tasks")).toBe(true);
+      expect(registry.has("Task records")).toBe(false);
+      expect(registry.get("tasks")).toMatchObject({
         key: "tasks",
         name: "Task records",
-        schema: z.object({ title: z.string() }),
-        schemaVersion: 1,
-      },
-      {
+        definitionKey: "tasks",
+      });
+      expect(registry.get("legacy-tasks")).toMatchObject({
+        key: "legacy-tasks",
         name: "legacy-tasks",
-        schema: z.object({ title: z.string() }),
+        definitionKey: "legacy-tasks",
+      });
+
+      const created = await service.create({
+        tenantId: tenantA,
+        collection: "tasks",
+        data: { title: "Keyed" },
+      });
+
+      expect(created).toMatchObject({
+        tenantId: tenantA,
         schemaVersion: 1,
-      },
-    ]);
-    const container = createServerContainer({
-      database: getTestDatabase(),
-      registry,
-    });
-    const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
-    const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-    await catalog.syncRegistryCollections();
-    await catalog.enableDefaultAppForTenant(tenantA);
+        data: { title: "Keyed" },
+      });
 
-    expect(registry.has("tasks")).toBe(true);
-    expect(registry.has("Task records")).toBe(false);
-    expect(registry.get("tasks")).toMatchObject({
-      key: "tasks",
-      name: "Task records",
-      definitionKey: "tasks",
-    });
-    expect(registry.get("legacy-tasks")).toMatchObject({
-      key: "legacy-tasks",
-      name: "legacy-tasks",
-      definitionKey: "legacy-tasks",
+      const catalogRow = await getTestDatabase()
+        .selectFrom("collections")
+        .innerJoin("apps", "apps.appId", "collections.appId")
+        .select([
+          "collections.key",
+          "collections.name",
+          "collections.definitionKey",
+        ])
+        .where("apps.key", "=", "default")
+        .where("collections.key", "=", "tasks")
+        .executeTakeFirstOrThrow();
+
+      expect(catalogRow).toEqual({
+        key: "tasks",
+        name: "Task records",
+        definitionKey: "tasks",
+      });
     });
 
-    const created = await service.create({
-      tenantId: tenantA,
-      collection: "tasks",
-      data: { title: "Keyed" },
-    });
-
-    expect(created).toMatchObject({
-      tenantId: tenantA,
-      schemaVersion: 1,
-      data: { title: "Keyed" },
-    });
-
-    const catalogRow = await getTestDatabase()
-      .selectFrom("collections")
-      .innerJoin("apps", "apps.appId", "collections.appId")
-      .select(["collections.key", "collections.name", "collections.definitionKey"])
-      .where("apps.key", "=", "default")
-      .where("collections.key", "=", "tasks")
-      .executeTakeFirstOrThrow();
-
-    expect(catalogRow).toEqual({
-      key: "tasks",
-      name: "Task records",
-      definitionKey: "tasks",
-    });
-  });
-
-  it("scopes documents by structured tenant, app, and collection identity", async () => {
+    it("scopes documents by structured tenant, app, and collection identity", async () => {
       const service = await createTwoAppTaskService();
 
       const tenantADefault = await service.create({
@@ -483,20 +496,20 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         data: { title: "Tenant A workflow" },
       });
 
-    const tenantBCrossRead = await service.list({
-      tenantId: tenantB,
-      collection: "tasks",
-      ids: [tenantADefault.id],
-    });
-    expect(tenantBCrossRead.items).toHaveLength(0);
+      const tenantBCrossRead = await service.list({
+        tenantId: tenantB,
+        collection: "tasks",
+        ids: [tenantADefault.id],
+      });
+      expect(tenantBCrossRead.items).toHaveLength(0);
 
-    const crossAppRead = await service.list({
-      tenantId: tenantA,
-      appKey: "workflow",
-      collection: "tasks",
-      ids: [tenantADefault.id],
-    });
-    expect(crossAppRead.items).toHaveLength(0);
+      const crossAppRead = await service.list({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "tasks",
+        ids: [tenantADefault.id],
+      });
+      expect(crossAppRead.items).toHaveLength(0);
 
       const tenantAWorkflowList = await service.list({
         tenantId: tenantA,
@@ -535,7 +548,9 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         database: getTestDatabase(),
         registry,
       });
-      const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
+      const service = container.get<DocumentService>(
+        SERVER_DI_TYPES.DocumentService,
+      );
 
       await expect(
         service.create({
@@ -566,9 +581,11 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         database: getTestDatabase(),
         registry,
       });
-      const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+      const catalog = container.get<CatalogService>(
+        SERVER_DI_TYPES.CatalogService,
+      );
       await catalog.syncRegistryCollections();
-      await catalog.enableDefaultAppForTenant(tenantA);
+      await catalog.enableTenantApp({ tenantId: tenantA });
       await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
       const repository = getTestDatabase();
       const identities = await Promise.all([
@@ -607,6 +624,113 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         .where("remoteId", "=", "remote-1")
         .execute();
       expect(rows).toHaveLength(2);
+    });
+
+    it("reuses warm tenant collection lookups and invalidates only touched entries after sync", async () => {
+      const registry = CollectionRegistry.fromRegistrations([
+        {
+          appKey: "default",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+        {
+          appKey: "workflow",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const container = createServerContainer({
+        database: getTestDatabase(),
+        registry,
+      });
+      const catalog = container.get<CatalogService>(
+        SERVER_DI_TYPES.CatalogService,
+      );
+      const catalogRepository = container.get<CatalogRepository>(
+        SERVER_DI_TYPES.CatalogRepository,
+      );
+      const findTenantCollection = vi.spyOn(
+        catalogRepository,
+        "findTenantCollection",
+      );
+
+      await catalog.syncRegistryCollections();
+      await catalog.enableTenantApp({ tenantId: tenantA });
+      await catalog.enableTenantApp({ tenantId: tenantA, appKey: "workflow" });
+
+      const tenantDefaultFirst = await catalog.findTenantCollectionIdentity({
+        tenantId: tenantA,
+        appKey: "default",
+        collectionKey: "tasks",
+      });
+      const tenantWorkflowFirst = await catalog.findTenantCollectionIdentity({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collectionKey: "tasks",
+      });
+
+      const service = container.get<DocumentService>(
+        SERVER_DI_TYPES.DocumentService,
+      );
+      const created = await service.create<TaskDocument>({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "tasks",
+        data: {
+          title: "Warm workflow",
+          status: "draft",
+          priority: 1,
+          tags: [],
+        },
+      });
+
+      const refreshedRegistry = CollectionRegistry.fromRegistrations([
+        {
+          appKey: "default",
+          name: "tasks",
+          schema: z.object({ title: z.string(), body: z.string().optional() }),
+          schemaVersion: 2,
+        },
+        {
+          appKey: "workflow",
+          name: "tasks",
+          schema: z.object({ title: z.string() }),
+          schemaVersion: 1,
+        },
+      ]);
+      const syncedCollections =
+        await catalog.syncRegistryCollections(refreshedRegistry);
+      expect(syncedCollections).toHaveLength(2);
+      expect(syncedCollections[0]).toMatchObject({ schemaVersion: 2 });
+      expect(syncedCollections[1]).toMatchObject({ schemaVersion: 1 });
+
+      const tenantDefaultAfterSync = await catalog.findTenantCollectionIdentity(
+        {
+          tenantId: tenantA,
+          appKey: "default",
+          collectionKey: "tasks",
+        },
+      );
+      const tenantWorkflowAfterSync =
+        await catalog.findTenantCollectionIdentity({
+          tenantId: tenantA,
+          appKey: "workflow",
+          collectionKey: "tasks",
+        });
+      const listed = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "tasks",
+      });
+
+      expect(tenantDefaultFirst).toMatchObject({ schemaVersion: 1 });
+      expect(tenantWorkflowFirst).toMatchObject({ schemaVersion: 1 });
+      expect(tenantDefaultAfterSync).toMatchObject({ schemaVersion: 2 });
+      expect(tenantWorkflowAfterSync).toMatchObject({ schemaVersion: 1 });
+      expect(findTenantCollection).toHaveBeenCalledTimes(4);
+      expect(listed.items.map((item) => item.id)).toEqual([created.id]);
     });
 
     it("supports JSONB-path filters, metadata filters, sorting, pagination bounds, and deleted inclusion", async () => {

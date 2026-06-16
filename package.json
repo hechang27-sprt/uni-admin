@@ -22,6 +22,7 @@
     "@nuxt/eslint": "1.15.2",
     "@pinia/nuxt": "0.11.3",
     "@tailwindcss/vite": "^4.3.0",
+    "associum": "0.2.1",
     "dotenv": "^17.4.2",
     "es-toolkit": "^1.47.0",
     "inversify": "^8.1.0",

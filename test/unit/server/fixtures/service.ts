@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CollectionRegistry } from "#server/data/collections"
+import { CollectionRegistry } from "#server/data/collections";
 import {
   createRemoteProjectionMapper,
   type DocumentService,
@@ -57,7 +57,9 @@ const mapRemoteTask = createRemoteProjectionMapper<RemoteTask, TaskDocument>({
   }),
 });
 
-export async function createService(database: DatabaseClient): Promise<DocumentService> {
+export async function createService(
+  database: DatabaseClient,
+): Promise<DocumentService> {
   const registry = CollectionRegistry.fromRegistrations([
     {
       name: "tasks",
@@ -67,8 +69,8 @@ export async function createService(database: DatabaseClient): Promise<DocumentS
   ]);
   const container = createServerContainer({ database, registry });
   const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-  await catalog.enableDefaultAppForTenant(tenantA);
-  await catalog.enableDefaultAppForTenant(tenantB);
+  await catalog.enableTenantApp({ tenantId: tenantA });
+  await catalog.enableTenantApp({ tenantId: tenantB });
   await catalog.syncRegistryCollections();
   return container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
 }
@@ -203,8 +205,8 @@ export async function createRemoteService(database: DatabaseClient): Promise<{
   ]);
   const container = createServerContainer({ database, registry });
   const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-  await catalog.enableDefaultAppForTenant(tenantA);
-  await catalog.enableDefaultAppForTenant(tenantB);
+  await catalog.enableTenantApp({ tenantId: tenantA });
+  await catalog.enableTenantApp({ tenantId: tenantB });
   await catalog.syncRegistryCollections();
 
   return {

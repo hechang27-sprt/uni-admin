@@ -1,8 +1,12 @@
 import { inject, injectable } from "inversify";
 
-import { DEFAULT_APP_KEY, type CollectionRegistry } from "#server/data/collections";
+import {
+  DEFAULT_APP_KEY,
+  type CollectionRegistry,
+} from "#server/data/collections";
 import { DocumentServiceError } from "#server/data/documents";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
+import { CatalogAppCache, CatalogCollectionCache } from "./cache";
 import type {
   CatalogApp,
   CatalogCollection,
@@ -12,6 +16,10 @@ import type {
   FindTenantCatalogCollectionInput,
 } from "./repository";
 
+type EnableCatalogTenantAppInput = Omit<EnableTenantAppInput, "appKey"> & {
+  appKey?: string;
+};
+
 const DEFAULT_APP_BOOTSTRAP = {
   key: DEFAULT_APP_KEY,
   name: "Default",
@@ -20,6 +28,10 @@ const DEFAULT_APP_BOOTSTRAP = {
 
 @injectable()
 export class CatalogService {
+  private readonly appCache = new CatalogAppCache();
+
+  private readonly collectionCache = new CatalogCollectionCache();
+
   constructor(
     @inject(SERVER_DI_TYPES.CatalogRepository)
     private readonly repository: CatalogRepository,
@@ -27,55 +39,90 @@ export class CatalogService {
     private readonly registry: CollectionRegistry,
   ) {}
 
-  async ensureDefaultApp(): Promise<CatalogApp> {
-    const apps = await this.repository.ensureApps([DEFAULT_APP_BOOTSTRAP]);
+  private async requireApp(appKey: string): Promise<CatalogApp> {
+    const app =
+      appKey === DEFAULT_APP_KEY
+        ? (await this.repository.ensureApps([DEFAULT_APP_BOOTSTRAP]))[
+            DEFAULT_APP_KEY
+          ]
+        : await this.findApp(appKey);
 
-    return this.requireApp(DEFAULT_APP_KEY, apps[DEFAULT_APP_KEY] ?? null);
+    if (!app) {
+      throw new DocumentServiceError("NOT_FOUND", "Catalog app not found", {
+        appKey,
+      });
+    }
+
+    return this.appCache.refresh(app);
   }
 
-  syncRegistryCollections(
+  async syncRegistryCollections(
     registry: CollectionRegistry = this.registry,
   ): Promise<CatalogCollection[]> {
-    return this.repository.syncCollections(registry);
+    return this.collectionCache.refreshCollections(
+      await this.repository.syncCollections(registry),
+    );
   }
 
-  async enableDefaultAppForTenant(tenantId: string): Promise<CatalogApp> {
-    const app = await this.ensureDefaultApp();
+  async enableTenantApp(
+    input: EnableCatalogTenantAppInput,
+  ): Promise<CatalogApp> {
+    const appKey = input.appKey ?? DEFAULT_APP_KEY;
+    const app = await this.requireApp(appKey);
+    await this.repository.enableTenantApps([{ ...input, appKey }]);
 
-    await this.repository.enableTenantApps([{ tenantId, appKey: app.key }]);
+    // Tenant collection misses are cached as null; enabling an app can turn
+    // those misses into hits, so clear only this tenant/app boundary.
+    this.collectionCache.invalidateTenantCollectionsForTenantApp(
+      input.tenantId,
+      appKey,
+    );
 
     return app;
   }
 
-  async enableTenantApp(input: EnableTenantAppInput): Promise<CatalogApp> {
-    const app = await this.repository.findApp(input.appKey);
-
-    await this.repository.enableTenantApps([
-      { ...input, appKey: this.requireApp(input.appKey, app).key },
-    ]);
-
-    return this.requireApp(input.appKey, app);
-  }
-
-  findCollectionIdentity(
+  async findCollectionIdentity(
     input: FindCatalogCollectionInput,
   ): Promise<CatalogCollection | null> {
-    return this.repository.findCollection(input);
-  }
+    const cachedCollection = this.collectionCache.getCollection(
+      input.appKey,
+      input.collectionKey,
+    );
 
-  findTenantCollectionIdentity(
-    input: FindTenantCatalogCollectionInput,
-  ): Promise<CatalogCollection | null> {
-    return this.repository.findTenantCollection(input);
-  }
-
-  private requireApp(key: string, app: CatalogApp | null): CatalogApp {
-    if (app) {
-      return app;
+    if (cachedCollection !== undefined) {
+      return cachedCollection;
     }
 
-    throw new DocumentServiceError("NOT_FOUND", "Catalog app not found", {
-      appKey: key,
-    });
+    return this.collectionCache.refreshCollection(
+      await this.repository.findCollection(input),
+      input,
+    );
+  }
+
+  async findTenantCollectionIdentity(
+    input: FindTenantCatalogCollectionInput,
+  ): Promise<CatalogCollection | null> {
+    const cachedCollection = this.collectionCache.getTenantCollection(input);
+
+    if (cachedCollection !== undefined) {
+      return cachedCollection;
+    }
+
+    return this.collectionCache.refreshTenantCollection(
+      await this.repository.findTenantCollection(input),
+      input,
+    );
+  }
+
+  private async findApp(key: string): Promise<CatalogApp | null> {
+    const cachedApp = this.appCache.get(key);
+
+    if (cachedApp) {
+      return cachedApp;
+    }
+
+    const app = await this.repository.findApp(key);
+
+    return app ? this.appCache.refresh(app) : null;
   }
 }
