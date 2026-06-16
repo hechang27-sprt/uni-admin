@@ -399,7 +399,7 @@ export class DocumentService {
       never,
       never,
       { syncOne: TOutput }
-    >(this.registry, input.collection);
+    >(this.registry, input);
     const result = await adapter.syncOne(input.input, {
       tenantId: input.tenantId,
       collection: input.collection,
@@ -426,7 +426,7 @@ export class DocumentService {
       never,
       never,
       { syncList: TOutput }
-    >(this.registry, input.collection);
+    >(this.registry, input);
     const result = await adapter.syncList(input.input, {
       tenantId: input.tenantId,
       collection: input.collection,
@@ -455,7 +455,7 @@ export class DocumentService {
       never,
       never,
       { create: TOutput }
-    >(this.registry, input.collection);
+    >(this.registry, input);
     await this.authorizeCreate(input, [input.authScopeId ?? null], options);
     if (!hasActorOptions(options)) {
       await this.validateAuthScopes({
@@ -492,7 +492,7 @@ export class DocumentService {
       TUpdateInput,
       never,
       { update: TOutput }
-    >(this.registry, input.collection);
+    >(this.registry, input);
     const collection = this.getCollection<TData>(input);
     const current = await this.loadExisting<TData>(input);
     await this.authorizeDocuments(input, options, "update", [current]);
@@ -548,7 +548,7 @@ export class DocumentService {
       never,
       TDeleteInput,
       { delete: TOutput }
-    >(this.registry, input.collection);
+    >(this.registry, input);
     const current = await this.loadExisting(input);
     await this.authorizeDocuments(input, options, "delete", [current]);
 
@@ -839,7 +839,7 @@ export class DocumentService {
   }
 
   private async upsertRemoteProjection<TData extends JsonObject>(
-    input: { tenantId: string; collection: string },
+    input: { tenantId: string; appKey?: string; collection: string },
     projection: RemoteAdapterProjection<TData>,
   ): Promise<StoredDocument<TData>> {
     const [document] = await this.upsertRemoteProjections(input, [projection]);
@@ -852,7 +852,7 @@ export class DocumentService {
   }
 
   private async upsertRemoteProjections<TData extends JsonObject>(
-    input: { tenantId: string; collection: string },
+    input: { tenantId: string; appKey?: string; collection: string },
     projections: RemoteAdapterProjection<TData>[],
   ): Promise<StoredDocument<TData>[]> {
     const collection = this.getCollection<TData>(input);

@@ -1,4 +1,4 @@
-import { type CollectionRegistry } from "#server/data/collections";
+import type { CollectionRegistry } from "#server/data/collections";
 import type {
   ActorContext,
   TenantActorContext,
@@ -191,6 +191,7 @@ export class AuthRbacService {
     await this.evaluateAccess({
       tenantId: input.tenantId,
       permissionKeys: [input.permissionKey],
+      throw: true,
     });
 
     await this.repository.assignPermissionsToRole({

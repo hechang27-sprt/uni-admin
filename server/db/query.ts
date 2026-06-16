@@ -1,11 +1,4 @@
-import {
-  Expression,
-  ExpressionBuilder,
-  expressionBuilder,
-  ExtractTypeFromReferenceExpression,
-  ReferenceExpression,
-  SqlBool,
-} from "kysely";
+import { expressionBuilder } from "kysely";
 import type { Database } from "./schema";
 
 export function selectTenantUsers(input?: {
@@ -51,27 +44,4 @@ export function selectGrantedPermissions() {
         .onRef("c.ancestorId", "=", "assigned.scopeId")
         .onRef("c.tenantId", "=", "tu.tenantId"),
     );
-}
-
-export function ifTrueRef<
-  DB,
-  TB extends keyof DB,
-  CondRE extends ReferenceExpression<DB, TB>,
-  TrueRE extends ReferenceExpression<DB, TB>,
-  FalseRE extends ReferenceExpression<DB, TB>,
-  Cond = ExtractTypeFromReferenceExpression<DB, TB, CondRE>,
-  TrueType = ExtractTypeFromReferenceExpression<DB, TB, TrueRE>,
-  FalseType = ExtractTypeFromReferenceExpression<DB, TB, FalseRE>,
->(
-  eb: ExpressionBuilder<DB, TB>,
-  cond: Cond extends SqlBool ? CondRE : never,
-  whenTrue: TrueRE,
-  whenFalse: FalseRE,
-): Expression<TrueType | FalseType> {
-  return eb
-    .case()
-    .when(cond as any, "=", true as any)
-    .thenRef(whenTrue)
-    .elseRef(whenFalse)
-    .end();
 }

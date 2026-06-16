@@ -17,7 +17,7 @@ import {
   DocumentServiceError,
   type DocumentService,
 } from "#server/data/documents";
-import { CatalogService, type CatalogRepository } from "#server/data/catalog";
+import type { CatalogRepository, CatalogService } from "#server/data/catalog";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 import {
   createRemoteService,
@@ -624,6 +624,36 @@ describe.each([{ name: "pgLite Kysely repository" }])(
         .where("remoteId", "=", "remote-1")
         .execute();
       expect(rows).toHaveLength(2);
+    });
+
+    it("uses app-aware registry identity for remote collections", async () => {
+      const { service } = await createRemoteService(
+        getTestDatabase(),
+        "workflow",
+      );
+
+      const syncedResult = await service.syncRemoteOne<
+        TaskDocument,
+        { remoteId: string }
+      >({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "remote-tasks",
+        input: { remoteId: "remote-1" },
+      });
+      const listed = await service.list<TaskDocument>({
+        tenantId: tenantA,
+        appKey: "workflow",
+        collection: "remote-tasks",
+      });
+
+      expect(syncedResult.document).toMatchObject({
+        remoteSource: "fixture-api",
+        remoteId: "remote-1",
+      });
+      expect(listed.items.map((item) => item.id)).toEqual([
+        syncedResult.document!.id,
+      ]);
     });
 
     it("reuses warm tenant collection lookups and invalidates only touched entries after sync", async () => {

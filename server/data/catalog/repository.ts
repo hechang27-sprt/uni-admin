@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/unbound-method -- Kysely callback methods are used only to build SQL AST nodes. */
 import { inject, injectable } from "inversify";
-import { type Selectable } from "kysely";
+import type { Selectable } from "kysely";
 
 import { jsonObjectSchema } from "#server/utils/zod";
 import type { AppsTable, CollectionsTable } from "#server/db/schema";
@@ -139,7 +139,10 @@ export class KyselyCatalogRepository implements CatalogRepository {
       .returningAll("apps")
       .execute();
 
-    return keyBy(rows.map(mapApp), (app) => app.key);
+    return keyBy(
+      rows.map((row) => mapApp(row)),
+      (app) => app.key,
+    );
   }
 
   async findApp(key: string): Promise<CatalogApp | null> {

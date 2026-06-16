@@ -12,7 +12,7 @@ export function getRemoteAdapter<
   TOutputs extends RemoteAdapterOutputs = RemoteAdapterOutputs,
 >(
   registry: CollectionRegistry,
-  collectionName: string,
+  input: { appKey?: string; collection: string },
 ): RemoteCollectionAdapter<
   TData,
   TSyncOneInput,
@@ -22,7 +22,9 @@ export function getRemoteAdapter<
   TDeleteInput,
   TOutputs
 > {
-  const collection = registry.get<CollectionSchema<TData>>(collectionName);
+  const collection = input.appKey
+    ? registry.getForApp<CollectionSchema<TData>>(input.appKey, input.collection)
+    : registry.get<CollectionSchema<TData>>(input.collection);
   const adapter = collection.remoteAdapter;
 
   if (!adapter) {
@@ -30,7 +32,8 @@ export function getRemoteAdapter<
       "UNSUPPORTED_OPERATION",
       "Collection is not remote-backed",
       {
-        collection: collectionName,
+        appKey: input.appKey,
+        collection: input.collection,
       },
     );
   }

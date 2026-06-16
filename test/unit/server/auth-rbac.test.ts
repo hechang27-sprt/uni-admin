@@ -925,17 +925,17 @@ describe("auth/RBAC service integration", () => {
     ]);
 
     grantPermissions.mockClear();
-    await auth.assignPermissionToRole({
-      tenantId: tenantA,
-      roleId: tenantARole.roleId,
-      permissionKey: "collection:tasks:write",
+    await expect(
+      auth.assignPermissionToRole({
+        tenantId: tenantA,
+        roleId: tenantARole.roleId,
+        permissionKey: "collection:tasks:write",
+      }),
+    ).rejects.toMatchObject({
+      code: "AUTH_PERMISSION_NOT_FOUND",
+      details: { permissionKey: "collection:tasks:write" },
     });
-    expect(grantPermissions).toHaveBeenCalledWith({
-      tenantId: tenantA,
-      roleId: tenantARole.roleId,
-      permissionKeys: ["collection:tasks:write"],
-    });
-    expect(grantPermissions).toHaveBeenCalledTimes(1);
+    expect(grantPermissions).not.toHaveBeenCalled();
 
     grantPermissions.mockClear();
 

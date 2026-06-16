@@ -91,7 +91,10 @@ export interface RemoteAdapterOutputs {
   delete: { requestId: string };
 }
 
-export async function createRemoteService(database: DatabaseClient): Promise<{
+export async function createRemoteService(
+  database: DatabaseClient,
+  appKey = "default",
+): Promise<{
   service: DocumentService;
   calls: RemoteAdapterCalls;
   setRemoteFailure: (failure: Error | null) => void;
@@ -197,6 +200,7 @@ export async function createRemoteService(database: DatabaseClient): Promise<{
 
   const registry = CollectionRegistry.fromRegistrations([
     {
+      appKey,
       name: "remote-tasks",
       schema: taskSchema,
       schemaVersion: 1,
@@ -205,9 +209,9 @@ export async function createRemoteService(database: DatabaseClient): Promise<{
   ]);
   const container = createServerContainer({ database, registry });
   const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
-  await catalog.enableTenantApp({ tenantId: tenantA });
-  await catalog.enableTenantApp({ tenantId: tenantB });
   await catalog.syncRegistryCollections();
+  await catalog.enableTenantApp({ tenantId: tenantA, appKey });
+  await catalog.enableTenantApp({ tenantId: tenantB, appKey });
 
   return {
     service: container.get<DocumentService>(SERVER_DI_TYPES.DocumentService),

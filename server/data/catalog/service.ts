@@ -40,12 +40,11 @@ export class CatalogService {
   ) {}
 
   private async requireApp(appKey: string): Promise<CatalogApp> {
-    const app =
+    const apps =
       appKey === DEFAULT_APP_KEY
-        ? (await this.repository.ensureApps([DEFAULT_APP_BOOTSTRAP]))[
-            DEFAULT_APP_KEY
-          ]
-        : await this.findApp(appKey);
+        ? await this.repository.ensureApps([DEFAULT_APP_BOOTSTRAP])
+        : null;
+    const app = apps ? apps[DEFAULT_APP_KEY] : await this.findApp(appKey);
 
     if (!app) {
       throw new DocumentServiceError("NOT_FOUND", "Catalog app not found", {
