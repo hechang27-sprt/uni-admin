@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/server/index.md", "reason": "Server verification rules and required GitNexus/quality workflow."}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Auth/RBAC behavior contract and expected public semantics after the cutover."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Migration/schema/repository constraints to validate against implementation."}
+{"file": ".trellis/spec/server/testing.md", "reason": "Behavior coverage and pgLite test expectations for auth/database changes."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/prd.md", "reason": "Acceptance criteria to verify in check phase."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/design.md", "reason": "Design invariants to check: bottom-only grants, no upward authorization, clean cutover."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/implement.md", "reason": "Validation commands and review gates to enforce during checking."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/schema-and-query-surface.md", "reason": "Schema/query assumptions the final code must satisfy."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/resource-scope-none-semantics.md", "reason": "Semantic evidence for resourceScope none acceptance and authorization behavior."}

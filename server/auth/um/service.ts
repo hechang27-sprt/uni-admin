@@ -30,8 +30,6 @@ import type {
   Role,
   SetPasswordCredentialInput,
   TenantMembership,
-  ValidateTenantAccessInput,
-  ValidateTenantAccessResult,
   VerifyPasswordInput,
 } from "./types";
 import { uniq, flatten, flatMap, isNotNil } from "es-toolkit";
@@ -209,6 +207,8 @@ export class AuthRbacService {
       ...input,
       tenantId,
     });
+    const rootScopeId = await this.getTenantRootScopeId(tenantId);
+
     await this.evaluateAccess({
       tenantId,
       tenantAccess: {
@@ -218,13 +218,13 @@ export class AuthRbacService {
         {
           userId,
           capabilities: ["admin:role-permissions:grant"],
-          targetScopeIds: [null],
+          targetScopeIds: [rootScopeId],
         },
         {
           userId,
           capabilities: [input.permissionKey],
           override: ADMIN_TENANT_OVERRIDE_KEY,
-          targetScopeIds: [null], // Must own permission at ROOT to assign to role, to be relaxed
+          targetScopeIds: [rootScopeId],
         },
       ],
       throw: true,
@@ -241,7 +241,10 @@ export class AuthRbacService {
     const role = await this.resolveRole(input);
     await this.evaluateAccess({
       tenantId: input.tenantId,
-      tenantAccess: { userId: [input.userId], scopeId: [input.scopeId] },
+      tenantAccess: {
+        userId: [input.userId],
+        scopeId: [input.scopeId].filter(isNotNil),
+      },
       throw: true,
     });
     await this.repository.assignRoles({
@@ -273,7 +276,7 @@ export class AuthRbacService {
       tenantAccess: {
         userId: [input.userId],
         roleId: [role.roleId],
-        scopeId: [input.scopeId],
+        scopeId: [input.scopeId].filter(isNotNil),
       },
       checks: [
         {
@@ -298,20 +301,6 @@ export class AuthRbacService {
     });
   }
 
-  async listAccessibleScopeIds(input: ListAccessibleScopesInput) {
-    await this.evaluateAccess({
-      ...input.context,
-      checks: [],
-      permissionKeys: [input.capability],
-      throw: true,
-    });
-
-    return this.repository.listAccessibleScopeIds({
-      tenantId: input.context.tenantId,
-      userId: input.context.actor.userId,
-      capability: input.capability,
-    });
-  }
   async listGrantedScopeIdsForCapability(input: ListAccessibleScopesInput) {
     await this.evaluateAccess({
       ...input.context,
@@ -320,20 +309,12 @@ export class AuthRbacService {
       throw: true,
     });
 
-    const [scopeIds, tenantRootScope] = await Promise.all([
-      this.repository.listGrantedScopeIdsForCapability({
-        tenantId: input.context.tenantId,
-        userId: input.context.actor.userId,
-        capability: input.capability,
-      }),
-      this.repository.ensureTenantRootScope(input.context.tenantId),
-    ]);
-
-    return scopeIds.map((scopeId) =>
-      scopeId === tenantRootScope.scopeId ? null : scopeId,
-    );
+    return this.repository.listGrantedScopeIdsForCapability({
+      tenantId: input.context.tenantId,
+      userId: input.context.actor.userId,
+      capability: input.capability,
+    });
   }
-
   async listCreatableDocumentScopeIds(input: {
     context: TenantActorContext;
     capability: string;
@@ -341,20 +322,7 @@ export class AuthRbacService {
     return this.listGrantedScopeIdsForCapability(input);
   }
 
-  async validateTenantAccess(
-    input: ValidateTenantAccessInput,
-  ): Promise<ValidateTenantAccessResult> {
-    return {
-      invalidScopeId: await this.repository.findInvalidScopeId({
-        tenantId: input.tenantId,
-        scopeIds: input.scopeIds ?? [],
-      }),
-    };
-  }
-
-  async bootstrapTenantOwner(
-    input: BootstrapTenantOwnerInput,
-  ): Promise<BootstrapTenantOwnerResult> {
+  async bootstrapTenantOwner(input: BootstrapTenantOwnerInput): Promise<BootstrapTenantOwnerResult> {
     const [user, rootScope, ownerRole] = await Promise.all([
       this.repository.createUser({ displayName: input.displayName }),
       this.repository.ensureTenantRootScope(input.tenantId),
@@ -425,9 +393,7 @@ export class AuthRbacService {
       });
     }
 
-    const columns = pivotToColumns(checks ?? []);
-    const capabilities = columns.capabilities ?? [];
-    const targetScopeIds = columns.targetScopeIds ?? [];
+    const capabilities = flatMap(checks, (check) => check.capabilities ?? []);
 
     const permissionKeysToValidate = uniq(
       flatMap([...capabilities, permissionKeys], (arr) => arr ?? []),
@@ -435,9 +401,8 @@ export class AuthRbacService {
 
     const scopeIds = tenantAccess?.scopeId ?? [];
     const scopeIdsToValidate = uniq(
-      flatten([...targetScopeIds, scopeIds]),
+      flatten([flatMap(checks, (check) => check.targetScopeIds), scopeIds]),
     ).filter(isNotNil);
-
     const results = await Promise.allSettled([
       this.assertTenantMembership({
         tenantId,
@@ -639,9 +604,7 @@ export class AuthRbacService {
 
     if (denied && missingCap) {
       const capability = missingCap?.capability ?? "auth:access";
-      const targetScopeId = missingCap.isRootScope
-        ? null
-        : missingCap.targetScopeId;
+      const targetScopeId = missingCap.targetScopeId;
       if (throwError) {
         throw permissionDenied(
           { tenantId, actor: userId ? { userId } : undefined },

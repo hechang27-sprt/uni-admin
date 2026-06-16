@@ -104,6 +104,7 @@ export interface PermissionsTable {
   capabilityId: string;
   source: string;
   description: string | null;
+  resourceScope: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -120,7 +121,7 @@ export interface UserRoleAssignmentsTable {
   tenantId: string;
   userId: string;
   roleId: string;
-  scopeId: string;
+  scopeId: string | null;
   createdAt: Timestamp;
 }
 

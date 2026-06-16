@@ -42,6 +42,9 @@ export interface Role {
   updatedAt: Date;
 }
 
+export type ResourceScopeMode = "document" | "tenant-root" | "none";
+
+
 export interface Permission {
   key: string;
   appId: string | null;
@@ -49,6 +52,7 @@ export interface Permission {
   capabilityId: string;
   source: string;
   description: string | null;
+  resourceScope?: ResourceScopeMode | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,6 +99,8 @@ export interface CreateRoleInput {
   name?: string | null;
 }
 
+export const resourceScopeModeSchema = z.enum(["document", "tenant-root", "none"]);
+
 export const permissionDefinitionInputSchema = z.object({
   key: z.string().optional(),
   appKey: z.string().nullable().optional(),
@@ -102,16 +108,16 @@ export const permissionDefinitionInputSchema = z.object({
   capabilityId: z.string().optional(),
   source: z.string(),
   description: z.string().nullable().optional(),
+  resourceScope: resourceScopeModeSchema.nullable().optional(),
 });
 
-export const resolvedPermissionDefinitionSchema =
-  permissionDefinitionInputSchema
-    .required()
-    .omit({ appKey: true, collectionKey: true })
-    .extend({
-      appId: z.string().nullable(),
-      collectionId: z.string().nullable(),
-    });
+export const resolvedPermissionDefinitionSchema = permissionDefinitionInputSchema
+  .omit({ appKey: true, collectionKey: true })
+  .required({ key: true, capabilityId: true, source: true })
+  .extend({
+    appId: z.string().nullable(),
+    collectionId: z.string().nullable(),
+  });
 
 export type PermissionDefinitionInput = z.infer<
   typeof permissionDefinitionInputSchema
@@ -133,7 +139,8 @@ export interface AssignRoleInput {
   userId: string;
   roleId?: string;
   roleKey?: string;
-  scopeId: string;
+  // `null` means an explicit bottom-scope assignment for `resourceScope: "none"`, not tenant root.
+  scopeId: string | null;
 }
 
 export interface CheckAccessInput {
@@ -142,14 +149,13 @@ export interface CheckAccessInput {
   targetScopeId: string | null;
 }
 
-export type CapabilityAccessCheck = {
+export interface CapabilityAccessCheck {
   capabilities?: string[];
   roleIds?: string[];
   override?: string;
   userId?: string;
-  // `null` entries mean root scope here so a permission in `null` scope covers the tenant root.
   targetScopeIds: (string | null)[];
-};
+}
 
 export type CapabilityEvaluation = {
   userId: string;
@@ -159,8 +165,7 @@ export type CapabilityEvaluation = {
     capability: string;
     permissionKey: string | null;
     roleId?: string;
-    targetScopeId: string;
-    isRootScope: boolean;
+    targetScopeId: string | null;
   }[];
 };
 
@@ -184,6 +189,7 @@ export interface ListAccessibleScopesInput {
   capability: string;
 }
 
+
 export interface ValidateTenantAccessInput {
   tenantId: string;
   scopeIds?: string[];
@@ -192,6 +198,19 @@ export interface ValidateTenantAccessInput {
 export interface ValidateTenantAccessResult {
   invalidScopeId: string | null;
 }
+
+export type AccessCheckFailure =
+  | { kind: "membership"; userId: string }
+  | { kind: "role"; roleId: string }
+  | { kind: "assignment"; assignmentId: string }
+  | { kind: "scope"; scopeId: string }
+  | { kind: "document"; documentId: string }
+  | { kind: "permission"; permissionKey: string }
+  | {
+      kind: "capability";
+      capability: string;
+      targetScopeId: string | null;
+    };
 
 export interface BootstrapTenantOwnerInput {
   tenantId: string;
@@ -207,19 +226,6 @@ export interface BootstrapTenantOwnerResult {
   ownerRole: Role;
   context: TenantActorContext;
 }
-
-export type AccessCheckFailure =
-  | { kind: "membership"; userId: string }
-  | { kind: "role"; roleId: string }
-  | { kind: "assignment"; assignmentId: string }
-  | { kind: "scope"; scopeId: string }
-  | { kind: "document"; documentId: string }
-  | { kind: "permission"; permissionKey: string }
-  | {
-      kind: "capability";
-      capability: string;
-      targetScopeId: string | null;
-    };
 
 export interface AccessCheckEvaluation {
   allowed: boolean;

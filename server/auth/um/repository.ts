@@ -26,11 +26,13 @@ import {
   type TenantMembership,
   type UsernamePasswordCredential,
   type ResolvedPermissionDefinition,
+  resourceScopeModeSchema,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import { selectGrantedPermissions, selectTenantUsers } from "../../db/query";
 import { pivotToColumns } from "../../utils/pivot";
 import { unnest } from "../../utils/unnest";
+import { uniq } from "es-toolkit";
 
 export const tenantRootScopeKey = "__tenant_root";
 export const ADMIN_TENANT_OVERRIDE_KEY = "admin:tenant:owner";
@@ -97,7 +99,7 @@ export interface AuthRbacRepository {
     assignments: {
       userId: string;
       roleId: string;
-      scopeId: string;
+      scopeId: string | null;
     }[];
   }): Promise<void>;
   findInvalidRoleId(input: {
@@ -124,11 +126,6 @@ export interface AuthRbacRepository {
     userId?: string;
     checks: CapabilityAccessCheck[];
   }): Promise<CapabilityEvaluation[]>;
-  listAccessibleScopeIds(input: {
-    tenantId: string;
-    userId: string;
-    capability: string;
-  }): Promise<string[]>;
   listGrantedScopeIdsForCapability(input: {
     tenantId: string;
     userId: string;
@@ -452,6 +449,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           capabilityId: ref("excluded.capabilityId"),
           source: ref("excluded.source"),
           description: ref("excluded.description"),
+          resourceScope: ref("excluded.resourceScope"),
           updatedAt: now,
         })),
       )
@@ -496,7 +494,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     assignments: {
       userId: string;
       roleId: string;
-      scopeId: string;
+      scopeId: string | null;
     }[];
   }): Promise<void> {
     if (input.assignments.length === 0) {
@@ -684,34 +682,32 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       throw new Error("Capability checks require a userId");
     }
 
-    const checkInputs = input.checks.map((check) => {
-      return {
-        userId: check.userId,
-        targetScopeIds: check.targetScopeIds,
-        override: check.override,
-        capabilities: check.capabilities ?? [],
-        roleIds: check.roleIds ?? [],
-      };
-    });
+    const checkInputs = input.checks.map((check) => ({
+      userId: check.userId,
+      targetScopeIds: check.targetScopeIds,
+      override: check.override,
+      capabilities: check.capabilities ?? [],
+      roleIds: check.roleIds ?? [],
+    }));
     const { userId, targetScopeIds, override, capabilities, roleIds } =
       pivotToColumns(checkInputs);
 
     const accessResults = await this.database
-      .with("granted", () =>
-        selectGrantedPermissions().select([
-          "tu.tenantId",
-          "tu.userId",
-          "scopeId",
-          "descendantId",
-          "rp.roleId",
-          "p.key as permissionKey",
-        ]),
+      .with(
+        "granted",
+        selectGrantedPermissions().$call((qb) => qb),
       )
       .selectFrom(({ selectFrom }) =>
         selectFrom(
           unnest(
             "input",
-            { userId, targetScopeIds, override, capabilities, roleIds },
+            {
+              userId,
+              targetScopeIds,
+              override,
+              capabilities,
+              roleIds,
+            },
             {
               withOrdinality: "checkOrder",
               jsonb: ["targetScopeIds", "capabilities", "roleIds"],
@@ -799,26 +795,23 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
               () =>
                 selectFrom(
                   unnest(
-                    "scopeInput",
+                    "t",
                     {
                       targetScopeId: ref("input.targetScopeIds"),
                     },
                     {
-                      jsonbText: ["targetScopeId"],
                       withOrdinality: "scopeOrder",
+                      jsonbText: ["targetScopeId"],
                     },
                   ),
                 )
-                  .select([
-                    sql<string>`coalesce(nullif(scope_input.target_scope_id, 'null')::uuid, ${rootScopeId}::uuid)`.as(
-                      "targetScopeId",
-                    ),
-                    sql<boolean>`scope_input.target_scope_id = 'null'`.as(
-                      "isRootScope",
-                    ),
-                    "scopeInput.scopeOrder",
+                  .select((eb) => [
+                    "scopeOrder",
+                    eb
+                      .cast<string>("targetScopeId", "uuid")
+                      .as("targetScopeId"),
                   ])
-                  .as("scopeEval"),
+                  .as("scopeInput"),
               (join) => join.onTrue(),
             )
             .leftJoin("permissions as directPermission", (join) =>
@@ -829,7 +822,16 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                 .on("g2.tenantId", "=", input.tenantId)
                 .onRef("g2.userId", "=", "input.userId")
                 .onRef("g2.permissionKey", "=", "cap.capability")
-                .onRef("g2.descendantId", "=", "scopeEval.targetScopeId"),
+                .on((eb) =>
+                  eb.or([
+                    eb(
+                      "g2.descendantId",
+                      "=",
+                      eb.ref("scopeInput.targetScopeId"),
+                    ), // null aware
+                    eb("scopeInput.targetScopeId", "is", null),
+                  ]),
+                ),
             )
             .select(() => [
               sql<CapabilityEvaluation["missingCaps"]>`
@@ -839,15 +841,14 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                       'capability', cap.capability,
                       'permissionKey', coalesce(cap.permission_key, direct_permission.key),
                       'roleId', cap.role_id,
-                      'targetScopeId', scope_eval.target_scope_id,
-                      'isRootScope', scope_eval.is_root_scope
+                      'targetScopeId', scope_input.target_scope_id
                     )
                     order by
                       cap.source_order,
                       cap.capability_order,
                       cap.capability,
-                      scope_eval.scope_order,
-                      scope_eval.target_scope_id
+                      scope_input.scope_order,
+                      scope_input.target_scope_id
                   ) filter (
                     where g2.permission_key is null
                   ),
@@ -880,27 +881,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return accessResults satisfies CapabilityEvaluation[];
   }
 
-  async listAccessibleScopeIds(input: {
-    tenantId: string;
-    userId: string;
-    capability: string;
-  }): Promise<string[]> {
-    const rows = await this.database
-      .selectFrom(() =>
-        selectGrantedPermissions()
-          .where("tu.tenantId", "=", input.tenantId)
-          .where("tu.userId", "=", input.userId)
-          .where("p.key", "=", input.capability)
-          .select("c.descendantId as scopeId")
-          .distinct()
-          .as("_"),
-      )
-      .selectAll()
-      .execute();
-
-    return rows.map((row) => row.scopeId);
-  }
-
   async listGrantedScopeIdsForCapability(input: {
     tenantId: string;
     userId: string;
@@ -912,17 +892,15 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .where("tu.tenantId", "=", input.tenantId)
           .where("tu.userId", "=", input.userId)
           .where("p.key", "=", input.capability)
-          .select(({ eb, ref }) => [
-            ref("assigned.scopeId").as("scopeId"),
-            eb("assigned.scopeId", "is", null).as("isRootScope"),
-          ])
+          .clearSelect()
+          .select("assigned.scopeId as scopeId")
           .distinct()
           .as("_"),
       )
       .selectAll()
       .execute();
 
-    return rows.map((row) => (row.isRootScope ? null : row.scopeId));
+    return uniq(rows.map((row) => row.scopeId));
   }
 
   private async resolvePermissionValues(
@@ -931,25 +909,39 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     const normalizedPermissionDefinitionSchema =
       permissionDefinitionInputSchema.required({
         capabilityId: true,
-        description: true,
       });
     const normalizedPermissions = permissions.map((permission) => ({
       ...permission,
-      capabilityId: permission.capabilityId ?? inferCapabilityId(permission),
-      description: permission.description ?? null,
+      capabilityId:
+        permission.capabilityId ?? inferCapabilityId(permission.key),
     }));
-    const { key, appKey, collectionKey, capabilityId, source, description } =
-      pivotToColumns(
-        normalizedPermissions,
-        normalizedPermissionDefinitionSchema,
-      );
+    const {
+      key,
+      appKey,
+      collectionKey,
+      capabilityId,
+      source,
+      description,
+      resourceScope,
+    } = pivotToColumns(
+      normalizedPermissions,
+      normalizedPermissionDefinitionSchema,
+    );
 
     const rows = await this.database
       .selectFrom(({ selectFrom }) =>
         selectFrom(
           unnest(
             "input",
-            { key, appKey, collectionKey, capabilityId, source, description },
+            {
+              key,
+              appKey,
+              collectionKey,
+              capabilityId,
+              source,
+              description,
+              resourceScope,
+            },
             { withOrdinality: "inputOrder" },
           ),
         )
@@ -1024,6 +1016,9 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         capabilityId: row.capabilityId,
         source: row.source,
         description: row.description,
+        resourceScope: row.resourceScope
+          ? resourceScopeModeSchema.parse(row.resourceScope)
+          : null,
       };
     });
   }
@@ -1042,20 +1037,20 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
   }
 }
 
-function inferCapabilityId(permission: PermissionDefinitionInput): string {
-  if (permission.key?.startsWith("admin:")) {
-    return permission.key.slice("admin:".length);
+function inferCapabilityId(permissionKey: string | undefined): string {
+  if (permissionKey?.startsWith("admin:")) {
+    return permissionKey.slice("admin:".length);
   }
-  if (permission.key?.startsWith("global:")) {
-    return permission.key.slice("global:".length);
+  if (permissionKey?.startsWith("global:")) {
+    return permissionKey.slice("global:".length);
   }
-  if (permission.key) {
-    return permission.key;
+  if (permissionKey) {
+    return permissionKey;
   }
   throw new AuthRbacError(
     "AUTH_PERMISSION_NOT_FOUND",
     "Permission definition requires a key or capability id",
-    { permissionKey: permission.key },
+    { permissionKey },
   );
 }
 
@@ -1106,6 +1101,9 @@ function mapRole(row: Selectable<RolesTable>): Role {
 function mapPermission(row: Selectable<PermissionsTable>): Permission {
   return {
     ...row,
+    resourceScope: row.resourceScope
+      ? resourceScopeModeSchema.parse(row.resourceScope)
+      : null,
     createdAt: toDate(row.createdAt),
     updatedAt: toDate(row.updatedAt),
   };

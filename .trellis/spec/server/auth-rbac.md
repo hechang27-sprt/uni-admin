@@ -42,7 +42,7 @@ interface AuthRbacRepository {
   }): Promise<void>;
   assignRoles(input: {
     tenantId: string;
-    assignments: { userId: string; roleId: string; scopeId: string }[];
+    assignments: { userId: string; roleId: string; scopeId: string | null }[];
   }): Promise<void>;
   findDeniedRolePermission(input: {
     tenantId: string;
@@ -106,11 +106,13 @@ interface TenantActorContext {
 - Database tables use explicit primary key names for identity tables such as
   `user_id`, `scope_id`, and `role_id`. `permissions` is keyed by canonical
   `key`; there is no separate `permission_id`.
-- Permission rows carry `app_id`, `collection_id`, `capability_id`, and
-  `source`; `source` denotes structured permission location (`collection`,
-  `app`, `global`, or `admin`), while custom action identity lives in
-  `capability_id` as `action-<action-id>`.
+- Permission rows carry `app_id`, `collection_id`, `capability_id`, `source`,
+  and optional `resource_scope`; `source` denotes structured permission
+  location (`collection`, `app`, `global`, or `admin`), while custom action
+  identity lives in `capability_id` as `action-<action-id>`.
 - `role_permissions.permission_key` references `permissions.key`.
+- `user_role_assignments.scope_id = null` means an explicit bottom-scope grant
+  for `resourceScope: "none"`, not tenant root.
 - `documents.auth_scope_id` is framework metadata. It is not stored in document
   JSONB data.
 - `authScopeId: null` means tenant-root/global resource, not public access.
@@ -124,15 +126,26 @@ interface TenantActorContext {
   - `<app-id>:<collection-id>:<capability-id>` for collection-level
     permissions.
 - `resourceScope: "document"` checks the document `auth_scope_id`; `null`
-  normalizes to the tenant root scope.
-- `resourceScope: "tenant-root"` checks the capability at the tenant root
-  scope and skips document containment.
+  still means the tenant root at the document-service boundary.
+- `resourceScope: "tenant-root"` always checks the capability at the tenant
+  root scope and skips document containment.
+- `resourceScope: "none"` checks the virtual bottom scope. Concrete scoped
+  grants and explicit bottom grants (`scope_id = null`) may satisfy it, but
+  bottom grants must not satisfy document or tenant-root checks.
+- Repository/service evaluator input no longer uses a separate target-mode
+  contract. `targetScopeIds: [null]` now means the virtual bottom scope.
+  Callers that need tenant-root authorization must translate to the real tenant
+  root scope id before calling `checkCapabilities`/`evaluateAccess`.
+- Document service is the translation boundary for its collection auth modes:
+  it preserves stored/document-facing `authScopeId: null` as tenant-root, sends
+  the real tenant root scope id for `resourceScope: "document"` null documents,
+  sends `[rootScopeId]` for `resourceScope: "tenant-root"`, and sends
+  `[null]` only for `resourceScope: "none"` checks.
+- Deferred: do not migrate document writes or stored `documents.auth_scope_id =
+  null` semantics in this cutover. Document-null continues to mean tenant-root
+  until a separate migration changes the persisted contract.
 - Protected remote writes must authorize before calling a remote adapter.
   Adapter context receives `actor` only on protected calls.
-- Check results align with `checks` input order. Repeated service scope checks
-  must be deduplicated before calling `AuthRbacService.evaluateAccess`.
-- `listAccessibleDocumentScopeIds` returns `null` for the tenant-root scope in
-  its query; document filtering does not issue a second root lookup.
 - Scalar public service APIs such as `grantPermission`, `assignRole`, and
   `checkAccess` wrap one-element repository batches. Login, actor membership
   lookup, root-scope creation, scope-tree creation, and role resolution remain
@@ -204,8 +217,11 @@ interface TenantActorContext {
 - pgLite migration test coverage through `migrateToLatest(db)`.
 - Username/password verification and actor resolution.
 - Tenant isolation for memberships, scopes, role assignments, and documents.
-- List filtering with child-scope and tenant-root/null documents.
-- Authorized mutation allow/deny behavior.
+- List filtering with child-scope documents, tenant-root/null documents, and
+  bottom-scope grants that do not leak into tenant-root/document checks.
+- Authorized mutation allow/deny behavior, including tenant-root using the real
+  root scope id, `resourceScope: "none"` bottom-target semantics, and
+  document-service translation that preserves current document-null behavior.
 - Remote write denial before adapter side effects.
 - Trusted write rejection for cross-tenant `authScopeId`.
 - Protected batch create/read/update allow and deny paths with one
@@ -214,7 +230,7 @@ interface TenantActorContext {
   through `findDeniedRolePermission`.
 - Permission sync and grant/evaluation coverage for built-in admin/global keys,
   app-scoped keys, collection-scoped keys, duplicate human collection keys across
-  apps, and unknown canonical key failure.
+  apps, unknown canonical key failure, and persisted `resource_scope` metadata.
 
 ### 7. Wrong vs Correct
 

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/server/index.md", "reason": "Server-layer entrypoint and required GitNexus/verification rules for this task."}
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Auth/RBAC contracts, capability-check semantics, and required behavior coverage to update for bottom-scope grants."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Database schema, Kysely repository, migration, and nullable scope guidance for DB/auth changes."}
+{"file": ".trellis/spec/server/testing.md", "reason": "pgLite-backed test layout and behavior-first assertion requirements for server auth changes."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/prd.md", "reason": "Accepted requirements and cutover constraints for resourceScope none support."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/design.md", "reason": "Settled virtual-bottom-scope design, SQL branching model, and rollback shape."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/implement.md", "reason": "Execution order, validation checkpoints, and affected files for implementation subagents."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/schema-and-query-surface.md", "reason": "Grounding for nullable scope schema changes, partial uniqueness, and query branch refactor."}
+{"file": ".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/resource-scope-none-semantics.md", "reason": "Grounding for tenant-root vs bottom-scope semantics and required authorization invariants."}

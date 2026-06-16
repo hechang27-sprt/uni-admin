@@ -3,6 +3,7 @@ import { injectable } from "inversify";
 
 import { DocumentServiceError } from "../documents/errors";
 import type { RemoteCollectionAdapter } from "../documents/remote";
+import { resourceScopeModeSchema, type ResourceScopeMode } from "#server/auth/um";
 
 const safePermissionSegmentSchema = z
   .string()
@@ -31,7 +32,7 @@ export const DEFAULT_APP_KEY = "default";
 
 const collectionOperationSchema = z.enum(collectionOperationValues);
 
-const collectionResourceScopeModeSchema = z.enum(["document", "tenant-root"]);
+const collectionResourceScopeModeSchema = resourceScopeModeSchema;
 
 const collectionOperationAuthDeclarationSchema = z
   .object({
@@ -70,6 +71,7 @@ const permissionDefinitionSchema = z.object({
   capabilityId: safePermissionSegmentSchema.optional(),
   source: z.enum(permissionSourceValues),
   description: z.string().optional(),
+  resourceScope: collectionResourceScopeModeSchema.optional(),
 });
 
 export type CollectionSchema<TData extends JsonObject = JsonObject> =
@@ -182,10 +184,7 @@ function registeredCollectionSchema<
 }
 
 export type CollectionOperation = z.infer<typeof collectionOperationSchema>;
-
-export type CollectionResourceScopeMode = z.infer<
-  typeof collectionResourceScopeModeSchema
->;
+export type CollectionResourceScopeMode = ResourceScopeMode;
 
 export type CollectionOperationAuthDeclaration = z.infer<
   typeof collectionOperationAuthDeclarationSchema
@@ -407,6 +406,7 @@ export class CollectionRegistry {
             collectionKey: collection.key,
             capabilityId: auth.capability,
             source: "collection",
+            resourceScope: auth.resourceScope,
           });
         }
       }
@@ -419,6 +419,7 @@ export class CollectionRegistry {
             collectionKey: collection.key,
             capabilityId: auth.capability,
             source: "collection",
+            resourceScope: auth.resourceScope,
           });
         }
       }

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Verify final RBAC contract and required behavior coverage against the spec owner."}
+{"file":".trellis/spec/server/document-service.md","reason":"Verify document-service authorization and list/create behavior remain correct after translation cutover."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Verify SQL/query behavior still matches nullable-scope and target-semantics rules."}
+{"file":".trellis/spec/server/testing.md","reason":"Verify the chosen test scope matches project testing requirements for this backend refactor."}
+{"file":".trellis/tasks/06-17-check-capabilities-bottom-scope-target-semantics/prd.md","reason":"Check the delivered code against the task requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-17-check-capabilities-bottom-scope-target-semantics/design.md","reason":"Check the implementation against the settled boring-evaluator design and deferred document-null decision."}
+{"file":".trellis/tasks/06-17-check-capabilities-bottom-scope-target-semantics/implement.md","reason":"Check the executed slices and verification against the persisted implementation checklist."}

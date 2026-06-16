@@ -39,9 +39,23 @@ export function selectGrantedPermissions() {
         .onRef("rp.tenantId", "=", "tu.tenantId"),
     )
     .innerJoin("permissions as p", "p.key", "rp.permissionKey")
-    .innerJoin("authScopeClosure as c", (join) =>
+    .leftJoin("authScopeClosure as c", (join) =>
       join
         .onRef("c.ancestorId", "=", "assigned.scopeId")
-        .onRef("c.tenantId", "=", "tu.tenantId"),
-    );
+        .onRef("c.tenantId", "=", "tu.tenantId")
+        .on("assigned.scopeId", "is not", null),
+    )
+    .select([
+      "tu.tenantId as tenantId",
+      "tu.userId as userId",
+      "assigned.assignmentId as assignmentId",
+      "assigned.roleId as assignedRoleId",
+      "assigned.scopeId as scopeId",
+      "rp.roleId as permissionRoleId",
+      "rp.permissionKey as permissionKey",
+      "p.key as permissionKeyResolved",
+      "p.resourceScope as resourceScope",
+      "c.descendantId as descendantId",
+      "c.depth as depth",
+    ]);
 }

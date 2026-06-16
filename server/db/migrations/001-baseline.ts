@@ -1,4 +1,4 @@
-import { sql, type Kysely } from "kysely";
+import { sql, type Kysely, type SqlBool } from "kysely";
 
 import type { Database } from "../schema";
 
@@ -213,6 +213,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn("capability_id", "text", (col) => col.notNull())
     .addColumn("source", "text", (col) => col.notNull())
     .addColumn("description", "text")
+    .addColumn("resource_scope", "text")
     .addColumn("created_at", sql`timestamp with time zone`, (col) =>
       col.defaultTo(sql`now()`).notNull(),
     )
@@ -260,7 +261,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col.references("roles.role_id").onDelete("cascade").notNull(),
     )
     .addColumn("scope_id", "uuid", (col) =>
-      col.references("auth_scopes.scope_id").onDelete("cascade").notNull(),
+      col.references("auth_scopes.scope_id").onDelete("cascade"),
     )
     .addColumn("created_at", sql`timestamp with time zone`, (col) =>
       col.defaultTo(sql`now()`).notNull(),
@@ -368,10 +369,19 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("user_role_assignments_unique")
+    .createIndex("user_role_assignments_scoped_unique")
     .unique()
     .on("user_role_assignments")
     .columns(["tenant_id", "user_id", "role_id", "scope_id"])
+    .where(sql<SqlBool>`scope_id is not null`)
+    .execute();
+
+  await db.schema
+    .createIndex("user_role_assignments_bottom_unique")
+    .unique()
+    .on("user_role_assignments")
+    .columns(["tenant_id", "user_id", "role_id"])
+    .where(sql<SqlBool>`scope_id is null`)
     .execute();
 
   await db.schema

@@ -53,12 +53,24 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
   application JSON and keys such as `external_ref` must not be renamed.
 - The Kysely baseline targets an empty database. Existing Drizzle migration
   history and data are not upgraded in place.
+- `permissions.resource_scope` stores collection-derived auth target mode when
+  present: `document`, `tenant-root`, or `none`.
+- `user_role_assignments.scope_id` is nullable. Non-null values still reference
+  `auth_scopes.scope_id`; `null` means an explicit bottom-scope grant for
+  `resourceScope: "none"`.
+- Assignment uniqueness is null-aware: scoped rows are unique on
+  `(tenant_id, user_id, role_id, scope_id)` where `scope_id is not null`, and
+  bottom-scope rows are unique on `(tenant_id, user_id, role_id)` where
+  `scope_id is null`.
 
 ### 4. Validation & Error Matrix
 
 - Migration failure -> `migrateToLatest()` rejects before tests seed data.
 - Omitting `maintainNestedObjectKeys: true` -> document JSON keys can be
   silently camel-cased on reads, violating the stored payload contract.
+- Writing a bottom-scope assignment without the partial unique index split ->
+  duplicate `scope_id is null` grants can persist silently because PostgreSQL
+  treats nulls as distinct in ordinary unique indexes.
 
 ### 5. Good/Base/Bad Cases
 
@@ -67,6 +79,11 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
 - Base: tests create a pgLite Kysely database, migrate it, then seed tenants.
 - Bad: write raw SQL with camelCase physical columns or use the default
   `CamelCasePlugin` mapping for JSONB document rows.
+- Good: collection permission sync persists `permissions.resource_scope` from
+  registry auth metadata, and bottom-scope role assignments use `scope_id =
+  null` without inventing a fake scope row.
+- Bad: normalize `scope_id = null` to tenant root or rely on one non-partial
+  unique index for both scoped and bottom-scope grants.
 
 ### 6. Tests Required
 
@@ -74,6 +91,9 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
   suites.
 - An assertion that snake_case JSON data keys round-trip unchanged through
   repository reads.
+- Migration/auth coverage proving `permissions.resource_scope`, nullable
+  `user_role_assignments.scope_id`, and null-aware uniqueness for bottom-scope
+  grants.
 
 ### 7. Wrong vs Correct
 
@@ -234,6 +254,16 @@ Important patterns:
   set-returning functions must align by ordinality.
 - Use `onConflictDoUpdate` for remote projection upserts keyed by remote
   identity.
+- `selectGrantedPermissions()` must preserve two grant lanes: concrete scoped
+  assignments expand through `auth_scope_closure`, while bottom-scope
+  assignments (`scope_id = null`) remain explicit rows consumed only by the
+  bottom-target authorization path.
+- Repository capability evaluation must keep tenant-root and bottom distinct:
+  `targetScopeIds: [null]` is the bottom-scope sentinel, while tenant-root
+  callers pass the concrete tenant root scope id.
+- Document-service translation is responsible for preserving current
+  `documents.auth_scope_id = null` meaning as tenant-root until the deferred
+  document-null semantic migration lands.
 
 `findByRemoteIdentity` is intentionally singular: a remote reconciliation
 operation targets one external identity and it is not used from item loops.

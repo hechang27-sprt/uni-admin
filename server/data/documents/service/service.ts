@@ -148,32 +148,33 @@ export class DocumentService {
         collection,
         input.operation ?? "read",
       );
-      if (auth?.resourceScope === "tenant-root") {
-        await this.assertDocumentAccess({
-          ...actorContext(input, options),
-          checks: [
-            {
-              capabilities: [
-                buildPermissionKey(
-                  identity.appId,
-                  identity.collectionId,
-                  auth.capability,
-                ),
-              ],
-              targetScopeIds: [null],
-            },
-          ],
-        });
-      } else if (auth) {
-        accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
-          input,
-          options,
-          buildPermissionKey(
-            identity.appId,
-            identity.collectionId,
-            auth.capability,
-          ),
+      if (auth) {
+        const capability = buildPermissionKey(
+          identity.appId,
+          identity.collectionId,
+          auth.capability,
         );
+
+        if (auth.resourceScope === "document") {
+          accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
+            input,
+            options,
+            capability,
+          );
+        } else {
+          await this.assertDocumentAccess({
+            ...actorContext(input, options),
+            checks: [
+              {
+                capabilities: [capability],
+                targetScopeIds: await this.translateResourceScopeTargets(
+                  input.tenantId,
+                  auth.resourceScope,
+                ),
+              },
+            ],
+          });
+        }
       }
     }
 
@@ -616,7 +617,11 @@ export class DocumentService {
       checks: [
         {
           capabilities: ["admin:documents:set-scope"],
-          targetScopeIds: uniq([existing.authScopeId, input.authScopeId]),
+          targetScopeIds: await this.translateResourceScopeTargets(
+            input.tenantId,
+            "document",
+            uniq([existing.authScopeId, input.authScopeId]),
+          ),
         },
       ],
     });
@@ -650,23 +655,27 @@ export class DocumentService {
       identity.collectionId,
       auth.capability,
     );
-    if (auth.resourceScope === "tenant-root") {
-      await this.assertDocumentAccess({
-        ...actorContext(input, authenticatedOptions),
-        checks: [
-          {
-            capabilities: [capability],
-            targetScopeIds: [null],
-          },
-        ],
+    if (auth.resourceScope === "document") {
+      return this.authorizer.listCreatableDocumentScopeIds({
+        context: actorContext(input, authenticatedOptions),
+        capability,
       });
-      return [null];
     }
 
-    return this.authorizer.listCreatableDocumentScopeIds({
-      context: actorContext(input, authenticatedOptions),
-      capability,
+    await this.assertDocumentAccess({
+      ...actorContext(input, authenticatedOptions),
+      checks: [
+        {
+          capabilities: [capability],
+          targetScopeIds: await this.translateResourceScopeTargets(
+            input.tenantId,
+            auth.resourceScope,
+          ),
+        },
+      ],
     });
+
+    return auth.resourceScope === "tenant-root" ? [null] : [];
   }
 
   private async authorizeCreate(
@@ -677,7 +686,6 @@ export class DocumentService {
     if (!hasActorOptions(options)) {
       return;
     }
-
     const collection = this.getCollection(input);
     const auth = CollectionRegistry.resolveOperationAuth(collection, "create");
     if (!auth) {
@@ -696,8 +704,11 @@ export class DocumentService {
               auth.capability,
             ),
           ],
-          targetScopeIds:
-            auth.resourceScope === "tenant-root" ? [null] : uniq(authScopeIds),
+          targetScopeIds: await this.translateResourceScopeTargets(
+            input.tenantId,
+            auth.resourceScope,
+            auth.resourceScope === "document" ? authScopeIds : [],
+          ),
         },
       ],
     });
@@ -712,7 +723,6 @@ export class DocumentService {
     if (!hasActorOptions(options)) {
       return;
     }
-
     const collection = this.getCollection(input);
     const auth = CollectionRegistry.resolveOperationAuth(collection, operation);
     if (!auth) {
@@ -731,10 +741,13 @@ export class DocumentService {
               auth.capability,
             ),
           ],
-          targetScopeIds:
-            auth.resourceScope === "tenant-root"
-              ? [null]
-              : uniq(documents.map((document) => document.authScopeId)),
+          targetScopeIds: await this.translateResourceScopeTargets(
+            input.tenantId,
+            auth.resourceScope,
+            auth.resourceScope === "document"
+              ? documents.map((document) => document.authScopeId)
+              : [],
+          ),
         },
       ],
     });
@@ -757,6 +770,25 @@ export class DocumentService {
 
       throw error;
     }
+  }
+
+  private async translateResourceScopeTargets(
+    tenantId: string,
+    resourceScope: "document" | "tenant-root" | "none",
+    authScopeIds: (string | null)[] = [],
+  ): Promise<(string | null)[]> {
+    if (resourceScope === "none") {
+      return [null];
+    }
+
+    if (resourceScope === "tenant-root") {
+      return [await this.authorizer.getTenantRootScopeId(tenantId)];
+    }
+
+    const rootScopeId = await this.authorizer.getTenantRootScopeId(tenantId);
+    return uniq(
+      authScopeIds.map((authScopeId) => authScopeId ?? rootScopeId),
+    );
   }
 
   private async buildAccessibleDocumentScopeFilter(

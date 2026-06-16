@@ -1,0 +1,9 @@
+{"file":".trellis/spec/server/index.md","reason":"Server spec entrypoint and pre-development checklist for backend RBAC/document work."}
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Auth/RBAC contract owner for evaluator semantics, target translation, and denial behavior."}
+{"file":".trellis/spec/server/document-service.md","reason":"Document service authorization boundary and list/create/mutation behavior to preserve during target translation."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Repository and SQL guidance for nullable scope grants and capability evaluation."}
+{"file":".trellis/spec/server/testing.md","reason":"Required pgLite-backed auth/document verification scope for this refactor."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer data-flow guardrail because this cutover changes service-to-repository contracts."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Centralize target translation instead of duplicating root/bottom mapping across callsites."}
+{"file":".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/schema-and-query-surface.md","reason":"Prior settled DB/query implications for bottom-scope grants and shared grant expansion."}
+{"file":".trellis/tasks/06-16-issue-4-resource-scope-none-db/research/resource-scope-none-semantics.md","reason":"Prior semantics research covering existing root-null behavior and required bottom invariants."}
