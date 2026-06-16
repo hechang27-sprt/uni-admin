@@ -1262,3 +1262,35 @@ Refactored auth permission upsert to batch-resolve permission definitions in one
 ### Next Steps
 
 - None - task complete
+
+
+## Session 39: Catalog identity lookup cache
+
+**Date**: 2026-06-16
+**Task**: Catalog identity lookup cache
+
+### Summary
+
+Implemented service-layer catalog app, collection, and tenant-collection lookup caching; added associum structured multikey cache indexing; normalized tenant app enablement so omitted appKey maps to default; updated repository return data and focused unit coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a841af25` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
