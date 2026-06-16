@@ -5,6 +5,7 @@ import { sql, type Selectable } from "kysely";
 import type { DocumentsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import type { ListDocumentsInput, StoredDocument } from "../types";
+import { unnest } from "../../../utils/unnest";
 import {
   buildAccessibleScopeCondition,
   buildAuthScopeCondition,
@@ -48,13 +49,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       insertManyDocumentsItemSchema,
     );
 
-    type InsertInput = {
-      data: TData;
-      authScopeId: string | null;
-      remoteSource: string | null;
-      remoteId: string | null;
-    };
-
     const rows = await this.database
       .insertInto("documents")
       .columns([
@@ -69,8 +63,17 @@ export class KyselyDocumentRepository implements DocumentRepository {
       ])
       .expression(({ selectFrom, val }) =>
         selectFrom(
-          sql<InsertInput>`unnest(${data}::jsonb[], ${authScopeId}::uuid[], ${remoteId}::text[], ${remoteSource}::text[])`.as<"input">(
-            sql`input(data, auth_scope_id, remote_id, remote_source)`,
+          unnest(
+            "input",
+            { data, authScopeId, remoteId, remoteSource },
+            {
+              types: {
+                authScopeId: "uuid",
+                remoteId: "text",
+                remoteSource: "text",
+              },
+              jsonb: ["data"],
+            },
           ),
         ).select([
           val(input.tenantId).as("tenantId"),
@@ -192,46 +195,31 @@ export class KyselyDocumentRepository implements DocumentRepository {
       updateDocumentRecordSchema,
       "set",
     );
-    type UpdateInput = {
-      [K in keyof typeof columns]: (typeof columns)[K][number];
-    };
 
     try {
       return await this.database.transaction().execute(async (tx) => {
         const result = await tx
           .updateTable("documents")
           .from(
-            sql<UpdateInput>`
-              unnest(
-                ${columns.id}::uuid[],
-                ${columns.appId}::uuid[],
-                ${columns.collectionId}::uuid[],
-                ${columns.expectedVersion}::int[],
-                ${columns.schemaVersion}::int[],
-                ${columns.data}::jsonb[],
-                ${columns.setData}::boolean[],
-                ${columns.authScopeId}::uuid[],
-                ${columns.setAuthScopeId}::boolean[],
-                ${columns.deletedAt}::timestamp with time zone[],
-                ${columns.setDeletedAt}::boolean[],
-                ${columns.remoteSource}::text[],
-                ${columns.setRemoteSource}::boolean[],
-                ${columns.remoteId}::text[],
-                ${columns.setRemoteId}::boolean[]
-              )
-            `.as<"updates">(
-              sql`
-                updates(
-                  id, app_id, collection_id,
-                  expected_version, schema_version,
-                  data, set_data,
-                  auth_scope_id, set_auth_scope_id,
-                  deleted_at, set_deleted_at,
-                  remote_source, set_remote_source,
-                  remote_id, set_remote_id
-                )
-              `,
-            ),
+            unnest("updates", columns, {
+              types: {
+                id: "uuid",
+                appId: "uuid",
+                collectionId: "uuid",
+                expectedVersion: "int",
+                schemaVersion: "int",
+                setData: "boolean",
+                authScopeId: "uuid",
+                setAuthScopeId: "boolean",
+                deletedAt: "timestamp with time zone",
+                setDeletedAt: "boolean",
+                remoteSource: "text",
+                setRemoteSource: "boolean",
+                remoteId: "text",
+                setRemoteId: "boolean",
+              },
+              jsonb: ["data"],
+            }),
           )
           .whereRef("documents.id", "=", "updates.id")
           .whereRef("documents.appId", "=", "updates.appId")
@@ -304,12 +292,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       upsertRemoteProjectionSchema,
     );
 
-    type ProjectionInput = {
-      data: TData;
-      authScopeId: string | null;
-      remoteId: string;
-    };
-
     const rows = await this.database
       .insertInto("documents")
       .columns([
@@ -325,8 +307,13 @@ export class KyselyDocumentRepository implements DocumentRepository {
       ])
       .expression(({ selectFrom, val }) =>
         selectFrom(
-          sql<ProjectionInput>`unnest(${data}::jsonb[], ${authScopeId}::uuid[], ${remoteId}::text[])`.as<"input">(
-            sql`input(data, auth_scope_id, remote_id)`,
+          unnest(
+            "input",
+            { data, authScopeId, remoteId },
+            {
+              types: { authScopeId: "uuid", remoteId: "text" },
+              jsonb: ["data"],
+            },
           ),
         ).select([
           val(record.appId).as("appId"),
@@ -383,11 +370,10 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .with("input", (db) =>
         db
           .selectFrom(
-            sql<{
-              id: string;
-              inputOrder: number;
-            }>`unnest(${input.ids}::uuid[]) with ordinality`.as(
-              sql`t(id, input_order)`,
+            unnest(
+              "t",
+              { id: input.ids },
+              { types: { id: "uuid" }, withOrdinality: "inputOrder" },
             ),
           )
           .selectAll(),

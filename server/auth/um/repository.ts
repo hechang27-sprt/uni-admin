@@ -235,11 +235,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          userId: string;
-          inputOrder: number;
-        }>`unnest(${input.userIds}::uuid[]) with ordinality`.as<"input">(
-          sql`input(user_id, input_order)`,
+        unnest(
+          "input",
+          { userId: input.userIds },
+          { types: { userId: "uuid" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin(
@@ -475,10 +474,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .columns(["tenantId", "roleId", "permissionKey"])
       .expression(({ selectFrom, val }) =>
         selectFrom(
-          sql<{
-            key: string;
-          }>`unnest(${input.permissionKeys}::text[])`.as<"input">(
-            sql`input(key)`,
+          unnest(
+            "input",
+            { key: input.permissionKeys },
+            { types: { key: "text" } },
           ),
         )
           .innerJoin("permissions", "permissions.key", "input.key")
@@ -504,7 +503,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       return;
     }
 
-    type Assignment = (typeof input.assignments)[number];
     const { userId, roleId, scopeId } = pivotToColumns(input.assignments);
 
     await this.database
@@ -512,8 +510,12 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .columns(["tenantId", "userId", "roleId", "scopeId"])
       .expression(({ selectFrom, val }) =>
         selectFrom(
-          sql<Assignment>`unnest(${userId}::uuid[], ${roleId}::uuid[], ${scopeId}::uuid[])`.as<"assignments">(
-            sql`assignments(user_id, role_id, scope_id)`,
+          unnest(
+            "assignments",
+            { userId, roleId, scopeId },
+            {
+              types: { userId: "uuid", roleId: "uuid", scopeId: "uuid" },
+            },
           ),
         ).select([
           val(input.tenantId).as("tenantId"),
@@ -536,11 +538,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          roleId: string;
-          inputOrder: number;
-        }>`unnest(${input.roleIds}::uuid[]) with ordinality`.as<"input">(
-          sql`input(role_id, input_order)`,
+        unnest(
+          "input",
+          { roleId: input.roleIds },
+          { types: { roleId: "uuid" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin("roles", (join) =>
@@ -566,11 +567,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          assignmentId: string;
-          inputOrder: number;
-        }>`unnest(${input.assignmentIds}::uuid[]) with ordinality`.as<"input">(
-          sql`input(assignment_id, input_order)`,
+        unnest(
+          "input",
+          { assignmentId: input.assignmentIds },
+          { types: { assignmentId: "uuid" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin("userRoleAssignments", (join) =>
@@ -596,11 +596,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          scopeId: string;
-          inputOrder: number;
-        }>`unnest(${input.scopeIds}::uuid[]) with ordinality`.as<"input">(
-          sql`input(scope_id, input_order)`,
+        unnest(
+          "input",
+          { scopeId: input.scopeIds },
+          { types: { scopeId: "uuid" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin("authScopes", (join) =>
@@ -626,11 +625,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          documentId: string;
-          inputOrder: number;
-        }>`unnest(${input.documentIds}::uuid[]) with ordinality`.as<"input">(
-          sql`input(document_id, input_order)`,
+        unnest(
+          "input",
+          { documentId: input.documentIds },
+          { types: { documentId: "uuid" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin("documents", (join) =>
@@ -655,11 +653,10 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     const invalid = await this.database
       .selectFrom(
-        sql<{
-          permissionKey: string;
-          inputOrder: number;
-        }>`unnest(${input.permissionKeys}::text[]) with ordinality`.as<"input">(
-          sql`input(permission_key, input_order)`,
+        unnest(
+          "input",
+          { permissionKey: input.permissionKeys },
+          { types: { permissionKey: "text" }, withOrdinality: "inputOrder" },
         ),
       )
       .leftJoin("permissions", "permissions.key", "input.permissionKey")
