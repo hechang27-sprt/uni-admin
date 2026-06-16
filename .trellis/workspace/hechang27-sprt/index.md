@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 39
+- **Total Sessions**: 40
 - **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1296 | Active |
+| `journal-1.md` | ~1328 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 40 | 2026-06-16 | Fix permission keys and remote index | `87007306` | `-` |
 | 39 | 2026-06-16 | Catalog identity lookup cache | `a841af25` | `-` |
 | 38 | 2026-06-15 | Batch permission resolution refactor | `755e0b29` | `-` |
 | 37 | 2026-06-15 | Refactor collection registry APIs | `8fc57170` | `-` |

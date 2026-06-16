@@ -1294,3 +1294,35 @@ Implemented service-layer catalog app, collection, and tenant-collection lookup 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 40: Fix permission keys and remote index
+
+**Date**: 2026-06-16
+**Task**: Fix permission keys and remote index
+
+### Summary
+
+Closed issue 14 after aligning the remote projection unique index with the repository conflict target and adding migration coverage. Fixed issue 12 by exporting buildPermissionKey from auth/RBAC, consuming it in repository permission sync and document authorization, and verifying auth/service behavior plus typecheck.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `87007306` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
