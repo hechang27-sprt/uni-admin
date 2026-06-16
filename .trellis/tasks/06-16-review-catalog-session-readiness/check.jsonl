@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/06-16-review-catalog-session-readiness/prd.md","reason":"Review acceptance criteria."}
+{"file":".trellis/tasks/06-16-review-catalog-session-readiness/design.md","reason":"Finding and fix policy."}
+{"file":".trellis/tasks/06-16-review-catalog-session-readiness/implement.md","reason":"Verification plan."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Persistence invariants for final check."}
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Auth/RBAC invariants for final check."}
+{"file":".trellis/spec/server/data-layer-boundaries.md","reason":"Boundary invariants for final check."}

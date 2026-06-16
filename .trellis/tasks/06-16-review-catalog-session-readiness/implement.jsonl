@@ -1,0 +1,11 @@
+{"file":".trellis/tasks/06-08-app-catalog-identity-migration/prd.md","reason":"Catalog migration requirements to validate."}
+{"file":".trellis/tasks/06-08-app-catalog-identity-migration/design.md","reason":"Catalog migration target invariants to validate."}
+{"file":".trellis/tasks/06-08-app-catalog-identity-migration/implement.md","reason":"Catalog migration checklist and validation commands."}
+{"file":".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/prd.md","reason":"Archived session endpoint requirements to reassess."}
+{"file":".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/design.md","reason":"Archived session endpoint architecture to reassess."}
+{"file":".trellis/tasks/archive/2026-05/05-25-authentication-session-endpoints-brainstorm/implement.md","reason":"Archived session implementation assumptions to update."}
+{"file":".trellis/spec/server/index.md","reason":"Server spec entry point."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Kysely/catalog persistence invariants."}
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Auth/RBAC and permission identity invariants."}
+{"file":".trellis/spec/server/data-layer-boundaries.md","reason":"Module boundary invariants."}
+{"file":".trellis/spec/server/testing.md","reason":"Server testing requirements."}
