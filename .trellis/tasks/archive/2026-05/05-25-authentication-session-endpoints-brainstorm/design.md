@@ -14,9 +14,9 @@ outside this milestone.
 ## Architecture
 
 The design extends the existing server boundaries rather than letting route
-handlers query Drizzle directly:
+handlers query Kysely or database tables directly:
 
-- `server/db/schema.ts` and a reviewed SQL migration define session
+- `server/db/schema.ts` and a reviewed Kysely migration define session
   persistence.
 - The `server/auth` domain owns session types, persistence methods, session
   lifecycle behavior, and conversion from a selected session into
@@ -34,8 +34,8 @@ validation, then continues through the existing database-backed RBAC path.
 
 ## Session Data Model
 
-Add a typed `auth_sessions` table represented in Drizzle and created as a
-PostgreSQL `UNLOGGED` table in its migration.
+Add a typed `authSessions` Kysely table interface and create the physical
+PostgreSQL `auth_sessions` table as `UNLOGGED` in its migration.
 
 Proposed columns:
 
@@ -56,9 +56,9 @@ Required indexes and constraints:
 - Index on `(tenant_id, user_id)` for membership-specific revocation.
 - Nullable composite foreign key `(tenant_id, user_id)` to
   `tenant_memberships(tenant_id, user_id)` with delete cascade where supported
-  by the Drizzle declaration and generated SQL. This makes physical membership
-  deletion remove sessions selected into that membership while leaving
-  tenant-less sessions untouched.
+  by the Kysely migration SQL. This makes physical membership deletion remove
+  sessions selected into that membership while leaving tenant-less sessions
+  untouched.
 
 The membership-status transition path must still call tenant-membership
 revocation, because a foreign key does not invalidate a retained row that
@@ -194,7 +194,7 @@ frontend in this milestone.
 ## Testing And Compatibility
 
 - Keep service/repository behavior tests in `test/unit/server/` using pgLite
-  and real Drizzle migrations, matching existing auth/RBAC coverage.
+  and real Kysely migrations, matching existing auth/RBAC coverage.
 - Add Nitro route tests in the configured Nuxt test project for cookies, HTTP
   statuses, response bodies, and mutation guards.
 - Cover login with zero, one, and multiple active memberships; tenant
@@ -206,9 +206,9 @@ frontend in this milestone.
 
 ## Operational Notes
 
-- The migration must be reviewed to confirm `UNLOGGED` DDL and indexes; a
-  generated Drizzle migration may require deliberate SQL adjustment for the
-  persistence mode.
+- The migration must be reviewed to confirm `UNLOGGED` DDL and indexes; Kysely
+  schema typing does not replace deliberate review of PostgreSQL-specific raw
+  SQL for the persistence mode.
 - A PostgreSQL crash recovery or standby failover logs users out by losing
   unlogged session rows. This is accepted behavior, not a data-restoration
   bug.

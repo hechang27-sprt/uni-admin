@@ -15,18 +15,18 @@ client support, or rate limiting.
 2. Check current worktree state and preserve unrelated edits.
 3. Use GitNexus impact analysis before modifying existing functions/classes or
    shared schema symbols, especially `AuthRbacService`,
-   `DrizzleAuthRbacRepository`, and `server/db/schema.ts` declarations.
+   `KyselyAuthRbacRepository`, and `server/db/schema.ts` declarations.
 4. Re-read this task's `prd.md` and `design.md`, treating the route/error and
    session trust-boundary decisions as implementation requirements.
 
 ## Ordered Work
 
 1. Add database representation and migration.
-   - Define the typed session table, nullable selected tenant, timestamps,
-     constraints, and revocation indexes in `server/db/schema.ts`.
-   - Generate and review the SQL migration.
-   - Ensure the session table is created as PostgreSQL `UNLOGGED`, with user
-     deletion and selected-membership deletion semantics preserved.
+   - Define the typed `authSessions` table, nullable selected tenant,
+     timestamps, constraints, and revocation indexes in `server/db/schema.ts`.
+   - Write and review the Kysely migration SQL.
+   - Ensure the physical session table is created as PostgreSQL `UNLOGGED`,
+     with user deletion and selected-membership deletion semantics preserved.
 2. Add auth-domain session contracts.
    - Define session record, resolved-session presentation, selectable-tenant,
      creation, rotation, expiration, and revocation input/output types.
@@ -61,7 +61,7 @@ client support, or rate limiting.
    - `server/api/auth/logout.post.ts`
    - `server/api/auth/logout-all.post.ts`
 7. Add focused tests.
-   - Extend real-Drizzle pgLite unit coverage for session repository/service
+   - Extend real-Kysely pgLite unit coverage for session repository/service
      behavior and invalidation.
    - Add Nuxt route coverage for body validation, statuses, cookies, CSRF
      checks, session response shapes, and token rotation.
