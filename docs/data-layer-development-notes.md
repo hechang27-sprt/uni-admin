@@ -11,8 +11,8 @@ Implemented today:
 - Multi-tenant document storage in PostgreSQL using structured app and
   collection catalog identity.
 - Zod-backed collection registration keyed by `(appKey, collection name)`.
-- Local document CRUD, list, soft delete, restore, hard delete, and JSON Patch.
-- Batch create, ordered batch get-by-id, and all-or-nothing batch update.
+- Local document CRUD, list-based single/batch reads, soft delete, restore,
+  hard delete, and JSON Patch.
 - JSONB-path and metadata filtering, sorting, offset pagination, and deleted-row
   inclusion for repository-backed lists.
 - Remote-backed collection registration.
@@ -52,8 +52,6 @@ Document rows keep framework-owned identity separate from remote identity:
 - `tenant_id`: tenant boundary.
 - `app_id`: persisted catalog app identity.
 - `collection_id`: persisted catalog collection identity.
-- `collection`: legacy-compatible collection name mirror kept populated while
-  public service inputs still use `collection`.
 - `schema_version`: version of the registered local document schema.
 - `data`: JSONB local projection.
 - `auth_scope_id`: nullable framework-owned authorization scope. `null`
@@ -74,9 +72,9 @@ Remote-backed rows are unique by:
 (tenant_id, app_id, collection_id, remote_source, remote_id)
 ```
 
-Local-only rows leave `remote_source` and `remote_id` empty. The default app is
-enabled automatically for a tenant on document access; non-default apps must be
-enabled through the catalog boundary before tenant documents can be written.
+Local-only rows leave `remote_source` and `remote_id` empty. Tenants must be
+enabled for the app through the catalog boundary before tenant documents can be
+written, including the default app.
 
 ## Auth/RBAC Model
 
@@ -92,7 +90,7 @@ table:
 - `roles`, `permissions`, `role_permissions`, and `user_role_assignments`
   implement resource-scoped RBAC.
 
-The service API is exported from `#server/auth`. Projects bind
+The auth/RBAC service API is exported from `#server/auth/um`. Projects bind
 `KyselyAuthRbacRepository`, `AuthRbacService`, and `DocumentService` through the
 server DI container; interface-typed dependencies use runtime symbols from
 `#server/di`.

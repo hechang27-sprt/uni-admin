@@ -178,9 +178,9 @@ interface TenantActorContext {
 - Missing role/scope/permission during RBAC setup -> `AUTH_ROLE_NOT_FOUND`,
   `AUTH_SCOPE_NOT_FOUND`, or `AUTH_PERMISSION_NOT_FOUND` for the unknown
   canonical permission key.
-- Any failed check in a protected document batch ->
-  `DocumentServiceError` code `AUTHORIZATION_DENIED`; read batches return
-  `null` for denied positional items.
+- Any failed check in a protected document mutation batch ->
+  `DocumentServiceError` code `AUTHORIZATION_DENIED`; protected `list` reads
+  omit denied documents from `items`.
 
 ### 5. Good/Base/Bad Cases
 

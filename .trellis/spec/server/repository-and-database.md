@@ -128,17 +128,18 @@ type RegisteredCollection<TSchema extends CollectionSchema = CollectionSchema> =
 - `documents.app_id` and `documents.collection_id` are the persisted document
   identity within a tenant/app boundary; there is no mirrored persisted
   `documents.collection` column.
-- The document service syncs registry collections and enables the default app
-  automatically before document persistence. Non-default apps require explicit
-  tenant enablement.
+- The document service requires registered collections to be synced into the
+  catalog and the tenant app to be enabled before document persistence. The
+  default app can be bootstrapped through `CatalogService.enableTenantApp`, but
+  document operations do not implicitly enable tenant apps.
 - Default-app bootstrap is the only normal path that creates apps implicitly.
   Non-default tenant enablement must target an existing app key.
 
 ### 4. Validation & Error Matrix
 
 - Missing registered collection -> `DocumentServiceError("UNKNOWN_COLLECTION")`.
-- Registered non-default app not enabled for tenant ->
-  `DocumentServiceError("UNKNOWN_COLLECTION")`.
+- Registered app not enabled for tenant ->
+  `DocumentServiceError("UNKNOWN_COLLECTION")`, including the default app.
 - Enabling a tenant app for an unknown app key ->
   `DocumentServiceError("NOT_FOUND")`.
 - Cross-app same collection name -> valid when callers provide the intended
@@ -205,18 +206,17 @@ Important patterns:
 - Keep `collection` only as a public service input for registry/catalog
   resolution and validation.
 - Use `.returning()` and row mappers for writes.
-- Item persistence primitives are batch-only: `insertMany`, `findByIds`,
-  `updateMany`, and `hardDeleteMany`. Scalar service methods pass one-item
-  arrays and unwrap the result.
-- Keep batch update behavior transactional through `buildBatchUpdateQuery`.
-- Preserve input order for `findByIds` and `updateMany`.
+- Item persistence primitives are batch-oriented where mutation semantics need
+  them: `insertMany`, `updateMany`, `upsertRemoteProjections`, and
+  `hardDeleteMany`. Local reads use `list` with filters instead of a positional
+  repository `findByIds` helper.
 - Do not perform auth-scope tenant validation in
   `KyselyDocumentRepository`. Document service methods validate non-null
   `authScopeId` values through the configured `AuthRbacService` before
   calling repository write methods.
-- Correlate ordered read, delete, and upsert output through SQL input
-  relations with ordinality rather than building `Map` or `Set` instances
-  from query results.
+- Correlate ordered write/delete/upsert output through SQL input relations with
+  ordinality rather than building `Map` or `Set` instances from query results.
+  Callers that need ordered read results derive them from `list` output.
 - Prefer Kysely query/expression builders for repository query structure,
   joins, `exists` checks, and CTE composition. Keep `sql` fragments narrowly
   scoped to primitives Kysely cannot express cleanly, such as typed
@@ -252,13 +252,12 @@ interface DocumentRepository {
   insertMany<T>(
     record: InsertManyDocumentsRecord<T>,
   ): Promise<StoredDocument<T>[]>;
-  findByIds<T>(input: {
+  list<T>(input: {
     tenantId: string;
     appId: string;
     collectionId: string;
-    ids: string[];
-    includeDeleted?: boolean;
-  }): Promise<(StoredDocument<T> | null)[]>;
+    query?: ListDocumentsInput;
+  }): Promise<StoredDocument<T>[]>;
   updateMany<T>(
     record: UpdateManyDocumentsRecord<T>,
   ): Promise<StoredDocument<T>[] | null>;
@@ -273,7 +272,8 @@ interface DocumentRepository {
 
 ### 3. Contracts
 
-- `findByIds` returns positional `null` entries and preserves caller order.
+- `list` returns the matching document set for the normalized query; callers
+  derive positional `null` entries or custom ordering from `items` when needed.
 - `updateMany` is atomic and returns `null` when any optimistic update fails.
 - Mixed valid and invalid scoped write batches are rejected by the service
   before repository persistence: no valid item is persisted when any requested
@@ -298,7 +298,7 @@ interface DocumentRepository {
 
 ### 6. Tests Required
 
-- pgLite tests for ordered batch create/read/update, atomic stale update
+- pgLite tests for batch create/list/update behavior, atomic stale update
   rejection, cross-tenant scope rejection without partial writes, and
   timestamp return types after scalar methods use batch SQL.
 

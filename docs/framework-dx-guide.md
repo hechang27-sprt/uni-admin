@@ -73,6 +73,11 @@ const container = createServerContainer({
   registry,
 });
 const service = container.get<DocumentService>(SERVER_DI_TYPES.DocumentService);
+const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+await catalog.syncRegistryCollections();
+await catalog.enableTenantApp({
+  tenantId: "00000000-0000-4000-8000-000000000001",
+});
 ```
 
 Create and read a document. The service resolves `{ appKey?, collection }` to
@@ -96,8 +101,8 @@ const listed = await service.list<TaskDocument>({
 });
 ```
 
-For a non-default app, register with `appKey`, enable that app for the tenant,
-and pass the same app key to service methods:
+For a non-default app, register with `appKey`, sync the registry, enable that
+app for the tenant, and pass the same app key to service methods:
 
 ```ts
 registry.register({
@@ -107,7 +112,7 @@ registry.register({
   schemaVersion: 1,
 });
 
-const catalog = container.get<CatalogService>(SERVER_DI_TYPES.CatalogService);
+await catalog.syncRegistryCollections();
 await catalog.enableTenantApp({ tenantId, appKey: "inventory" });
 
 await service.create<TaskDocument>({
@@ -352,7 +357,7 @@ Create the auth/RBAC service beside the document service:
 ```ts
 import { createCollectionRegistry } from "#server/data/collections";
 import { type DocumentService } from "#server/data/documents";
-import { AuthRbacService } from "#server/auth";
+import { AuthRbacService } from "#server/auth/um";
 import { createServerContainer, SERVER_DI_TYPES } from "#server/di";
 
 const registry = createCollectionRegistry([
