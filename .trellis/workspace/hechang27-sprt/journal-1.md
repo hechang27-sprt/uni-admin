@@ -1326,3 +1326,35 @@ Closed issue 14 after aligning the remote projection unique index with the repos
 ### Next Steps
 
 - None - task complete
+
+
+## Session 41: Use unnest helper in repositories
+
+**Date**: 2026-06-16
+**Task**: Use unnest helper in repositories
+
+### Summary
+
+Converted remaining raw Kysely sql unnest input relations in auth/RBAC and document repositories to the shared server/utils/unnest helper. Verified with typecheck, targeted server vitest suites, raw unnest search, GitNexus impact analysis, and detect_changes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a9b92b1e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
