@@ -13,6 +13,7 @@ import {
   type UsersTable,
 } from "#server/db/schema";
 import { AuthRbacError } from "./errors";
+import { buildPermissionKey } from "./permission-key";
 import {
   type AuthScope,
   type AuthUser,
@@ -979,10 +980,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         "collections.collectionId as resolvedCollectionId",
         eb
           .case()
-          .when("input.collectionKey", "is not", null)
-          .then(
-            sql<string>`concat(${ref("apps.appId")}, ':', ${ref("collections.collectionId")}, ':', ${ref("input.capabilityId")})`,
-          )
           .when("input.appKey", "is not", null)
           .then(
             sql<string>`concat(${ref("apps.appId")}, ':', ${ref("input.capabilityId")})`,
@@ -997,14 +994,21 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       .execute();
 
     return rows.map((row) => {
-      if (
-        row.collectionKey &&
-        (!row.resolvedAppId || !row.resolvedCollectionId)
-      ) {
-        throw new AuthRbacError(
-          "AUTH_PERMISSION_NOT_FOUND",
-          "Permission definition requires a valid collection",
-          { permissionKey: row.key ?? undefined },
+      let resolvedKey = row.resolvedKey;
+
+      if (row.collectionKey) {
+        if (!row.resolvedAppId || !row.resolvedCollectionId) {
+          throw new AuthRbacError(
+            "AUTH_PERMISSION_NOT_FOUND",
+            "Permission definition requires a valid collection",
+            { permissionKey: row.key ?? undefined },
+          );
+        }
+
+        resolvedKey = buildPermissionKey(
+          row.resolvedAppId,
+          row.resolvedCollectionId,
+          row.capabilityId,
         );
       }
 
@@ -1017,7 +1021,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
       }
 
       return {
-        key: row.resolvedKey,
+        key: resolvedKey,
         appId: row.collectionKey || row.appKey ? row.resolvedAppId : null,
         collectionId: row.collectionKey ? row.resolvedCollectionId : null,
         capabilityId: row.capabilityId,

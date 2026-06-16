@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import {
   builtInAdminPermissions,
+  buildPermissionKey,
   type AuthRbacService,
   type AuthRbacRepository,
 } from "#server/auth/um";
@@ -271,7 +272,12 @@ describe("auth/RBAC service integration", () => {
         "permissions.collectionId",
       )
       .innerJoin("apps", "apps.appId", "permissions.appId")
-      .select(["apps.key as appKey", "permissions.key"])
+      .select([
+        "apps.appId",
+        "apps.key as appKey",
+        "collections.collectionId",
+        "permissions.key",
+      ])
       .where("collections.key", "=", "tasks")
       .where("permissions.capabilityId", "=", "read")
       .orderBy("apps.key")
@@ -281,6 +287,12 @@ describe("auth/RBAC service integration", () => {
     expect(rows[0]!.appKey).toBe("crm");
     expect(rows[1]!.appKey).toBe("ops");
     expect(rows[0]!.key).not.toBe(rows[1]!.key);
+    expect(rows[0]!.key).toBe(
+      buildPermissionKey(rows[0]!.appId, rows[0]!.collectionId, "read"),
+    );
+    expect(rows[1]!.key).toBe(
+      buildPermissionKey(rows[1]!.appId, rows[1]!.collectionId, "read"),
+    );
   });
   it("rejects unsafe collection keys and action names before deriving permissions", () => {
     expect(() =>

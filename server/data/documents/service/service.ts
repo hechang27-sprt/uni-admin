@@ -37,6 +37,7 @@ import type {
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
 import type { CatalogService, CatalogCollection } from "#server/data/catalog";
 import {
+  buildPermissionKey,
   isAuthRbacError,
   type AuthRbacService,
   type CheckAccessManyInput,
@@ -153,7 +154,11 @@ export class DocumentService {
           checks: [
             {
               capabilities: [
-                collectionPermissionKey(identity, auth.capability),
+                buildPermissionKey(
+                  identity.appId,
+                  identity.collectionId,
+                  auth.capability,
+                ),
               ],
               targetScopeIds: [null],
             },
@@ -163,7 +168,11 @@ export class DocumentService {
         accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
           input,
           options,
-          collectionPermissionKey(identity, auth.capability),
+          buildPermissionKey(
+            identity.appId,
+            identity.collectionId,
+            auth.capability,
+          ),
         );
       }
     }
@@ -636,7 +645,11 @@ export class DocumentService {
       return [];
     }
     const identity = await this.requireCollectionIdentity(input, collection);
-    const capability = collectionPermissionKey(identity, auth.capability);
+    const capability = buildPermissionKey(
+      identity.appId,
+      identity.collectionId,
+      auth.capability,
+    );
     if (auth.resourceScope === "tenant-root") {
       await this.assertDocumentAccess({
         ...actorContext(input, authenticatedOptions),
@@ -676,7 +689,13 @@ export class DocumentService {
       ...actorContext(input, options),
       checks: [
         {
-          capabilities: [collectionPermissionKey(identity, auth.capability)],
+          capabilities: [
+            buildPermissionKey(
+              identity.appId,
+              identity.collectionId,
+              auth.capability,
+            ),
+          ],
           targetScopeIds:
             auth.resourceScope === "tenant-root" ? [null] : uniq(authScopeIds),
         },
@@ -705,7 +724,13 @@ export class DocumentService {
       ...actorContext(input, options),
       checks: [
         {
-          capabilities: [collectionPermissionKey(identity, auth.capability)],
+          capabilities: [
+            buildPermissionKey(
+              identity.appId,
+              identity.collectionId,
+              auth.capability,
+            ),
+          ],
           targetScopeIds:
             auth.resourceScope === "tenant-root"
               ? [null]
@@ -970,13 +995,6 @@ export class DocumentService {
 
     return identity;
   }
-}
-
-function collectionPermissionKey(
-  identity: Pick<CatalogCollection, "appId" | "collectionId">,
-  capabilityId: string,
-): string {
-  return `${identity.appId}:${identity.collectionId}:${capabilityId}`;
 }
 
 type AuthenticatedDocumentServiceOptions = DocumentServiceOptions & {

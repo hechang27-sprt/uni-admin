@@ -1,5 +1,6 @@
 export { AuthRbacError, isAuthRbacError } from "./errors";
 export { hashPassword, verifyPassword } from "./password";
+export { buildPermissionKey } from "./permission-key";
 export {
   KyselyAuthRbacRepository,
   tenantRootScopeKey,

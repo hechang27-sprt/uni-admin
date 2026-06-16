@@ -407,14 +407,15 @@ describe("baseline migration catalog tables", () => {
   it("creates named catalog indexes and constraints", async () => {
     const db = getTestDatabase();
 
-    const indexes = await sql<{ indexname: string }>`
-      select indexname
+    const indexes = await sql<{ indexdef: string; indexname: string }>`
+      select indexname, indexdef
       from pg_indexes
       where schemaname = 'public'
         and indexname in (
           'apps_key_unique',
           'collections_app_key_unique',
-          'collections_app_collection_unique'
+          'collections_app_collection_unique',
+          'documents_remote_identity_unique'
         )
       order by indexname
     `.execute(db);
@@ -428,7 +429,17 @@ describe("baseline migration catalog tables", () => {
       "apps_key_unique",
       "collections_app_collection_unique",
       "collections_app_key_unique",
+      "documents_remote_identity_unique",
     ]);
+    const remoteIdentityIndex = indexes.rows.find(
+      (row) => row.indexname === "documents_remote_identity_unique",
+    );
+    expect(remoteIdentityIndex?.indexdef).toContain(
+      "(tenant_id, app_id, collection_id, remote_id, remote_source)",
+    );
+    expect(remoteIdentityIndex?.indexdef).toContain(
+      "WHERE ((remote_source IS NOT NULL) AND (remote_id IS NOT NULL))",
+    );
     expect(constraints.rows.map((row) => row.conname)).toEqual([
       "tenant_apps_pk",
     ]);

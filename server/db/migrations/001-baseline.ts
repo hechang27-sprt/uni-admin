@@ -413,8 +413,8 @@ export async function up(db: Kysely<Database>): Promise<void> {
       "tenant_id",
       "app_id",
       "collection_id",
-      "remote_source",
       "remote_id",
+      "remote_source",
     ])
     .where("remote_source", "is not", null)
     .where("remote_id", "is not", null)
