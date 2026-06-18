@@ -1390,3 +1390,35 @@ Validated app catalog identity migration, fixed app-aware remote collection look
 ### Next Steps
 
 - None - task complete
+
+
+## Session 43: Unify bottom-scope RBAC semantics
+
+**Date**: 2026-06-18
+**Task**: Unify bottom-scope RBAC semantics
+
+### Summary
+
+Removed remaining null-means-tenant-root semantics from auth RBAC, dropped listAccessibleScopeIds, aligned grant-list APIs and document-facing expectations, and verified focused RBAC tests, typecheck, and lint.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1fd280f1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
