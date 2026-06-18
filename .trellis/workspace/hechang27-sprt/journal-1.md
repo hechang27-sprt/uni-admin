@@ -1422,3 +1422,35 @@ Removed remaining null-means-tenant-root semantics from auth RBAC, dropped listA
 ### Next Steps
 
 - None - task complete
+
+
+## Session 44: Rename create grant APIs
+
+**Date**: 2026-06-18
+**Task**: Rename create grant APIs
+
+### Summary
+
+Renamed listCreatableScopes to listCreateGrants, removed misleading auth wrapper, renamed document access filter terminology, and updated auth RBAC coverage for direct create grants versus authorization behavior.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46ab68e8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

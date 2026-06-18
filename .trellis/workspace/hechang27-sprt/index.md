@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 43
+- **Total Sessions**: 44
 - **Last Active**: 2026-06-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1424 | Active |
+| `journal-1.md` | ~1456 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 44 | 2026-06-18 | Rename create grant APIs | `46ab68e8` | `-` |
 | 43 | 2026-06-18 | Unify bottom-scope RBAC semantics | `1fd280f1` | `-` |
 | 42 | 2026-06-16 | Catalog identity review and session readiness | `69a2fcf0,e7a3a0a0,06e792df` | `-` |
 | 41 | 2026-06-16 | Use unnest helper in repositories | `a9b92b1e` | `-` |
