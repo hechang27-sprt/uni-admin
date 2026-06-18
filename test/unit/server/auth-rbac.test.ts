@@ -12,6 +12,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 
 import {
+  BOTTOM_SCOPE_ID,
   builtInAdminPermissions,
   buildPermissionKey,
   type AuthRbacService,
@@ -657,7 +658,7 @@ describe("auth/RBAC service integration", () => {
         },
         documentServiceOptions,
       ),
-    ).resolves.toMatchObject({ authScopeId: null });
+    ).resolves.toMatchObject({ authScopeId: documentRoot.scopeId });
 
     const tenantRoot = await tenantRootSetup.auth.ensureTenantRootScope(tenantA);
     const tenantRootUser = await tenantRootSetup.auth.createUser();
@@ -712,7 +713,7 @@ describe("auth/RBAC service integration", () => {
         },
         tenantRootServiceOptions,
       ),
-    ).resolves.toMatchObject({ authScopeId: null });
+    ).resolves.toMatchObject({ authScopeId: tenantRoot.scopeId });
 
     const noneRoot = await noneSetup.auth.ensureTenantRootScope(tenantA);
     const bottomGrantUser = await noneSetup.auth.createUser();
@@ -748,7 +749,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: bottomGrantUser.userId,
       roleId: bottomGrantRole.roleId,
-      scopeId: null,
+      scopeId: BOTTOM_SCOPE_ID,
     });
     await noneSetup.auth.assignRole({
       tenantId: tenantA,
@@ -762,7 +763,9 @@ describe("auth/RBAC service integration", () => {
         { tenantId: tenantA, collection: "tasks" },
         { actor: { userId: bottomGrantUser.userId } },
       ),
-    ).resolves.toEqual([{ roleId: bottomGrantRole.roleId, scopeId: null }]);
+    ).resolves.toEqual([
+      { roleId: bottomGrantRole.roleId, scopeId: BOTTOM_SCOPE_ID },
+    ]);
     await expect(
       noneSetup.service.create<TaskDocument>(
         {
@@ -772,7 +775,7 @@ describe("auth/RBAC service integration", () => {
         },
         { actor: { userId: bottomGrantUser.userId } },
       ),
-    ).resolves.toMatchObject({ authScopeId: null });
+    ).resolves.toMatchObject({ authScopeId: noneRoot.scopeId });
 
     await expect(
       noneSetup.service.listCreateGrants(
@@ -791,13 +794,13 @@ describe("auth/RBAC service integration", () => {
         },
         { actor: { userId: rootGrantUser.userId } },
       ),
-    ).resolves.toMatchObject({ authScopeId: null });
+    ).resolves.toMatchObject({ authScopeId: noneRoot.scopeId });
   });
 
   it("authorizes protected document batches through one check per operation", async () => {
     const { auth, service, permissionKeys } = await createTaskServiceWithAuth();
     const evaluateAccess = vi.spyOn(auth, "evaluateAccess");
-    const listGrantedScopeIdsForCapability = vi.spyOn(
+    const listGrantedScopesForCapability = vi.spyOn(
       auth,
       "listGrantedScopesForCapability",
     );
@@ -887,7 +890,7 @@ describe("auth/RBAC service integration", () => {
     expect(evaluateAccess.mock.calls[0]![0].checks).toEqual([]);
 
     evaluateAccess.mockClear();
-    listGrantedScopeIdsForCapability.mockClear();
+    listGrantedScopesForCapability.mockClear();
     const updateAccessResult = await service.list<TaskDocument>(
       {
         tenantId: tenantA,
@@ -898,7 +901,7 @@ describe("auth/RBAC service integration", () => {
       options,
     );
     expect(updateAccessResult.items).toHaveLength(3);
-    expect(listGrantedScopeIdsForCapability).toHaveBeenCalledWith({
+    expect(listGrantedScopesForCapability).toHaveBeenCalledWith({
       context: { tenantId: tenantA, actor: { userId: user.userId } },
       capability: permissionKeys.update,
     });
@@ -959,7 +962,7 @@ describe("auth/RBAC service integration", () => {
       },
     ]);
   });
-  it("translates document-service tenant-root, document-null, and bottom targets before evaluation", async () => {
+  it("translates document-service explicit root and bottom targets before evaluation", async () => {
     const tenantRootSetup = await createTaskServiceWithAuth({
       resourceScope: "tenant-root",
     });
@@ -994,7 +997,7 @@ describe("auth/RBAC service integration", () => {
       collection: "tasks",
       data: { title: "tenant-root translation", status: "draft" },
     });
-    expect(created.authScopeId).toBeNull();
+    expect(created.authScopeId).toBe(root.scopeId);
 
     tenantRootEvaluateAccess.mockClear();
     await expect(
@@ -1007,15 +1010,10 @@ describe("auth/RBAC service integration", () => {
         { actor: { userId: user.userId } },
       ),
     ).resolves.toMatchObject({
-      items: [expect.objectContaining({ id: created.id, authScopeId: null })],
+      items: [expect.objectContaining({ id: created.id, authScopeId: root.scopeId })],
     });
     expect(tenantRootEvaluateAccess).toHaveBeenCalledTimes(1);
-    expect(tenantRootEvaluateAccess.mock.calls[0]![0].checks).toEqual([
-      {
-        capabilities: [tenantRootSetup.permissionKeys.read],
-        targetScopeIds: [root.scopeId],
-      },
-    ]);
+    expect(tenantRootEvaluateAccess.mock.calls[0]![0].checks).toEqual([]);
 
     const documentSetup = await createTaskServiceWithAuth();
     const documentEvaluateAccess = vi.spyOn(
@@ -1048,9 +1046,9 @@ describe("auth/RBAC service integration", () => {
     const documentCreated = await documentSetup.service.create<TaskDocument>({
       tenantId: tenantA,
       collection: "tasks",
-      data: { title: "document null translation", status: "draft" },
+      data: { title: "document root translation", status: "draft" },
     });
-    expect(documentCreated.authScopeId).toBeNull();
+    expect(documentCreated.authScopeId).toBe(documentRoot.scopeId);
 
     documentEvaluateAccess.mockClear();
     await expect(
@@ -1060,11 +1058,11 @@ describe("auth/RBAC service integration", () => {
           collection: "tasks",
           id: documentCreated.id,
           expectedVersion: documentCreated.version,
-          data: { title: "document null translated", status: "done" },
+          data: { title: "document root translated", status: "done" },
         },
         { actor: { userId: documentUser.userId } },
       ),
-    ).resolves.toMatchObject({ id: documentCreated.id, authScopeId: null });
+    ).resolves.toMatchObject({ id: documentCreated.id, authScopeId: documentRoot.scopeId });
     expect(documentEvaluateAccess).toHaveBeenCalledTimes(1);
     expect(documentEvaluateAccess.mock.calls[0]![0].checks).toEqual([
       {
@@ -1095,15 +1093,16 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: bottomUser.userId,
       roleId: bottomRole.roleId,
-      scopeId: null,
+      scopeId: BOTTOM_SCOPE_ID,
     });
 
     const bottomCreated = await bottomSetup.service.create<TaskDocument>({
       tenantId: tenantA,
       collection: "tasks",
+      authScopeId: BOTTOM_SCOPE_ID,
       data: { title: "bottom translation", status: "draft" },
     });
-    expect(bottomCreated.authScopeId).toBeNull();
+    expect(bottomCreated.authScopeId).toBe(BOTTOM_SCOPE_ID);
 
     bottomEvaluateAccess.mockClear();
     await expect(
@@ -1117,21 +1116,16 @@ describe("auth/RBAC service integration", () => {
       ),
     ).resolves.toMatchObject({
       items: [
-        expect.objectContaining({ id: bottomCreated.id, authScopeId: null }),
+        expect.objectContaining({ id: bottomCreated.id, authScopeId: BOTTOM_SCOPE_ID }),
       ],
     });
     expect(bottomEvaluateAccess).toHaveBeenCalledTimes(1);
-    expect(bottomEvaluateAccess.mock.calls[0]![0].checks).toEqual([
-      {
-        capabilities: [bottomSetup.permissionKeys.read],
-        targetScopeIds: [null],
-      },
-    ]);
+    expect(bottomEvaluateAccess.mock.calls[0]![0].checks).toEqual([]);
   });
 
   it("rejects trusted document writes with cross-tenant auth scopes", async () => {
     const { auth, service } = await createTaskServiceWithAuth();
-    await auth.ensureTenantRootScope(tenantA);
+    const tenantARoot = await auth.ensureTenantRootScope(tenantA);
     const tenantBRoot = await auth.ensureTenantRootScope(tenantB);
 
     await expect(
@@ -1180,8 +1174,8 @@ describe("auth/RBAC service integration", () => {
       ids: created.map((document) => document.id),
     });
     expect(initialRead.items).toEqual([
-      expect.objectContaining({ authScopeId: null }),
-      expect.objectContaining({ authScopeId: null }),
+      expect.objectContaining({ authScopeId: tenantARoot.scopeId }),
+      expect.objectContaining({ authScopeId: tenantARoot.scopeId }),
     ]);
 
     const owner = await auth.bootstrapTenantOwner({
@@ -1207,8 +1201,8 @@ describe("auth/RBAC service integration", () => {
       ids: created.map((document) => document.id),
     });
     expect(afterRejectedScope.items).toEqual([
-      expect.objectContaining({ authScopeId: null }),
-      expect.objectContaining({ authScopeId: null }),
+      expect.objectContaining({ authScopeId: tenantARoot.scopeId }),
+      expect.objectContaining({ authScopeId: tenantARoot.scopeId }),
     ]);
 
     const calls = { syncOne: 0 };
@@ -1412,7 +1406,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: user.userId,
       roleId: role.roleId,
-      scopeId: null,
+      scopeId: BOTTOM_SCOPE_ID,
     });
 
     await expect(
@@ -1420,7 +1414,7 @@ describe("auth/RBAC service integration", () => {
         context: { tenantId: tenantA, actor: { userId: user.userId } },
         capability: "collection:tasks:read",
       }),
-    ).resolves.toEqual([{ scopeId: null, roleId: role.roleId }]);
+    ).resolves.toEqual([{ scopeId: BOTTOM_SCOPE_ID, roleId: role.roleId }]);
   });
 
   it("returns concrete grant scopes for scoped roles", async () => {
@@ -1584,7 +1578,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: bottomOnlyUser.userId,
       roleId: bottomRole.roleId,
-      scopeId: null,
+      scopeId: BOTTOM_SCOPE_ID,
     });
     await auth.assignRole({
       tenantId: tenantA,
@@ -1661,17 +1655,17 @@ describe("auth/RBAC service integration", () => {
           {
             userId: rootOnlyUser.userId,
             capabilities: ["collection:tasks:create"],
-            targetScopeIds: [null],
+            targetScopeIds: [BOTTOM_SCOPE_ID],
           },
           {
             userId: bottomOnlyUser.userId,
             capabilities: ["collection:tasks:create"],
-            targetScopeIds: [null],
+            targetScopeIds: [BOTTOM_SCOPE_ID],
           },
           {
             userId: childOnlyUser.userId,
             capabilities: ["collection:tasks:create"],
-            targetScopeIds: [null],
+            targetScopeIds: [BOTTOM_SCOPE_ID],
           },
         ],
       }),
@@ -1693,6 +1687,44 @@ describe("auth/RBAC service integration", () => {
         allowed: true,
         hasOverride: false,
         missingCaps: [],
+      },
+    ]);
+  });
+
+  it("creates closure rows from new scopes to the physical bottom scope", async () => {
+    const auth = createTestAuthService();
+    const root = await auth.ensureTenantRootScope(tenantA);
+    const child = await auth.createScope({
+      tenantId: tenantA,
+      parentScopeId: root.scopeId,
+      type: "team",
+      key: "bottom-closure-child",
+    });
+
+    const closureRows = await getTestDatabase()
+      .selectFrom("authScopeClosure")
+      .select(["ancestorId", "descendantId", "depth"])
+      .where("tenantId", "=", tenantA)
+      .where("descendantId", "=", BOTTOM_SCOPE_ID)
+      .where("ancestorId", "in", [root.scopeId, child.scopeId, BOTTOM_SCOPE_ID])
+      .orderBy("ancestorId")
+      .execute();
+
+    expect(closureRows).toEqual([
+      {
+        ancestorId: BOTTOM_SCOPE_ID,
+        descendantId: BOTTOM_SCOPE_ID,
+        depth: 0,
+      },
+      {
+        ancestorId: child.scopeId,
+        descendantId: BOTTOM_SCOPE_ID,
+        depth: 1,
+      },
+      {
+        ancestorId: root.scopeId,
+        descendantId: BOTTOM_SCOPE_ID,
+        depth: 1,
       },
     ]);
   });
@@ -1719,7 +1751,7 @@ describe("auth/RBAC service integration", () => {
       tenantId: tenantA,
       userId: user.userId,
       roleId: role.roleId,
-      scopeId: null,
+      scopeId: BOTTOM_SCOPE_ID,
     });
 
     await expect(
@@ -1730,7 +1762,7 @@ describe("auth/RBAC service integration", () => {
     ).resolves.toEqual([
       {
         roleId: role.roleId,
-        scopeId: null,
+        scopeId: BOTTOM_SCOPE_ID,
       },
     ]);
   });

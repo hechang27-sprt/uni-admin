@@ -1,0 +1,6 @@
+{"file":".trellis/spec/server/index.md","reason":"Server-layer guideline index for the touched document service, repository, auth, and testing specs."}
+{"file":".trellis/spec/server/document-service.md","reason":"Defines the service list contract and required test behavior for authorization-filtered reads."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Defines repository query semantics and the persisted auth-scope contract to verify against."}
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Defines bottom-scope and tenant-root semantics that quality review must enforce."}
+{"file":".trellis/spec/server/testing.md","reason":"Provides server-side verification expectations for changed behavior and nearby test coverage."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Quality review needs to verify that service-to-repository contract changes stay consistent across the boundary."}

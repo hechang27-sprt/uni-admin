@@ -1,0 +1,6 @@
+{"file":".trellis/spec/server/index.md","reason":"Server-layer guideline index for document service, repository, auth, and testing specs touched by this task."}
+{"file":".trellis/spec/server/document-service.md","reason":"Owns DocumentService.list contract, authorization behavior, and required nearby tests."}
+{"file":".trellis/spec/server/repository-and-database.md","reason":"Owns repository list/query contracts and document/auth-scope persistence semantics."}
+{"file":".trellis/spec/server/auth-rbac.md","reason":"Owns tenant-root vs bottom-scope semantics and document-service authorization boundary."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"The change moves authorization translation across service and repository boundaries."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"The change removes a parallel service-only filter path in favor of one repository-owned translation path."}

@@ -7,7 +7,7 @@ export {
   type AuthRbacRepository,
 } from "./repository";
 export { AuthRbacService, builtInAdminPermissions } from "./service";
-export { resourceScopeModeSchema } from "./types";
+export { BOTTOM_SCOPE_ID, resourceScopeModeSchema, SYSTEM_TENANT_ID } from "./types";
 export type {
   AssignRoleInput,
   AccessCheckEvaluation,

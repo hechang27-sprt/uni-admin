@@ -5,7 +5,7 @@ import type { ListDocumentsInput, StoredDocument } from "../types";
 
 export const insertManyDocumentsItemSchema = z.object({
   data: jsonObjectSchema,
-  authScopeId: z.string().nullable().optional(),
+  authScopeId: z.string().optional(),
   remoteSource: z.string().nullable().optional(),
   remoteId: z.string().nullable().optional(),
 });
@@ -35,7 +35,7 @@ export const updateDocumentRecordSchema = z.object({
   expectedVersion: z.number(),
   schemaVersion: z.number().optional(),
   data: jsonObjectSchema.optional(),
-  authScopeId: z.string().nullable().optional(),
+  authScopeId: z.string().optional(),
   deletedAt: z.date().nullable().optional(),
   remoteSource: z.string().nullable().optional(),
   remoteId: z.string().nullable().optional(),
@@ -69,7 +69,7 @@ export type UpdateManyDocumentsRecord<TData extends JsonObject = JsonObject> =
 export const upsertRemoteProjectionSchema = z.object({
   remoteId: z.string(),
   data: jsonObjectSchema,
-  authScopeId: z.string().nullable().optional(),
+  authScopeId: z.string().optional(),
 });
 
 export const upsertRemoteProjectionsRecordSchema = z.object({

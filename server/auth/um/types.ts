@@ -6,6 +6,9 @@ import type {
   TenantContext,
 } from "#server/data/documents";
 
+export const SYSTEM_TENANT_ID = "00000000-0000-0000-0000-000000000000";
+export const BOTTOM_SCOPE_ID = SYSTEM_TENANT_ID;
+
 export interface AuthUser {
   userId: string;
   displayName: string | null;
@@ -143,14 +146,13 @@ export interface AssignRoleInput {
   userId: string;
   roleId?: string;
   roleKey?: string;
-  // `null` means an explicit bottom-scope assignment for `resourceScope: "none"`, not tenant root.
-  scopeId: string | null;
+  // Use the physical bottom-scope sentinel for `resourceScope: "none"` grants.
+  scopeId: string;
 }
 
 export interface CheckAccessInput {
   context: TenantActorContext;
-  capability: string;
-  targetScopeId: string | null;
+  targetScopeId: string;
 }
 
 export interface CapabilityAccessCheck {
@@ -158,7 +160,7 @@ export interface CapabilityAccessCheck {
   roleIds?: string[];
   override?: string;
   userId?: string;
-  targetScopeIds: (string | null)[];
+  targetScopeIds: string[];
 }
 
 export type CapabilityEvaluation = {
@@ -169,7 +171,7 @@ export type CapabilityEvaluation = {
     capability: string;
     permissionKey: string | null;
     roleId?: string;
-    targetScopeId: string | null;
+    targetScopeId: string;
   }[];
 };
 
@@ -212,7 +214,7 @@ export type AccessCheckFailure =
   | {
       kind: "capability";
       capability: string;
-      targetScopeId: string | null;
+      targetScopeId: string;
     };
 
 export interface BootstrapTenantOwnerInput {
@@ -237,6 +239,6 @@ export interface AccessCheckEvaluation {
 }
 
 export interface GrantedScopes {
-  scopeId: string | null;
+  scopeId: string;
   roleId: string;
 }

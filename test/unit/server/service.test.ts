@@ -11,6 +11,7 @@ import {
 import { sql } from "kysely";
 import { z } from "zod";
 
+import { BOTTOM_SCOPE_ID } from "#server/auth/um";
 import { migrateToLatest } from "#server/db/migrate";
 import { CollectionRegistry } from "#server/data/collections";
 import {
@@ -609,6 +610,7 @@ describe.each([{ name: "pgLite Kysely repository" }])(
             appId: identity!.appId,
             collectionId: identity!.collectionId,
             schemaVersion: 1,
+            authScopeId: BOTTOM_SCOPE_ID,
             data: { title: `Remote ${index}` },
             remoteSource: "linear",
             remoteId: "remote-1",

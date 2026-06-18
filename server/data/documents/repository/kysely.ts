@@ -5,13 +5,11 @@ import { sql, type Selectable } from "kysely";
 import type { DocumentsTable } from "#server/db/schema";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import type { ListDocumentsInput, StoredDocument } from "../types";
-import { unnest } from "../../../utils/unnest";
 import {
-  buildGrantedDocumentFilterScopeCondition,
   buildAuthScopeCondition,
   buildFieldExpression,
   buildFilterCondition,
-  hasGrantedDocumentFilterScopeIds,
+  buildGrantedScopeCondition,
   normalizeListInput,
 } from "./query";
 import type {
@@ -133,7 +131,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where("deletedAt", "is", null);
     }
 
-    const { ids, filter, authScopeIds, grantedDocumentFilterScopeIds } =
+    const { ids, filter, authScopeIds, grantedScopes, resourceScope } =
       normalized;
     if (ids) {
       if (ids.length === 0) {
@@ -146,21 +144,19 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where((eb) => buildFilterCondition(eb, filter));
     }
 
-    if (hasGrantedDocumentFilterScopeIds(grantedDocumentFilterScopeIds)) {
-      query = this.applyGrantedDocumentFilterScopeIds(
-        query,
-        grantedDocumentFilterScopeIds,
+    if (grantedScopes !== undefined && resourceScope !== undefined) {
+      query = query.where(
+        (eb) => buildGrantedScopeCondition(eb, grantedScopes, resourceScope)!,
       );
     }
 
     if (authScopeIds) {
       query = query.where((eb) => buildAuthScopeCondition(eb, authScopeIds));
     }
-
-    for (const sort of normalized.sort) {
+    for (const sortEntry of normalized.sort) {
       query = query.orderBy(
-        (eb) => buildFieldExpression(eb, sort.field),
-        sort.direction,
+        (eb) => buildFieldExpression(eb, sortEntry.field),
+        sortEntry.direction,
       );
     }
 
@@ -169,23 +165,6 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .offset(normalized.offset)
       .execute();
     return rows.map((row) => mapDocumentRow<TData>(row));
-  }
-  private applyGrantedDocumentFilterScopeIds<
-    TQuery extends {
-      where(
-        callback: (
-          eb: Parameters<typeof buildGrantedDocumentFilterScopeCondition>[0],
-        ) => ReturnType<typeof buildGrantedDocumentFilterScopeCondition>,
-      ): TQuery;
-    },
-  >(query: TQuery, grantedDocumentFilterScopeIds: string[] | null): TQuery {
-    if (grantedDocumentFilterScopeIds === null) {
-      return query;
-    }
-
-    return query.where((eb) =>
-      buildGrantedDocumentFilterScopeCondition(eb, grantedDocumentFilterScopeIds),
-    );
   }
   async updateMany<TData extends JsonObject>(
     input: UpdateManyDocumentsRecord<TData>,
@@ -243,7 +222,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
                 else documents.data
               end
             `,
-            authScopeId: sql<string | null>`
+            authScopeId: sql<string>`
               case
                 when updates.set_auth_scope_id then updates.auth_scope_id
                 else documents.auth_scope_id

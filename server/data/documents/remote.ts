@@ -20,7 +20,7 @@ export interface RemoteAdapterProjection<
 > {
   remoteId: string;
   data: TData;
-  authScopeId?: string | null;
+  authScopeId?: string;
 }
 
 export interface RemoteIdempotencyOptions<TInput = unknown> {
@@ -120,7 +120,7 @@ export interface CreateRemoteProjectionMapperOptions<
   schema: z.ZodType<TRemote>;
   getRemoteId: (remote: TRemote) => string;
   mapData: (remote: TRemote) => TData;
-  getAuthScopeId?: (remote: TRemote) => string | null | undefined;
+  getAuthScopeId?: (remote: TRemote) => string | undefined;
 }
 
 export function createRemoteProjectionMapper<TRemote, TData extends JsonObject>(

@@ -15,19 +15,20 @@ import {
 import { AuthRbacError } from "./errors";
 import { buildPermissionKey } from "./permission-key";
 import {
+  BOTTOM_SCOPE_ID,
   type AuthScope,
   type AuthUser,
   type CapabilityAccessCheck,
   type CapabilityEvaluation,
+  type GrantedScopes,
   type Permission,
   permissionDefinitionInputSchema,
   type PermissionDefinitionInput,
+  type ResolvedPermissionDefinition,
+  resourceScopeModeSchema,
   type Role,
   type TenantMembership,
   type UsernamePasswordCredential,
-  type ResolvedPermissionDefinition,
-  resourceScopeModeSchema,
-  GrantedScopes,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import { selectGrantedPermissions, selectTenantUsers } from "../../db/query";
@@ -97,7 +98,7 @@ export interface AuthRbacRepository {
     assignments: {
       userId: string;
       roleId: string;
-      scopeId: string | null;
+      scopeId: string;
     }[];
   }): Promise<void>;
   findInvalidRoleId(input: {
@@ -287,6 +288,16 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           tenantId,
           ancestorId: scope.scopeId,
           descendantId: scope.scopeId,
+          depth: 0,
+        })
+        .onConflict((conflict) => conflict.doNothing())
+        .execute();
+      await tx
+        .insertInto("authScopeClosure")
+        .values({
+          tenantId,
+          ancestorId: BOTTOM_SCOPE_ID,
+          descendantId: BOTTOM_SCOPE_ID,
           depth: 0,
         })
         .onConflict((conflict) => conflict.doNothing())
@@ -492,7 +503,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     assignments: {
       userId: string;
       roleId: string;
-      scopeId: string | null;
+      scopeId: string;
     }[];
   }): Promise<void> {
     if (input.assignments.length === 0) {
@@ -604,6 +615,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .onRef("authScopes.scopeId", "=", "input.scopeId"),
       )
       .select("input.scopeId")
+      .where("input.scopeId", "<>", BOTTOM_SCOPE_ID)
       .where("authScopes.scopeId", "is", null)
       .orderBy("input.inputOrder")
       .executeTakeFirst();
@@ -820,16 +832,7 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
                 .on("g2.tenantId", "=", input.tenantId)
                 .onRef("g2.userId", "=", "input.userId")
                 .onRef("g2.permissionKey", "=", "cap.capability")
-                .on((eb) =>
-                  eb.or([
-                    eb(
-                      "g2.descendantId",
-                      "=",
-                      eb.ref("scopeInput.targetScopeId"),
-                    ), // null aware
-                    eb("scopeInput.targetScopeId", "is", null),
-                  ]),
-                ),
+                .onRef("g2.descendantId", "=", "scopeInput.targetScopeId"),
             )
             .select(() => [
               sql<CapabilityEvaluation["missingCaps"]>`
@@ -900,6 +903,8 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
 
     return rows;
   }
+
+
 
   private async resolvePermissionValues(
     permissions: PermissionDefinitionInput[],

@@ -12,7 +12,7 @@ export type AuthRbacErrorCode =
 export interface AuthRbacErrorDetails {
   tenantId?: string;
   userId?: string;
-  scopeId?: string | null;
+  scopeId?: string;
   roleId?: string;
   roleKey?: string;
   permissionKey?: string;

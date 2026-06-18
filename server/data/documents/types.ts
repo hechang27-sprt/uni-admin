@@ -1,3 +1,4 @@
+import type { GrantedScopes, ResourceScopeMode } from "#server/auth/um";
 export interface TenantContext {
   tenantId: string;
 }
@@ -15,7 +16,7 @@ export interface StoredDocument<TData extends JsonObject = JsonObject> {
   tenantId: string;
   schemaVersion: number;
   data: TData;
-  authScopeId: string | null;
+  authScopeId: string;
   remoteSource: string | null;
   remoteId: string | null;
   version: number;
@@ -47,7 +48,7 @@ export interface DocumentErrorDetails {
   issues?: unknown;
   operation?: string;
   capability?: string;
-  authScopeId?: string | null;
+  authScopeId?: string;
   userId?: string;
 }
 
@@ -86,8 +87,9 @@ export interface ListDocumentsInput {
   limit?: number;
   offset?: number;
   includeDeleted?: boolean;
-  authScopeIds?: (string | null)[];
-  grantedDocumentFilterScopeIds?: string[] | null;
+  authScopeIds?: string[];
+  grantedScopes?: GrantedScopes[];
+  resourceScope?: ResourceScopeMode;
 }
 
 export interface ListDocumentsResult<TData extends JsonObject = JsonObject> {
@@ -104,6 +106,7 @@ export interface NormalizedListDocumentsInput {
   limit: number;
   offset: number;
   includeDeleted: boolean;
-  authScopeIds?: (string | null)[];
-  grantedDocumentFilterScopeIds?: string[] | null;
+  authScopeIds?: string[];
+  grantedScopes?: GrantedScopes[];
+  resourceScope?: ResourceScopeMode;
 }

@@ -244,7 +244,7 @@ export class AuthRbacService {
       tenantId: input.tenantId,
       tenantAccess: {
         userId: [input.userId],
-        scopeId: [input.scopeId].filter(isNotNil),
+        scopeId: [input.scopeId],
       },
       throw: true,
     });
@@ -277,7 +277,7 @@ export class AuthRbacService {
       tenantAccess: {
         userId: [input.userId],
         roleId: [role.roleId],
-        scopeId: [input.scopeId].filter(isNotNil),
+        scopeId: [input.scopeId],
       },
       checks: [
         {
@@ -303,6 +303,7 @@ export class AuthRbacService {
   }
 
   async listGrantedScopesForCapability(input: ListAccessibleScopesInput) {
+    await this.repository.ensureTenantRootScope(input.context.tenantId);
     await this.evaluateAccess({
       ...input.context,
       checks: [],
@@ -505,11 +506,7 @@ export class AuthRbacService {
 
     if (invalid) {
       if (input.throwError) {
-        throw permissionDenied(
-          { tenantId: input.tenantId },
-          "auth:tenant-access",
-          null,
-        );
+        throw permissionDenied({ tenantId: input.tenantId }, "auth:tenant-access");
       }
 
       return {
@@ -550,11 +547,7 @@ export class AuthRbacService {
 
     if (invalid) {
       if (input.throwError) {
-        throw permissionDenied(
-          { tenantId: input.tenantId },
-          "auth:tenant-access",
-          null,
-        );
+        throw permissionDenied({ tenantId: input.tenantId }, "auth:tenant-access");
       }
 
       return {
@@ -656,12 +649,12 @@ function normalizeUsername(username: string): string {
 function permissionDenied(
   context: TenantContext & Partial<ActorContext>,
   capability: string,
-  targetScopeId: string | null,
+  targetScopeId?: string,
 ): AuthRbacError {
   return new AuthRbacError("AUTH_PERMISSION_DENIED", "Permission denied", {
     tenantId: context.tenantId,
     userId: context.actor?.userId,
     capability,
-    scopeId: targetScopeId,
+    ...(targetScopeId ? { scopeId: targetScopeId } : {}),
   });
 }

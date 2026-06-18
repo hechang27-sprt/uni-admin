@@ -9,6 +9,8 @@ import type {
   NormalizedListDocumentsInput,
   StoredDocument,
 } from "../types";
+import { BOTTOM_SCOPE_ID, type GrantedScopes, type ResourceScopeMode } from "#server/auth/um";
+import { uniq } from "es-toolkit";
 
 type DocumentsExpressionBuilder = ExpressionBuilder<Database, "documents">;
 type DocumentsBooleanExpression = Expression<SqlBool>;
@@ -28,7 +30,8 @@ export function normalizeListInput(
     offset,
     includeDeleted: input.includeDeleted ?? false,
     authScopeIds: input.authScopeIds,
-    grantedDocumentFilterScopeIds: input.grantedDocumentFilterScopeIds,
+    grantedScopes: input.grantedScopes,
+    resourceScope: input.resourceScope,
   };
 }
 
@@ -95,51 +98,46 @@ export function buildFilterCondition(
 
 export function buildAuthScopeCondition(
   eb: DocumentsExpressionBuilder,
-  authScopeIds: (string | null)[],
+  authScopeIds: string[],
 ): DocumentsBooleanExpression {
   if (authScopeIds.length === 0) {
     return eb.lit(false);
   }
 
-  const scopedIds = authScopeIds.filter(
-    (scopeId): scopeId is string => scopeId !== null,
-  );
-  const conditions: DocumentsBooleanExpression[] = [];
-  if (authScopeIds.includes(null)) {
-    conditions.push(eb("documents.authScopeId", "is", null));
-  }
-  if (scopedIds.length > 0) {
-    conditions.push(eb("documents.authScopeId", "in", scopedIds));
-  }
-  return conditions.length === 1 ? conditions[0]! : eb.or(conditions);
+  return eb("documents.authScopeId", "in", authScopeIds);
 }
 
-export function buildGrantedDocumentFilterScopeCondition(
+export function buildGrantedScopeCondition(
   eb: DocumentsExpressionBuilder,
-  grantedDocumentFilterScopeIds: string[],
-): DocumentsBooleanExpression {
-  if (grantedDocumentFilterScopeIds.length === 0) {
+  grantedScopes: GrantedScopes[] | undefined,
+  resourceScope: ResourceScopeMode | undefined,
+): DocumentsBooleanExpression | null {
+  if (grantedScopes === undefined || resourceScope === undefined) {
+    return null;
+  }
+
+  if (grantedScopes.length === 0) {
     return eb.lit(false);
   }
 
-  return eb.and([
-    eb("documents.authScopeId", "is not", null),
-    eb.exists(
-      eb
-        .selectFrom("authScopeClosure")
-        .select("authScopeClosure.descendantId")
-        .whereRef("authScopeClosure.descendantId", "=", "documents.authScopeId")
-        .where("authScopeClosure.ancestorId", "in", grantedDocumentFilterScopeIds),
-    ),
-  ]);
-}
+  const scopeIds = uniq(grantedScopes.map(({ scopeId }) => scopeId));
 
-export function hasGrantedDocumentFilterScopeIds(
-  grantedDocumentFilterScopeIds: string[] | null | undefined,
-): grantedDocumentFilterScopeIds is string[] | null {
-  return (
-    grantedDocumentFilterScopeIds === null ||
-    grantedDocumentFilterScopeIds !== undefined
+  if (resourceScope === "tenant-root") {
+    return eb.lit(true);
+  }
+
+  if (resourceScope === "none") {
+    return scopeIds.includes(BOTTOM_SCOPE_ID)
+      ? eb.lit(true)
+      : eb.lit(false);
+  }
+
+  return eb.exists(
+    eb
+      .selectFrom("authScopeClosure")
+      .select("authScopeClosure.descendantId")
+      .whereRef("authScopeClosure.descendantId", "=", "documents.authScopeId")
+      .where("authScopeClosure.ancestorId", "in", scopeIds),
   );
 }
 

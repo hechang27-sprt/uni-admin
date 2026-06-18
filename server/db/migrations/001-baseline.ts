@@ -1,5 +1,8 @@
-import { sql, type Kysely, type SqlBool } from "kysely";
+import { sql, type Kysely } from "kysely";
+import type { Database } from "../schema";
 
+const SYSTEM_TENANT_ID = "00000000-0000-0000-0000-000000000000";
+const BOTTOM_SCOPE_ID = SYSTEM_TENANT_ID;
 import type { Database } from "../schema";
 
 export async function up(db: Kysely<Database>): Promise<void> {
@@ -12,6 +15,14 @@ export async function up(db: Kysely<Database>): Promise<void> {
         .notNull(),
     )
     .addColumn("name", "text")
+    .execute();
+  await db
+    .insertInto("tenants")
+    .values({
+      id: SYSTEM_TENANT_ID,
+      name: "System",
+    })
+    .onConflict((conflict) => conflict.column("id").doNothing())
     .execute();
 
   await db.schema
@@ -179,6 +190,66 @@ export async function up(db: Kysely<Database>): Promise<void> {
       "descendant_id",
     ])
     .execute();
+  await sql`
+    insert into auth_scopes (scope_id, tenant_id, parent_id, type, key, name)
+    values (
+      ${BOTTOM_SCOPE_ID}::uuid,
+      ${SYSTEM_TENANT_ID}::uuid,
+      null,
+      'system',
+      '__bottom',
+      'Bottom scope'
+    )
+    on conflict (scope_id) do nothing;
+  `.execute(db);
+
+  await sql`
+    insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+    values (
+      ${SYSTEM_TENANT_ID}::uuid,
+      ${BOTTOM_SCOPE_ID}::uuid,
+      ${BOTTOM_SCOPE_ID}::uuid,
+      0
+    )
+    on conflict do nothing;
+  `.execute(db);
+
+  await sql`
+    create or replace function maintain_bottom_scope_closure()
+    returns trigger
+    language plpgsql
+    as $$
+    begin
+      if new.scope_id = '00000000-0000-0000-0000-000000000000'::uuid then
+        return new;
+      end if;
+
+      insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+      values (
+        new.tenant_id,
+        new.scope_id,
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        1
+      )
+      on conflict do nothing;
+
+      return new;
+    end;
+    $$;
+  `.execute(db);
+
+  await sql`
+    insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+    values (${SYSTEM_TENANT_ID}::uuid, ${BOTTOM_SCOPE_ID}::uuid, ${BOTTOM_SCOPE_ID}::uuid, 0)
+    on conflict do nothing;
+  `.execute(db);
+
+  await sql`
+    create trigger auth_scopes_maintain_bottom_scope_closure
+    after insert on auth_scopes
+    for each row
+    execute function maintain_bottom_scope_closure();
+  `.execute(db);
 
   await db.schema
     .createTable("roles")
@@ -261,7 +332,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col.references("roles.role_id").onDelete("cascade").notNull(),
     )
     .addColumn("scope_id", "uuid", (col) =>
-      col.references("auth_scopes.scope_id").onDelete("cascade"),
+      col.references("auth_scopes.scope_id").onDelete("cascade").notNull(),
     )
     .addColumn("created_at", sql`timestamp with time zone`, (col) =>
       col.defaultTo(sql`now()`).notNull(),
@@ -286,7 +357,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn("schema_version", "integer", (col) => col.notNull())
     .addColumn("data", "jsonb", (col) => col.notNull())
     .addColumn("auth_scope_id", "uuid", (col) =>
-      col.references("auth_scopes.scope_id").onDelete("restrict"),
+      col.references("auth_scopes.scope_id").onDelete("restrict").notNull(),
     )
     .addColumn("remote_source", "text")
     .addColumn("remote_id", "text")
@@ -369,19 +440,10 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("user_role_assignments_scoped_unique")
+    .createIndex("user_role_assignments_scope_unique")
     .unique()
     .on("user_role_assignments")
     .columns(["tenant_id", "user_id", "role_id", "scope_id"])
-    .where(sql<SqlBool>`scope_id is not null`)
-    .execute();
-
-  await db.schema
-    .createIndex("user_role_assignments_bottom_unique")
-    .unique()
-    .on("user_role_assignments")
-    .columns(["tenant_id", "user_id", "role_id"])
-    .where(sql<SqlBool>`scope_id is null`)
     .execute();
 
   await db.schema
@@ -432,6 +494,10 @@ export async function up(db: Kysely<Database>): Promise<void> {
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {
+  await sql`
+    drop trigger if exists auth_scopes_maintain_bottom_scope_closure on auth_scopes;
+  `.execute(db);
+  await sql`drop function if exists maintain_bottom_scope_closure();`.execute(db);
   await db.schema.dropTable("documents").ifExists().cascade().execute();
   await db.schema
     .dropTable("user_role_assignments")

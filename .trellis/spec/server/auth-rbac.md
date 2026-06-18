@@ -111,11 +111,15 @@ interface TenantActorContext {
   location (`collection`, `app`, `global`, or `admin`), while custom action
   identity lives in `capability_id` as `action-<action-id>`.
 - `role_permissions.permission_key` references `permissions.key`.
-- `user_role_assignments.scope_id = null` means an explicit bottom-scope grant
-  for `resourceScope: "none"`, not tenant root.
+- `SYSTEM_TENANT_ID` and `BOTTOM_SCOPE_ID` are both the all-zero UUID
+  `00000000-0000-0000-0000-000000000000`. The system tenant owns the physical
+  bottom scope row.
+- `user_role_assignments.scope_id` is non-nullable. Explicit bottom-scope grants
+  for `resourceScope: "none"` store `BOTTOM_SCOPE_ID`, not `null`.
 - `documents.auth_scope_id` is framework metadata. It is not stored in document
   JSONB data.
-- `authScopeId: null` means tenant-root/global resource, not public access.
+- Omitted document `authScopeId` normalizes to the real tenant-root scope UUID.
+  Bottom-scoped documents store `BOTTOM_SCOPE_ID` explicitly.
 - Built-in collection CRUD capabilities are fixed ids: `read`, `create`,
   `update`, `patch`, `delete`, `restore`, and `hard-delete`.
 - Registered custom action capabilities default to `action-<action-id>`.
@@ -125,25 +129,20 @@ interface TenantActorContext {
   - `<app-id>:<capability-id>` for app-level permissions.
   - `<app-id>:<collection-id>:<capability-id>` for collection-level
     permissions.
-- `resourceScope: "document"` checks the document `auth_scope_id`; `null`
-  still means the tenant root at the document-service boundary.
-- `resourceScope: "tenant-root"` always checks the capability at the tenant
-  root scope and skips document containment.
-- `resourceScope: "none"` checks the virtual bottom scope. Concrete scoped
-  grants and explicit bottom grants (`scope_id = null`) may satisfy it, but
-  bottom grants must not satisfy document or tenant-root checks.
-- Repository/service evaluator input no longer uses a separate target-mode
-  contract. `targetScopeIds: [null]` now means the virtual bottom scope.
-  Callers that need tenant-root authorization must translate to the real tenant
-  root scope id before calling `checkCapabilities`/`evaluateAccess`.
-- Document service is the translation boundary for its collection auth modes:
-  it preserves stored/document-facing `authScopeId: null` as tenant-root, sends
-  the real tenant root scope id for `resourceScope: "document"` null documents,
-  sends `[rootScopeId]` for `resourceScope: "tenant-root"`, and sends
-  `[null]` only for `resourceScope: "none"` checks.
-- Deferred: do not migrate document writes or stored `documents.auth_scope_id =
-  null` semantics in this cutover. Document-null continues to mean tenant-root
-  until a separate migration changes the persisted contract.
+- `resourceScope: "document"` checks the document `auth_scope_id` directly.
+- `resourceScope: "tenant-root"` still resolves through the real tenant-root
+  scope id and skips document containment.
+- `resourceScope: "none"` targets `BOTTOM_SCOPE_ID`. Concrete scoped grants and
+  explicit bottom grants may satisfy it, but bottom grants must not satisfy
+  document or tenant-root checks.
+- Repository/service evaluator input no longer uses nullable bottom sentinels.
+  `targetScopeIds` always carry concrete UUIDs; callers that need tenant-root
+  authorization pass the real root scope id, and bottom-target callers pass
+  `BOTTOM_SCOPE_ID`.
+- Document service now normalizes create/write auth scope ids before
+  persistence, passes direct grant rows into list filtering, and uses the
+  repository/query layer to translate `document`, `tenant-root`, and `none`
+  resource-scope reads.
 - Protected remote writes must authorize before calling a remote adapter.
   Adapter context receives `actor` only on protected calls.
 - Scalar public service APIs such as `grantPermission`, `assignRole`, and
@@ -217,11 +216,11 @@ interface TenantActorContext {
 - pgLite migration test coverage through `migrateToLatest(db)`.
 - Username/password verification and actor resolution.
 - Tenant isolation for memberships, scopes, role assignments, and documents.
-- List filtering with child-scope documents, tenant-root/null documents, and
-  bottom-scope grants that do not leak into tenant-root/document checks.
+- List filtering with child-scope documents, explicit tenant-root documents,
+  and explicit bottom-scope documents/grants.
 - Authorized mutation allow/deny behavior, including tenant-root using the real
-  root scope id, `resourceScope: "none"` bottom-target semantics, and
-  document-service translation that preserves current document-null behavior.
+  root scope id, `resourceScope: "none"` using `BOTTOM_SCOPE_ID`, and the
+  direct-grant list path for protected reads.
 - Remote write denial before adapter side effects.
 - Trusted write rejection for cross-tenant `authScopeId`.
 - Protected batch create/read/update allow and deny paths with one

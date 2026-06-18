@@ -37,16 +37,17 @@ import type {
 import { getRemoteAdapter, parseData, withRemoteOutput } from "./helpers";
 import type { CatalogService, CatalogCollection } from "#server/data/catalog";
 import {
+  BOTTOM_SCOPE_ID,
   buildPermissionKey,
   isAuthRbacError,
   type AuthRbacService,
   type CheckAccessManyInput,
+  type GrantedScopes,
 } from "#server/auth/um";
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import { flatMap, isNotNil, uniq } from "es-toolkit";
-import { GrantedScopes } from "~~/server/auth/um/types";
+import { uniq } from "es-toolkit";
 
 @injectable()
 export class DocumentService {
@@ -66,11 +67,15 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>> {
     const collection = this.getCollection<TData>(input);
-    await this.authorizeCreate(input, [input.authScopeId ?? null], options);
+    const authScopeId = await this.normalizeDocumentAuthScopeId(
+      input.tenantId,
+      input.authScopeId,
+    );
+    await this.authorizeCreate(input, [authScopeId], options);
     if (!hasActorOptions(options)) {
       await this.validateAuthScopes({
         tenantId: input.tenantId,
-        authScopeIds: [input.authScopeId],
+        authScopeIds: [authScopeId],
       });
     }
     const data = parseData<TData>(
@@ -88,7 +93,7 @@ export class DocumentService {
       items: [
         {
           data,
-          authScopeId: input.authScopeId,
+          authScopeId,
           remoteSource: input.remoteSource,
           remoteId: input.remoteId,
         },
@@ -106,12 +111,12 @@ export class DocumentService {
     options?: DocumentServiceOptions,
   ): Promise<StoredDocument<TData>[]> {
     const collection = this.getCollection<TData>(input);
-    const authScopeIds = input.items.map((item) => item.authScopeId);
-    await this.authorizeCreate(
-      input,
-      authScopeIds.map((authScopeId) => authScopeId ?? null),
-      options,
+    const authScopeIds = await Promise.all(
+      input.items.map((item) =>
+        this.normalizeDocumentAuthScopeId(input.tenantId, item.authScopeId),
+      ),
     );
+    await this.authorizeCreate(input, authScopeIds, options);
     if (!hasActorOptions(options)) {
       await this.validateAuthScopes({
         tenantId: input.tenantId,
@@ -119,9 +124,9 @@ export class DocumentService {
       });
     }
     const identity = await this.requireCollectionIdentity(input, collection);
-    const items = input.items.map((item) => ({
+    const items = input.items.map((item, index) => ({
       data: parseData<TData>(collection.schema, item.data, input.collection),
-      authScopeId: item.authScopeId,
+      authScopeId: authScopeIds[index],
       remoteSource: item.remoteSource,
       remoteId: item.remoteId,
     }));
@@ -142,7 +147,9 @@ export class DocumentService {
     const collection = this.getCollection<TData>(input);
     const identity = await this.requireCollectionIdentity(input, collection);
     const query = normalizeListInput(input);
-    let grantedDocumentFilterScopeIds: string[] | null | undefined;
+
+    let grantedScopes: GrantedScopes[] | undefined;
+    let resourceScope: "document" | "tenant-root" | "none" | undefined;
 
     if (hasActorOptions(options)) {
       const auth = CollectionRegistry.resolveOperationAuth(
@@ -156,27 +163,11 @@ export class DocumentService {
           auth.capability,
         );
 
-        if (auth.resourceScope === "document") {
-          grantedDocumentFilterScopeIds =
-            await this.buildGrantedDocumentAccessFilterScopeIds(
-              input,
-              options,
-              capability,
-            );
-        } else {
-          await this.assertDocumentAccess({
-            ...actorContext(input, options),
-            checks: [
-              {
-                capabilities: [capability],
-                targetScopeIds: await this.translateResourceScopeTargets(
-                  input.tenantId,
-                  auth.resourceScope,
-                ),
-              },
-            ],
-          });
-        }
+        grantedScopes = await this.authorizer.listGrantedScopesForCapability({
+          context: actorContext(input, options),
+          capability,
+        });
+        resourceScope = auth.resourceScope;
       }
     }
 
@@ -187,7 +178,8 @@ export class DocumentService {
       query: {
         ...query,
         limit: query.limit + 1,
-        grantedDocumentFilterScopeIds,
+        grantedScopes,
+        resourceScope,
       },
     });
 
@@ -459,11 +451,15 @@ export class DocumentService {
       never,
       { create: TOutput }
     >(this.registry, input);
-    await this.authorizeCreate(input, [input.authScopeId ?? null], options);
+    const authScopeId = await this.normalizeDocumentAuthScopeId(
+      input.tenantId,
+      input.authScopeId,
+    );
+    await this.authorizeCreate(input, [authScopeId], options);
     if (!hasActorOptions(options)) {
       await this.validateAuthScopes({
         tenantId: input.tenantId,
-        authScopeIds: [input.authScopeId],
+        authScopeIds: [authScopeId],
       });
     }
     const result = await adapter.createRemote(input.input, {
@@ -473,7 +469,7 @@ export class DocumentService {
     });
     const document = await this.upsertRemoteProjection<TData>(input, {
       ...result.projection,
-      authScopeId: result.projection.authScopeId ?? input.authScopeId,
+      authScopeId: result.projection.authScopeId ?? authScopeId,
     });
 
     return withRemoteOutput({ document }, result.output);
@@ -666,7 +662,7 @@ export class DocumentService {
 
   private async authorizeCreate(
     input: CreateDocumentInput | RemoteCreateInput | CreateManyDocumentInput,
-    authScopeIds: (string | null)[],
+    authScopeIds: string[],
     options?: DocumentServiceOptions,
   ): Promise<void> {
     if (!hasActorOptions(options)) {
@@ -693,7 +689,7 @@ export class DocumentService {
           targetScopeIds: await this.translateResourceScopeTargets(
             input.tenantId,
             auth.resourceScope,
-            auth.resourceScope === "document" ? authScopeIds : [],
+            authScopeIds,
           ),
         },
       ],
@@ -761,49 +757,41 @@ export class DocumentService {
   private async translateResourceScopeTargets(
     tenantId: string,
     resourceScope: "document" | "tenant-root" | "none",
-    authScopeIds: (string | null)[] = [],
-  ): Promise<(string | null)[]> {
+    authScopeIds: string[] = [],
+  ): Promise<string[]> {
     if (resourceScope === "none") {
-      return [null];
+      return [BOTTOM_SCOPE_ID];
     }
 
     if (resourceScope === "tenant-root") {
       return [await this.authorizer.getTenantRootScopeId(tenantId)];
     }
 
-    const rootScopeId = await this.authorizer.getTenantRootScopeId(tenantId);
-    return uniq(authScopeIds.map((authScopeId) => authScopeId ?? rootScopeId));
+    return uniq(authScopeIds);
   }
 
-  private async buildGrantedDocumentAccessFilterScopeIds(
-    input: { tenantId: string },
-    options: AuthenticatedDocumentServiceOptions,
-    capability: string,
-  ): Promise<string[] | null> {
-    const scopes = await this.authorizer.listGrantedScopesForCapability({
-      context: actorContext(input, options),
-      capability,
-    });
+  private async normalizeDocumentAuthScopeId(
+    tenantId: string,
+    authScopeId: string | undefined,
+  ): Promise<string> {
+    if (authScopeId !== undefined) {
+      return authScopeId;
+    }
 
-    if (!scopes.every(isNotNil)) return null;
-    return uniq(flatMap(scopes, ({ scopeId }) => scopeId ?? []));
+    return this.authorizer.getTenantRootScopeId(tenantId);
   }
 
   private async validateAuthScopes(input: {
     tenantId: string;
-    authScopeIds: (string | null | undefined)[];
+    authScopeIds: string[];
   }): Promise<void> {
-    const scopeIds = input.authScopeIds.filter(
-      (authScopeId): authScopeId is string =>
-        authScopeId !== null && authScopeId !== undefined,
-    );
-    if (scopeIds.length === 0) {
+    if (input.authScopeIds.length === 0) {
       return;
     }
 
     const access = await this.authorizer.evaluateAccess({
       tenantId: input.tenantId,
-      tenantAccess: { scopeId: scopeIds },
+      tenantAccess: { scopeId: input.authScopeIds },
     });
     const invalidScopeId =
       access.failure?.kind === "scope" ? access.failure.scopeId : null;
@@ -885,21 +873,24 @@ export class DocumentService {
       );
     }
 
-    const parsedProjections = projections.map((projection) => ({
-      remoteId: projection.remoteId,
-      authScopeId: projection.authScopeId,
-      data: parseData<TData>(
-        collection.schema,
-        projection.data,
-        input.collection,
-      ),
-    }));
+    const parsedProjections = await Promise.all(
+      projections.map(async (projection) => ({
+        remoteId: projection.remoteId,
+        authScopeId: await this.normalizeDocumentAuthScopeId(
+          input.tenantId,
+          projection.authScopeId,
+        ),
+        data: parseData<TData>(
+          collection.schema,
+          projection.data,
+          input.collection,
+        ),
+      })),
+    );
 
     await this.validateAuthScopes({
       tenantId: input.tenantId,
-      authScopeIds: parsedProjections.map(
-        (projection) => projection.authScopeId,
-      ),
+      authScopeIds: parsedProjections.map((projection) => projection.authScopeId),
     });
 
     return this.repository.upsertRemoteProjections<TData>({
@@ -918,7 +909,7 @@ export class DocumentService {
     data?: TData,
     deletedAt?: Date | null,
     remoteIdentity?: { remoteSource: string; remoteId: string },
-    authScopeId?: string | null,
+    authScopeId?: string,
   ): Promise<StoredDocument<TData>> {
     if (existing.version !== input.expectedVersion) {
       throw new DocumentServiceError(

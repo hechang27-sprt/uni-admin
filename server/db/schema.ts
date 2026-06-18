@@ -121,7 +121,7 @@ export interface UserRoleAssignmentsTable {
   tenantId: string;
   userId: string;
   roleId: string;
-  scopeId: string | null;
+  scopeId: string;
   createdAt: Timestamp;
 }
 
@@ -132,7 +132,7 @@ export interface DocumentsTable {
   collectionId: string;
   schemaVersion: number;
   data: JsonObject;
-  authScopeId: string | null;
+  authScopeId: string;
   remoteSource: string | null;
   remoteId: string | null;
   version: Generated<number>;

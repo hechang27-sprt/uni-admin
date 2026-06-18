@@ -105,13 +105,14 @@ const ordered = ids.map((id) => byId.get(id) ?? null);
 
 - `createMany` and `updateMany` collect distinct target auth scopes and invoke
   `AuthRbacService.evaluateAccess(...)` once per protected operation.
-- Document writes that receive non-null `authScopeId` values validate those
-  scope ids through `AuthRbacService.evaluateAccess(...)` before
-  repository persistence, including trusted writes without an actor and remote
-  projection upserts.
-- `list` consumes `listAccessibleDocumentScopeIds(...)`, which already uses
-  `null` for tenant-root documents; it must not fetch the root just to
-  normalize filter IDs.
+- Document writes validate explicit `authScopeId` values through
+  `AuthRbacService.evaluateAccess(...)` before repository persistence,
+  including trusted writes without an actor and remote projection upserts.
+- Omitted create/remote-create `authScopeId` values normalize to the tenant's
+  real root scope id before persistence.
+- `list` no longer builds a service-only document filter helper. Protected list
+  reads fetch direct grant rows through `listGrantedScopesForCapability(...)`
+  and pass those rows plus `resourceScope` into repository list filtering.
 
 ## Validation And Errors
 

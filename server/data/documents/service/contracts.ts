@@ -16,7 +16,7 @@ export interface CreateDocumentInput<
   TData extends JsonObject = JsonObject,
 > extends CollectionDocumentInput {
   data: TData;
-  authScopeId?: string | null;
+  authScopeId?: string;
   remoteSource?: string | null;
   remoteId?: string | null;
 }
@@ -26,7 +26,7 @@ export interface CreateManyDocumentInput<
 > extends CollectionDocumentInput {
   items: {
     data: TData;
-    authScopeId?: string | null;
+    authScopeId?: string;
     remoteSource?: string | null;
     remoteId?: string | null;
   }[];
@@ -82,7 +82,7 @@ export interface RemoteCreateInput<
   TCreateInput = unknown,
 > extends CollectionDocumentInput {
   input: TCreateInput;
-  authScopeId?: string | null;
+  authScopeId?: string;
 }
 
 export interface RemoteUpdateInput<
@@ -104,7 +104,7 @@ export interface DocumentServiceOptions {
 export interface SetDocumentAuthScopeInput extends CollectionDocumentInput {
   id: string;
   expectedVersion: number;
-  authScopeId: string | null;
+  authScopeId: string;
 }
 
 export interface SyncRemoteOneResult<
