@@ -27,12 +27,10 @@ import {
   type UsernamePasswordCredential,
   type ResolvedPermissionDefinition,
   resourceScopeModeSchema,
+  GrantedScopes,
 } from "./types";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
 import { selectGrantedPermissions, selectTenantUsers } from "../../db/query";
-import { pivotToColumns } from "../../utils/pivot";
-import { unnest } from "../../utils/unnest";
-import { uniq } from "es-toolkit";
 
 export const tenantRootScopeKey = "__tenant_root";
 export const ADMIN_TENANT_OVERRIDE_KEY = "admin:tenant:owner";
@@ -126,11 +124,11 @@ export interface AuthRbacRepository {
     userId?: string;
     checks: CapabilityAccessCheck[];
   }): Promise<CapabilityEvaluation[]>;
-  listGrantedScopeIdsForCapability(input: {
+  listGrantedScopesForCapability(input: {
     tenantId: string;
     userId: string;
     capability: string;
-  }): Promise<Array<string | null>>;
+  }): Promise<GrantedScopes[]>;
 }
 
 @injectable()
@@ -881,11 +879,11 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
     return accessResults satisfies CapabilityEvaluation[];
   }
 
-  async listGrantedScopeIdsForCapability(input: {
+  async listGrantedScopesForCapability(input: {
     tenantId: string;
     userId: string;
     capability: string;
-  }): Promise<Array<string | null>> {
+  }): Promise<GrantedScopes[]> {
     const rows = await this.database
       .selectFrom(() =>
         selectGrantedPermissions()
@@ -893,14 +891,14 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
           .where("tu.userId", "=", input.userId)
           .where("p.key", "=", input.capability)
           .clearSelect()
-          .select("assigned.scopeId as scopeId")
+          .select(["assigned.scopeId", "assigned.roleId"])
           .distinct()
           .as("_"),
       )
       .selectAll()
       .execute();
 
-    return uniq(rows.map((row) => row.scopeId));
+    return rows;
   }
 
   private async resolvePermissionValues(

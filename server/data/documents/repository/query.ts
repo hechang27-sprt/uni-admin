@@ -28,7 +28,7 @@ export function normalizeListInput(
     offset,
     includeDeleted: input.includeDeleted ?? false,
     authScopeIds: input.authScopeIds,
-    accessibleScopeIds: input.accessibleScopeIds,
+    grantedDocumentFilterScopeIds: input.grantedDocumentFilterScopeIds,
   };
 }
 
@@ -114,11 +114,11 @@ export function buildAuthScopeCondition(
   return conditions.length === 1 ? conditions[0]! : eb.or(conditions);
 }
 
-export function buildAccessibleScopeCondition(
+export function buildGrantedDocumentFilterScopeCondition(
   eb: DocumentsExpressionBuilder,
-  accessibleScopeIds: string[],
+  grantedDocumentFilterScopeIds: string[],
 ): DocumentsBooleanExpression {
-  if (accessibleScopeIds.length === 0) {
+  if (grantedDocumentFilterScopeIds.length === 0) {
     return eb.lit(false);
   }
 
@@ -129,15 +129,18 @@ export function buildAccessibleScopeCondition(
         .selectFrom("authScopeClosure")
         .select("authScopeClosure.descendantId")
         .whereRef("authScopeClosure.descendantId", "=", "documents.authScopeId")
-        .where("authScopeClosure.ancestorId", "in", accessibleScopeIds),
+        .where("authScopeClosure.ancestorId", "in", grantedDocumentFilterScopeIds),
     ),
   ]);
 }
 
-export function hasAccessibleScopeFilter(
-  accessibleScopeIds: string[] | null | undefined,
-): accessibleScopeIds is string[] | null {
-  return accessibleScopeIds === null || accessibleScopeIds !== undefined;
+export function hasGrantedDocumentFilterScopeIds(
+  grantedDocumentFilterScopeIds: string[] | null | undefined,
+): grantedDocumentFilterScopeIds is string[] | null {
+  return (
+    grantedDocumentFilterScopeIds === null ||
+    grantedDocumentFilterScopeIds !== undefined
+  );
 }
 
 export function buildFieldExpression(

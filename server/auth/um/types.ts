@@ -44,7 +44,6 @@ export interface Role {
 
 export type ResourceScopeMode = "document" | "tenant-root" | "none";
 
-
 export interface Permission {
   key: string;
   appId: string | null;
@@ -99,7 +98,11 @@ export interface CreateRoleInput {
   name?: string | null;
 }
 
-export const resourceScopeModeSchema = z.enum(["document", "tenant-root", "none"]);
+export const resourceScopeModeSchema = z.enum([
+  "document",
+  "tenant-root",
+  "none",
+]);
 
 export const permissionDefinitionInputSchema = z.object({
   key: z.string().optional(),
@@ -111,13 +114,14 @@ export const permissionDefinitionInputSchema = z.object({
   resourceScope: resourceScopeModeSchema.nullable().optional(),
 });
 
-export const resolvedPermissionDefinitionSchema = permissionDefinitionInputSchema
-  .omit({ appKey: true, collectionKey: true })
-  .required({ key: true, capabilityId: true, source: true })
-  .extend({
-    appId: z.string().nullable(),
-    collectionId: z.string().nullable(),
-  });
+export const resolvedPermissionDefinitionSchema =
+  permissionDefinitionInputSchema
+    .omit({ appKey: true, collectionKey: true })
+    .required({ key: true, capabilityId: true, source: true })
+    .extend({
+      appId: z.string().nullable(),
+      collectionId: z.string().nullable(),
+    });
 
 export type PermissionDefinitionInput = z.infer<
   typeof permissionDefinitionInputSchema
@@ -131,7 +135,7 @@ export interface GrantPermissionInput {
   tenantId: string;
   roleId?: string;
   roleKey?: string;
-  permissionKey: string;
+  permissionKeys: string[];
 }
 
 export interface AssignRoleInput {
@@ -189,7 +193,6 @@ export interface ListAccessibleScopesInput {
   capability: string;
 }
 
-
 export interface ValidateTenantAccessInput {
   tenantId: string;
   scopeIds?: string[];
@@ -231,4 +234,9 @@ export interface AccessCheckEvaluation {
   allowed: boolean;
   failure: AccessCheckFailure | null;
   capabilities?: CapabilityEvaluation[];
+}
+
+export interface GrantedScopes {
+  scopeId: string | null;
+  roleId: string;
 }

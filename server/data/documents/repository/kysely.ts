@@ -7,11 +7,11 @@ import { SERVER_DI_TYPES } from "#server/di/tokens";
 import type { ListDocumentsInput, StoredDocument } from "../types";
 import { unnest } from "../../../utils/unnest";
 import {
-  buildAccessibleScopeCondition,
+  buildGrantedDocumentFilterScopeCondition,
   buildAuthScopeCondition,
   buildFieldExpression,
   buildFilterCondition,
-  hasAccessibleScopeFilter,
+  hasGrantedDocumentFilterScopeIds,
   normalizeListInput,
 } from "./query";
 import type {
@@ -133,7 +133,8 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where("deletedAt", "is", null);
     }
 
-    const { ids, filter, authScopeIds, accessibleScopeIds } = normalized;
+    const { ids, filter, authScopeIds, grantedDocumentFilterScopeIds } =
+      normalized;
     if (ids) {
       if (ids.length === 0) {
         return [];
@@ -145,8 +146,11 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where((eb) => buildFilterCondition(eb, filter));
     }
 
-    if (hasAccessibleScopeFilter(accessibleScopeIds)) {
-      query = this.applyAccessibleScopeFilter(query, accessibleScopeIds);
+    if (hasGrantedDocumentFilterScopeIds(grantedDocumentFilterScopeIds)) {
+      query = this.applyGrantedDocumentFilterScopeIds(
+        query,
+        grantedDocumentFilterScopeIds,
+      );
     }
 
     if (authScopeIds) {
@@ -166,21 +170,21 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .execute();
     return rows.map((row) => mapDocumentRow<TData>(row));
   }
-  private applyAccessibleScopeFilter<
+  private applyGrantedDocumentFilterScopeIds<
     TQuery extends {
       where(
         callback: (
-          eb: Parameters<typeof buildAccessibleScopeCondition>[0],
-        ) => ReturnType<typeof buildAccessibleScopeCondition>,
+          eb: Parameters<typeof buildGrantedDocumentFilterScopeCondition>[0],
+        ) => ReturnType<typeof buildGrantedDocumentFilterScopeCondition>,
       ): TQuery;
     },
-  >(query: TQuery, accessibleScopeIds: string[] | null): TQuery {
-    if (accessibleScopeIds === null) {
+  >(query: TQuery, grantedDocumentFilterScopeIds: string[] | null): TQuery {
+    if (grantedDocumentFilterScopeIds === null) {
       return query;
     }
 
     return query.where((eb) =>
-      buildAccessibleScopeCondition(eb, accessibleScopeIds),
+      buildGrantedDocumentFilterScopeCondition(eb, grantedDocumentFilterScopeIds),
     );
   }
   async updateMany<TData extends JsonObject>(

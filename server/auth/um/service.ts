@@ -184,22 +184,22 @@ export class AuthRbacService {
     );
   }
 
-  async assignPermissionToRole(input: AssignPermissionInput) {
+  async assignPermissionsToRole(input: AssignPermissionInput) {
     const role = await this.resolveRole(input);
     await this.evaluateAccess({
       tenantId: input.tenantId,
-      permissionKeys: [input.permissionKey],
+      permissionKeys: input.permissionKeys,
       throw: true,
     });
 
     await this.repository.assignPermissionsToRole({
       tenantId: input.tenantId,
       roleId: role.roleId,
-      permissionKeys: [input.permissionKey],
+      permissionKeys: input.permissionKeys,
     });
   }
 
-  async assignPermissionToRoleAsActor(
+  async assignPermissionsToRoleAsActor(
     { tenantId, actor: { userId } }: TenantActorContext,
     input: Omit<AssignPermissionInput, "tenantId">,
   ) {
@@ -222,8 +222,9 @@ export class AuthRbacService {
         },
         {
           userId,
-          capabilities: [input.permissionKey],
+          capabilities: input.permissionKeys,
           override: ADMIN_TENANT_OVERRIDE_KEY,
+          // TODO: must also check the assigner has capabilities over existing scopes of the assigned role
           targetScopeIds: [rootScopeId],
         },
       ],
@@ -233,7 +234,7 @@ export class AuthRbacService {
     await this.repository.assignPermissionsToRole({
       tenantId,
       roleId: role.roleId,
-      permissionKeys: [input.permissionKey],
+      permissionKeys: input.permissionKeys,
     });
   }
 
@@ -301,7 +302,7 @@ export class AuthRbacService {
     });
   }
 
-  async listGrantedScopeIdsForCapability(input: ListAccessibleScopesInput) {
+  async listGrantedScopesForCapability(input: ListAccessibleScopesInput) {
     await this.evaluateAccess({
       ...input.context,
       checks: [],
@@ -309,20 +310,16 @@ export class AuthRbacService {
       throw: true,
     });
 
-    return this.repository.listGrantedScopeIdsForCapability({
+    return this.repository.listGrantedScopesForCapability({
       tenantId: input.context.tenantId,
       userId: input.context.actor.userId,
       capability: input.capability,
     });
   }
-  async listCreatableDocumentScopeIds(input: {
-    context: TenantActorContext;
-    capability: string;
-  }) {
-    return this.listGrantedScopeIdsForCapability(input);
-  }
 
-  async bootstrapTenantOwner(input: BootstrapTenantOwnerInput): Promise<BootstrapTenantOwnerResult> {
+  async bootstrapTenantOwner(
+    input: BootstrapTenantOwnerInput,
+  ): Promise<BootstrapTenantOwnerResult> {
     const [user, rootScope, ownerRole] = await Promise.all([
       this.repository.createUser({ displayName: input.displayName }),
       this.repository.ensureTenantRootScope(input.tenantId),

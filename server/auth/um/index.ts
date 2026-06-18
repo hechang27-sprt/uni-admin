@@ -16,6 +16,7 @@ export type {
   AuthUser,
   BootstrapTenantOwnerInput,
   BootstrapTenantOwnerResult,
+  GrantedScopes,
   CheckAccessInput,
   CheckAccessManyInput,
   CreateRoleInput,

@@ -45,7 +45,8 @@ import {
 import { inject, injectable } from "inversify";
 import type { RemoteAdapterProjection } from "../remote";
 import { SERVER_DI_TYPES } from "#server/di/tokens";
-import { isNotNil, uniq } from "es-toolkit";
+import { flatMap, isNotNil, uniq } from "es-toolkit";
+import { GrantedScopes } from "~~/server/auth/um/types";
 
 @injectable()
 export class DocumentService {
@@ -141,7 +142,7 @@ export class DocumentService {
     const collection = this.getCollection<TData>(input);
     const identity = await this.requireCollectionIdentity(input, collection);
     const query = normalizeListInput(input);
-    let accessibleScopeIds: string[] | null | undefined;
+    let grantedDocumentFilterScopeIds: string[] | null | undefined;
 
     if (hasActorOptions(options)) {
       const auth = CollectionRegistry.resolveOperationAuth(
@@ -156,11 +157,12 @@ export class DocumentService {
         );
 
         if (auth.resourceScope === "document") {
-          accessibleScopeIds = await this.buildAccessibleDocumentScopeFilter(
-            input,
-            options,
-            capability,
-          );
+          grantedDocumentFilterScopeIds =
+            await this.buildGrantedDocumentAccessFilterScopeIds(
+              input,
+              options,
+              capability,
+            );
         } else {
           await this.assertDocumentAccess({
             ...actorContext(input, options),
@@ -185,7 +187,7 @@ export class DocumentService {
       query: {
         ...query,
         limit: query.limit + 1,
-        accessibleScopeIds,
+        grantedDocumentFilterScopeIds,
       },
     });
 
@@ -636,13 +638,13 @@ export class DocumentService {
     );
   }
 
-  async listCreatableScopes(
+  async listCreateGrants(
     input: {
       tenantId: string;
       collection: string;
     },
     options: DocumentServiceOptions,
-  ): Promise<(string | null)[]> {
+  ): Promise<GrantedScopes[]> {
     const authenticatedOptions = this.requireActorOptions(input, options);
     const collection = this.getCollection(input);
     const auth = CollectionRegistry.resolveOperationAuth(collection, "create");
@@ -655,27 +657,11 @@ export class DocumentService {
       identity.collectionId,
       auth.capability,
     );
-    if (auth.resourceScope === "document") {
-      return this.authorizer.listCreatableDocumentScopeIds({
-        context: actorContext(input, authenticatedOptions),
-        capability,
-      });
-    }
 
-    await this.assertDocumentAccess({
-      ...actorContext(input, authenticatedOptions),
-      checks: [
-        {
-          capabilities: [capability],
-          targetScopeIds: await this.translateResourceScopeTargets(
-            input.tenantId,
-            auth.resourceScope,
-          ),
-        },
-      ],
+    return this.authorizer.listGrantedScopesForCapability({
+      context: actorContext(input, authenticatedOptions),
+      capability,
     });
-
-    return auth.resourceScope === "tenant-root" ? [null] : [];
   }
 
   private async authorizeCreate(
@@ -786,23 +772,21 @@ export class DocumentService {
     }
 
     const rootScopeId = await this.authorizer.getTenantRootScopeId(tenantId);
-    return uniq(
-      authScopeIds.map((authScopeId) => authScopeId ?? rootScopeId),
-    );
+    return uniq(authScopeIds.map((authScopeId) => authScopeId ?? rootScopeId));
   }
 
-  private async buildAccessibleDocumentScopeFilter(
+  private async buildGrantedDocumentAccessFilterScopeIds(
     input: { tenantId: string },
     options: AuthenticatedDocumentServiceOptions,
     capability: string,
   ): Promise<string[] | null> {
-    const scopeIds = await this.authorizer.listGrantedScopeIdsForCapability({
+    const scopes = await this.authorizer.listGrantedScopesForCapability({
       context: actorContext(input, options),
       capability,
     });
 
-    if (!scopeIds.every(isNotNil)) return null;
-    return scopeIds;
+    if (!scopes.every(isNotNil)) return null;
+    return uniq(flatMap(scopes, ({ scopeId }) => scopeId ?? []));
   }
 
   private async validateAuthScopes(input: {
