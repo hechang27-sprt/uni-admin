@@ -1123,6 +1123,152 @@ describe("auth/RBAC service integration", () => {
     expect(bottomEvaluateAccess.mock.calls[0]![0].checks).toEqual([]);
   });
 
+  it("requires tenant-root protected list grants to reach the tenant root", async () => {
+    const { auth, service, permissionKeys } = await createTaskServiceWithAuth({
+      resourceScope: "tenant-root",
+    });
+    const root = await auth.ensureTenantRootScope(tenantA);
+    const child = await auth.createScope({
+      tenantId: tenantA,
+      parentScopeId: root.scopeId,
+      type: "team",
+      key: "tenant-root-protected-list-child",
+    });
+    const childOnlyUser = await auth.createUser();
+    const rootUser = await auth.createUser();
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: childOnlyUser.userId,
+    });
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: rootUser.userId,
+    });
+    const role = await auth.createRole({
+      tenantId: tenantA,
+      key: "tenant-root-protected-list-reader",
+    });
+    await auth.assignPermissionsToRole({
+      tenantId: tenantA,
+      roleId: role.roleId,
+      permissionKeys: [permissionKeys.read],
+    });
+    await auth.assignRole({
+      tenantId: tenantA,
+      userId: childOnlyUser.userId,
+      roleId: role.roleId,
+      scopeId: child.scopeId,
+    });
+    await auth.assignRole({
+      tenantId: tenantA,
+      userId: rootUser.userId,
+      roleId: role.roleId,
+      scopeId: root.scopeId,
+    });
+
+    const created = await service.create<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      authScopeId: child.scopeId,
+      data: { title: "tenant-root protected list", status: "draft" },
+    });
+
+    await expect(
+      service.list<TaskDocument>(
+        {
+          tenantId: tenantA,
+          collection: "tasks",
+          ids: [created.id],
+        },
+        { actor: { userId: childOnlyUser.userId } },
+      ),
+    ).resolves.toMatchObject({ items: [] });
+
+    await expect(
+      service.list<TaskDocument>(
+        {
+          tenantId: tenantA,
+          collection: "tasks",
+          ids: [created.id],
+        },
+        { actor: { userId: rootUser.userId } },
+      ),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: created.id })],
+    });
+  });
+
+  it("allows ancestor and explicit bottom grants on none protected lists", async () => {
+    const { auth, service, permissionKeys } = await createTaskServiceWithAuth({
+      resourceScope: "none",
+    });
+    const root = await auth.ensureTenantRootScope(tenantA);
+    const ancestorUser = await auth.createUser();
+    const bottomUser = await auth.createUser();
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: ancestorUser.userId,
+    });
+    await auth.createTenantMembership({
+      tenantId: tenantA,
+      userId: bottomUser.userId,
+    });
+    const role = await auth.createRole({
+      tenantId: tenantA,
+      key: "bottom-protected-list-reader",
+    });
+    await auth.assignPermissionsToRole({
+      tenantId: tenantA,
+      roleId: role.roleId,
+      permissionKeys: [permissionKeys.read],
+    });
+    await auth.assignRole({
+      tenantId: tenantA,
+      userId: ancestorUser.userId,
+      roleId: role.roleId,
+      scopeId: root.scopeId,
+    });
+    await auth.assignRole({
+      tenantId: tenantA,
+      userId: bottomUser.userId,
+      roleId: role.roleId,
+      scopeId: BOTTOM_SCOPE_ID,
+    });
+
+    const created = await service.create<TaskDocument>({
+      tenantId: tenantA,
+      collection: "tasks",
+      authScopeId: BOTTOM_SCOPE_ID,
+      data: { title: "bottom protected list", status: "draft" },
+    });
+
+    await expect(
+      service.list<TaskDocument>(
+        {
+          tenantId: tenantA,
+          collection: "tasks",
+          ids: [created.id],
+        },
+        { actor: { userId: ancestorUser.userId } },
+      ),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: created.id })],
+    });
+
+    await expect(
+      service.list<TaskDocument>(
+        {
+          tenantId: tenantA,
+          collection: "tasks",
+          ids: [created.id],
+        },
+        { actor: { userId: bottomUser.userId } },
+      ),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: created.id })],
+    });
+  });
+
   it("rejects trusted document writes with cross-tenant auth scopes", async () => {
     const { auth, service } = await createTaskServiceWithAuth();
     const tenantARoot = await auth.ensureTenantRootScope(tenantA);
@@ -1744,33 +1890,36 @@ describe("auth/RBAC service integration", () => {
       .orderBy("ancestorId")
       .execute();
 
-    expect(closureRows).toEqual([
-      {
-        ancestorId: BOTTOM_SCOPE_ID,
-        descendantId: BOTTOM_SCOPE_ID,
-        depth: 0,
-      },
-      {
-        ancestorId: child.scopeId,
-        descendantId: BOTTOM_SCOPE_ID,
-        depth: 1,
-      },
-      {
-        ancestorId: root.scopeId,
-        descendantId: BOTTOM_SCOPE_ID,
-        depth: 1,
-      },
-      {
-        ancestorId: child.scopeId,
-        descendantId: child.scopeId,
-        depth: 0,
-      },
-      {
-        ancestorId: root.scopeId,
-        descendantId: child.scopeId,
-        depth: 1,
-      },
-    ]);
+    expect(closureRows).toHaveLength(5);
+    expect(closureRows).toEqual(
+      expect.arrayContaining([
+        {
+          ancestorId: BOTTOM_SCOPE_ID,
+          descendantId: BOTTOM_SCOPE_ID,
+          depth: 0,
+        },
+        {
+          ancestorId: child.scopeId,
+          descendantId: BOTTOM_SCOPE_ID,
+          depth: 1,
+        },
+        {
+          ancestorId: root.scopeId,
+          descendantId: BOTTOM_SCOPE_ID,
+          depth: 1,
+        },
+        {
+          ancestorId: child.scopeId,
+          descendantId: child.scopeId,
+          depth: 0,
+        },
+        {
+          ancestorId: root.scopeId,
+          descendantId: child.scopeId,
+          depth: 1,
+        },
+      ]),
+    );
   });
   it("keeps bottom-scope grants distinct from tenant-root list semantics", async () => {
     const auth = createTestAuthService();

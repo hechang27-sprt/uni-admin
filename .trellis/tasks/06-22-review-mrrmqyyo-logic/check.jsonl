@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Check sentinel-cutover semantics, override-mode behavior, and spec/example consistency."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Check repository filtering boundaries and permission metadata ownership."}
+{"file": ".trellis/spec/server/document-service.md", "reason": "Check protected list contract and service-layer responsibilities after the fix."}
+{"file": ".trellis/spec/server/testing.md", "reason": "Check required auth/document regression coverage before marking the task complete."}

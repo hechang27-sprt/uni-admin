@@ -131,7 +131,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where("deletedAt", "is", null);
     }
 
-    const { ids, filter, authScopeIds, grantedScopes, resourceScope } =
+    const { ids, filter, authScopeIds, grantedScopes, grantedPermissionKey } =
       normalized;
     if (ids) {
       if (ids.length === 0) {
@@ -144,9 +144,10 @@ export class KyselyDocumentRepository implements DocumentRepository {
       query = query.where((eb) => buildFilterCondition(eb, filter));
     }
 
-    if (grantedScopes !== undefined && resourceScope !== undefined) {
+    if (grantedScopes !== undefined && grantedPermissionKey !== undefined) {
       query = query.where(
-        (eb) => buildGrantedScopeCondition(eb, grantedScopes, resourceScope)!,
+        (eb) =>
+          buildGrantedScopeCondition(eb, grantedScopes, grantedPermissionKey)!,
       );
     }
 
@@ -166,6 +167,7 @@ export class KyselyDocumentRepository implements DocumentRepository {
       .execute();
     return rows.map((row) => mapDocumentRow<TData>(row));
   }
+
   async updateMany<TData extends JsonObject>(
     input: UpdateManyDocumentsRecord<TData>,
   ): Promise<StoredDocument<TData>[] | null> {

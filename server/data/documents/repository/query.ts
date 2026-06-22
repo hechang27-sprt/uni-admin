@@ -9,7 +9,11 @@ import type {
   NormalizedListDocumentsInput,
   StoredDocument,
 } from "../types";
-import { BOTTOM_SCOPE_ID, type GrantedScopes, type ResourceScopeMode } from "#server/auth/um";
+import {
+  BOTTOM_SCOPE_ID,
+  type GrantedScopes,
+  tenantRootScopeKey,
+} from "#server/auth/um";
 import { uniq } from "es-toolkit";
 
 type DocumentsExpressionBuilder = ExpressionBuilder<Database, "documents">;
@@ -31,7 +35,7 @@ export function normalizeListInput(
     includeDeleted: input.includeDeleted ?? false,
     authScopeIds: input.authScopeIds,
     grantedScopes: input.grantedScopes,
-    resourceScope: input.resourceScope,
+    grantedPermissionKey: input.grantedPermissionKey,
   };
 }
 
@@ -110,34 +114,41 @@ export function buildAuthScopeCondition(
 export function buildGrantedScopeCondition(
   eb: DocumentsExpressionBuilder,
   grantedScopes: GrantedScopes[] | undefined,
-  resourceScope: ResourceScopeMode | undefined,
+  grantedPermissionKey: string | undefined,
 ): DocumentsBooleanExpression | null {
-  if (grantedScopes === undefined || resourceScope === undefined) {
+  if (grantedScopes === undefined) {
     return null;
   }
 
-  if (grantedScopes.length === 0) {
+  if (grantedScopes.length === 0 || grantedPermissionKey === undefined) {
     return eb.lit(false);
   }
 
   const scopeIds = uniq(grantedScopes.map(({ scopeId }) => scopeId));
 
-  if (resourceScope === "tenant-root") {
-    return eb.lit(true);
-  }
-
-  if (resourceScope === "none") {
-    return scopeIds.includes(BOTTOM_SCOPE_ID)
-      ? eb.lit(true)
-      : eb.lit(false);
-  }
-
   return eb.exists(
     eb
       .selectFrom("authScopeClosure")
+      .innerJoin("permissions", (join) =>
+        join.on("permissions.key", "=", grantedPermissionKey),
+      )
+      .leftJoin("authScopes as tenantRootScope", (join) =>
+        join
+          .onRef("tenantRootScope.tenantId", "=", "documents.tenantId")
+          .on("tenantRootScope.key", "=", tenantRootScopeKey),
+      )
       .select("authScopeClosure.descendantId")
-      .whereRef("authScopeClosure.descendantId", "=", "documents.authScopeId")
-      .where("authScopeClosure.ancestorId", "in", scopeIds),
+      .where("authScopeClosure.ancestorId", "in", scopeIds)
+      .where("authScopeClosure.descendantId", "=", (ebCase) =>
+        ebCase
+          .case()
+          .when("permissions.resourceScope", "=", "tenant-root")
+          .thenRef("tenantRootScope.scopeId")
+          .when("permissions.resourceScope", "=", "none")
+          .then(ebCase.val(BOTTOM_SCOPE_ID))
+          .elseRef("documents.authScopeId")
+          .end(),
+      ),
   );
 }
 

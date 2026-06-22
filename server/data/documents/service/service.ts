@@ -149,7 +149,7 @@ export class DocumentService {
     const query = normalizeListInput(input);
 
     let grantedScopes: GrantedScopes[] | undefined;
-    let resourceScope: "document" | "tenant-root" | "none" | undefined;
+    let grantedPermissionKey: string | undefined;
 
     if (hasActorOptions(options)) {
       const auth = CollectionRegistry.resolveOperationAuth(
@@ -167,7 +167,7 @@ export class DocumentService {
           context: actorContext(input, options),
           capability,
         });
-        resourceScope = auth.resourceScope;
+        grantedPermissionKey = capability;
       }
     }
 
@@ -179,7 +179,7 @@ export class DocumentService {
         ...query,
         limit: query.limit + 1,
         grantedScopes,
-        resourceScope,
+        grantedPermissionKey,
       },
     });
 

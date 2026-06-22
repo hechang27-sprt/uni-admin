@@ -42,7 +42,7 @@ interface AuthRbacRepository {
   }): Promise<void>;
   assignRoles(input: {
     tenantId: string;
-    assignments: { userId: string; roleId: string; scopeId: string | null }[];
+    assignments: { userId: string; roleId: string; scopeId: string }[];
   }): Promise<void>;
   findDeniedRolePermission(input: {
     tenantId: string;
@@ -80,7 +80,7 @@ interface AuthRbacRepository {
   checkCapabilities(input: {
     tenantId: string;
     userId: string;
-    checks: { capability: string; targetScopeId: string | null }[];
+    checks: { capability: string; targetScopeId: string }[];
   }): Promise<boolean[]>;
 }
 ```
@@ -197,7 +197,7 @@ interface TenantActorContext {
 ### 5. Good/Base/Bad Cases
 
 - Good: create a tenant root scope, assign a role at that scope, and verify the
-  actor can access `auth_scope_id = null` documents plus descendant scopes.
+  actor can access tenant-root documents stored with the real tenant-root scope UUID plus descendant scopes.
 - Good: assign a role at a child scope and verify sibling documents are absent
   from `list(input, { actor })`.
 - Good: register two apps with a collection named `tasks`; grant only the

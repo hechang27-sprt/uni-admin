@@ -1,4 +1,4 @@
-import type { GrantedScopes, ResourceScopeMode } from "#server/auth/um";
+import type { GrantedScopes } from "#server/auth/um";
 export interface TenantContext {
   tenantId: string;
 }
@@ -89,7 +89,7 @@ export interface ListDocumentsInput {
   includeDeleted?: boolean;
   authScopeIds?: string[];
   grantedScopes?: GrantedScopes[];
-  resourceScope?: ResourceScopeMode;
+  grantedPermissionKey?: string;
 }
 
 export interface ListDocumentsResult<TData extends JsonObject = JsonObject> {
@@ -108,5 +108,5 @@ export interface NormalizedListDocumentsInput {
   includeDeleted: boolean;
   authScopeIds?: string[];
   grantedScopes?: GrantedScopes[];
-  resourceScope?: ResourceScopeMode;
+  grantedPermissionKey?: string;
 }

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/server/auth-rbac.md", "reason": "Auth/RBAC sentinel and resource-scope semantics, plus stale examples to correct."}
+{"file": ".trellis/spec/server/repository-and-database.md", "reason": "Repository/query ownership and persisted permission/resource-scope metadata guidance."}
+{"file": ".trellis/spec/server/document-service.md", "reason": "DocumentService list-path contract and protected-read behavior expectations."}
+{"file": ".trellis/spec/server/testing.md", "reason": "Required auth/document list filtering test coverage and verification scope."}
