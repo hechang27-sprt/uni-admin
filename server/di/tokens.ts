@@ -7,4 +7,7 @@ export const SERVER_DI_TYPES = {
   AuthRbacService: Symbol.for("uni-admin.server.AuthRbacService"),
   CatalogService: Symbol.for("uni-admin.server.CatalogService"),
   DocumentService: Symbol.for("uni-admin.server.DocumentService"),
+  SessionRepository: Symbol.for("uni-admin.server.SessionRepository"),
+  SessionService: Symbol.for("uni-admin.server.SessionService"),
+  SessionServiceOptions: Symbol.for("uni-admin.server.SessionServiceOptions"),
 } as const;

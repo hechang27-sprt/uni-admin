@@ -125,6 +125,16 @@ export interface UserRoleAssignmentsTable {
   createdAt: Timestamp;
 }
 
+export interface AuthSessionsTable {
+  tokenHash: string;
+  userId: string;
+  tenantId: string | null;
+  createdAt: Timestamp;
+  lastRenewedAt: Timestamp;
+  expiresAt: Timestamp;
+  absoluteExpiresAt: Timestamp;
+}
+
 export interface DocumentsTable {
   id: Generated<string>;
   tenantId: string;
@@ -155,5 +165,6 @@ export interface Database {
   permissions: PermissionsTable;
   rolePermissions: RolePermissionsTable;
   userRoleAssignments: UserRoleAssignmentsTable;
+  authSessions: AuthSessionsTable;
   documents: DocumentsTable;
 }

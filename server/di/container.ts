@@ -7,6 +7,11 @@ import {
   KyselyAuthRbacRepository,
   type AuthRbacRepository,
 } from "#server/auth/um";
+import { SessionService, type SessionServiceOptions } from "#server/auth/session";
+import {
+  KyselySessionRepository,
+  type SessionRepository,
+} from "#server/auth/session/repository";
 import {
   CatalogService,
   KyselyCatalogRepository,
@@ -19,11 +24,19 @@ import {
   type DocumentRepository,
 } from "#server/data/documents";
 import { SERVER_DI_TYPES } from "./tokens";
+import type { DatabaseClient } from "#server/utils/kysely";
+
+const defaultSessionServiceOptions: SessionServiceOptions = {
+  idleTimeoutMs: 1000 * 60 * 60 * 24,
+  renewalThresholdMs: 1000 * 60 * 60 * 12,
+  absoluteTimeoutMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 export interface ServerContainerOptions {
   database: DatabaseClient;
   registry: CollectionRegistry;
   containerOptions?: ContainerOptions;
+  sessionServiceOptions?: SessionServiceOptions;
 }
 
 export function createServerContainer(
@@ -38,6 +51,9 @@ export function createServerContainer(
     .bind<CollectionRegistry>(SERVER_DI_TYPES.CollectionRegistry)
     .toConstantValue(options.registry);
   container
+    .bind<SessionServiceOptions>(SERVER_DI_TYPES.SessionServiceOptions)
+    .toConstantValue(options.sessionServiceOptions ?? defaultSessionServiceOptions);
+  container
     .bind<AuthRbacRepository>(SERVER_DI_TYPES.AuthRbacRepository)
     .to(KyselyAuthRbacRepository)
     .inSingletonScope();
@@ -50,6 +66,10 @@ export function createServerContainer(
     .to(KyselyCatalogRepository)
     .inSingletonScope();
   container
+    .bind<SessionRepository>(SERVER_DI_TYPES.SessionRepository)
+    .to(KyselySessionRepository)
+    .inSingletonScope();
+  container
     .bind<AuthRbacService>(SERVER_DI_TYPES.AuthRbacService)
     .to(AuthRbacService)
     .inSingletonScope();
@@ -60,6 +80,10 @@ export function createServerContainer(
   container
     .bind<DocumentService>(SERVER_DI_TYPES.DocumentService)
     .to(DocumentService)
+    .inSingletonScope();
+  container
+    .bind<SessionService>(SERVER_DI_TYPES.SessionService)
+    .to(SessionService)
     .inSingletonScope();
 
   return container;
