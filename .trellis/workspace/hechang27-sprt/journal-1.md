@@ -1518,3 +1518,35 @@ Moved auth_scope_closure maintenance into the auth_scopes insert trigger, remove
 ### Next Steps
 
 - None - task complete
+
+
+## Session 47: Fix protected list scope filtering
+
+**Date**: 2026-06-22
+**Task**: Fix protected list scope filtering
+
+### Summary
+
+Simplified protected document list scope filtering to use a single CASE/WHEN query derived from persisted permission metadata, added RBAC regressions, and updated stale auth RBAC spec examples.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `59b5c920` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
