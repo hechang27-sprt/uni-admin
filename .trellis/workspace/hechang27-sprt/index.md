@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 44
-- **Last Active**: 2026-06-18
+- **Total Sessions**: 45
+- **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1456 | Active |
+| `journal-1.md` | ~1488 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 45 | 2026-06-22 | Rewrite document scope filtering semantics | `9bade8c1` | `-` |
 | 44 | 2026-06-18 | Rename create grant APIs | `46ab68e8` | `-` |
 | 43 | 2026-06-18 | Unify bottom-scope RBAC semantics | `1fd280f1` | `-` |
 | 42 | 2026-06-16 | Catalog identity review and session readiness | `69a2fcf0,e7a3a0a0,06e792df` | `-` |

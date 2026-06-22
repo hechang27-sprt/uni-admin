@@ -1454,3 +1454,35 @@ Renamed listCreatableScopes to listCreateGrants, removed misleading auth wrapper
 ### Next Steps
 
 - None - task complete
+
+
+## Session 45: Rewrite document scope filtering semantics
+
+**Date**: 2026-06-22
+**Task**: Rewrite document scope filtering semantics
+
+### Summary
+
+Cut document and RBAC scope filtering over to explicit bottom-scope sentinel semantics, updated document list grant translation, restored repository sort-before-pagination, refreshed server specs, and verified server unit tests plus typecheck.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9bade8c1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
