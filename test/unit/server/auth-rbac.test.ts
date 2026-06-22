@@ -1691,7 +1691,40 @@ describe("auth/RBAC service integration", () => {
     ]);
   });
 
-  it("creates closure rows from new scopes to the physical bottom scope", async () => {
+  it("creates tenant-root self closure rows through scope insertion triggers", async () => {
+    const auth = createTestAuthService();
+    const root = await auth.ensureTenantRootScope(tenantA);
+
+    const closureRows = await getTestDatabase()
+      .selectFrom("authScopeClosure")
+      .select(["ancestorId", "descendantId", "depth"])
+      .where("tenantId", "=", tenantA)
+      .where("ancestorId", "in", [root.scopeId, BOTTOM_SCOPE_ID])
+      .where("descendantId", "in", [root.scopeId, BOTTOM_SCOPE_ID])
+      .orderBy("ancestorId")
+      .orderBy("descendantId")
+      .execute();
+
+    expect(closureRows).toEqual([
+      {
+        ancestorId: BOTTOM_SCOPE_ID,
+        descendantId: BOTTOM_SCOPE_ID,
+        depth: 0,
+      },
+      {
+        ancestorId: root.scopeId,
+        descendantId: BOTTOM_SCOPE_ID,
+        depth: 1,
+      },
+      {
+        ancestorId: root.scopeId,
+        descendantId: root.scopeId,
+        depth: 0,
+      },
+    ]);
+  });
+
+  it("creates child ancestor, self, and bottom closure rows through scope insertion triggers", async () => {
     const auth = createTestAuthService();
     const root = await auth.ensureTenantRootScope(tenantA);
     const child = await auth.createScope({
@@ -1705,8 +1738,9 @@ describe("auth/RBAC service integration", () => {
       .selectFrom("authScopeClosure")
       .select(["ancestorId", "descendantId", "depth"])
       .where("tenantId", "=", tenantA)
-      .where("descendantId", "=", BOTTOM_SCOPE_ID)
       .where("ancestorId", "in", [root.scopeId, child.scopeId, BOTTOM_SCOPE_ID])
+      .where("descendantId", "in", [child.scopeId, BOTTOM_SCOPE_ID])
+      .orderBy("descendantId")
       .orderBy("ancestorId")
       .execute();
 
@@ -1724,6 +1758,16 @@ describe("auth/RBAC service integration", () => {
       {
         ancestorId: root.scopeId,
         descendantId: BOTTOM_SCOPE_ID,
+        depth: 1,
+      },
+      {
+        ancestorId: child.scopeId,
+        descendantId: child.scopeId,
+        depth: 0,
+      },
+      {
+        ancestorId: root.scopeId,
+        descendantId: child.scopeId,
         depth: 1,
       },
     ]);

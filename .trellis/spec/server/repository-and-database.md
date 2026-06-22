@@ -61,6 +61,7 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
   `auth_scopes.scope_id`; explicit bottom grants store `BOTTOM_SCOPE_ID`.
 - Assignment uniqueness is a single concrete-scope unique index on
   `(tenant_id, user_id, role_id, scope_id)`.
+- `auth_scope_closure` is trigger-owned derived data for scope creation. Inserting into `auth_scopes` must create the scope self row, parent-derived ancestor rows, the scope-to-bottom row, and a tenant-scoped bottom self row `(tenant_id, BOTTOM_SCOPE_ID, BOTTOM_SCOPE_ID, 0)` idempotently.
 
 ### 4. Validation & Error Matrix
 
@@ -70,6 +71,7 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
 - Writing a bottom-scope assignment without the partial unique index split ->
   duplicate `scope_id is null` grants can persist silently because PostgreSQL
   treats nulls as distinct in ordinary unique indexes.
+- Trigger-owning `auth_scope_closure` without creating a tenant-scoped bottom self row -> bottom-target RBAC joins go empty for that tenant even though the system tenant still has the physical bottom row.
 
 ### 5. Good/Base/Bad Cases
 
@@ -91,8 +93,9 @@ function migrateToLatest(database: DatabaseClient): Promise<void>;
 - An assertion that snake_case JSON data keys round-trip unchanged through
   repository reads.
 - Migration/auth coverage proving `permissions.resource_scope`, the seeded
-  system/bottom scope rows, closure-to-bottom maintenance, and concrete-scope
-  uniqueness for bottom-scope grants.
+  system/bottom scope rows, trigger-owned scope-closure maintenance including
+  tenant-scoped bottom self rows, and concrete-scope uniqueness for
+  bottom-scope grants.
 
 ### 7. Wrong vs Correct
 

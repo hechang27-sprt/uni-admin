@@ -282,26 +282,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
         );
       }
 
-      await tx
-        .insertInto("authScopeClosure")
-        .values({
-          tenantId,
-          ancestorId: scope.scopeId,
-          descendantId: scope.scopeId,
-          depth: 0,
-        })
-        .onConflict((conflict) => conflict.doNothing())
-        .execute();
-      await tx
-        .insertInto("authScopeClosure")
-        .values({
-          tenantId,
-          ancestorId: BOTTOM_SCOPE_ID,
-          descendantId: BOTTOM_SCOPE_ID,
-          depth: 0,
-        })
-        .onConflict((conflict) => conflict.doNothing())
-        .execute();
       return scope;
     });
   }
@@ -348,31 +328,6 @@ export class KyselyAuthRbacRepository implements AuthRbacRepository {
             ]),
           )
           .returningAll(),
-      )
-      .with("closure", (db) =>
-        db
-          .insertInto("authScopeClosure")
-          .columns(["tenantId", "ancestorId", "descendantId", "depth"])
-          .expression(({ selectFrom, val }) =>
-            selectFrom("authScopeClosure as ancestor")
-              .innerJoin("scope", "scope.parentId", "ancestor.descendantId")
-              .select([
-                sql<string>`${input.tenantId}::uuid`.as("tenantId"),
-                "ancestor.ancestorId",
-                "scope.scopeId as descendantId",
-                sql<number>`ancestor.depth + 1`.as("depth"),
-              ])
-              .where("ancestor.tenantId", "=", input.tenantId)
-              .unionAll(
-                selectFrom("scope").select([
-                  sql<string>`${input.tenantId}::uuid`.as("tenantId"),
-                  "scope.scopeId as ancestorId",
-                  "scope.scopeId as descendantId",
-                  val(0).as("depth"),
-                ]),
-              ),
-          )
-          .returning("descendantId"),
       )
       .selectFrom("scope")
       .selectAll()

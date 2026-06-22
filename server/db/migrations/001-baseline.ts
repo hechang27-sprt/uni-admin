@@ -3,7 +3,6 @@ import type { Database } from "../schema";
 
 const SYSTEM_TENANT_ID = "00000000-0000-0000-0000-000000000000";
 const BOTTOM_SCOPE_ID = SYSTEM_TENANT_ID;
-import type { Database } from "../schema";
 
 export async function up(db: Kysely<Database>): Promise<void> {
   await db.schema
@@ -86,7 +85,6 @@ export async function up(db: Kysely<Database>): Promise<void> {
       "collection_id",
     ])
     .execute();
-
 
   await db.schema
     .createTable("users")
@@ -215,7 +213,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
   `.execute(db);
 
   await sql`
-    create or replace function maintain_bottom_scope_closure()
+    create or replace function maintain_auth_scope_closure()
     returns trigger
     language plpgsql
     as $$
@@ -223,6 +221,34 @@ export async function up(db: Kysely<Database>): Promise<void> {
       if new.scope_id = '00000000-0000-0000-0000-000000000000'::uuid then
         return new;
       end if;
+      insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+      values (
+        new.tenant_id,
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        0
+      )
+      on conflict do nothing;
+
+      insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+      values (
+        new.tenant_id,
+        new.scope_id,
+        new.scope_id,
+        0
+      )
+      on conflict do nothing;
+
+      insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
+      select
+        ancestor.tenant_id,
+        ancestor.ancestor_id,
+        new.scope_id,
+        ancestor.depth + 1
+      from auth_scope_closure as ancestor
+      where ancestor.tenant_id = new.tenant_id
+        and ancestor.descendant_id = new.parent_id
+      on conflict do nothing;
 
       insert into auth_scope_closure (tenant_id, ancestor_id, descendant_id, depth)
       values (
@@ -248,7 +274,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     create trigger auth_scopes_maintain_bottom_scope_closure
     after insert on auth_scopes
     for each row
-    execute function maintain_bottom_scope_closure();
+    execute function maintain_auth_scope_closure();
   `.execute(db);
 
   await db.schema
@@ -431,7 +457,6 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .columns(["app_id", "key"])
     .execute();
 
-
   await db.schema
     .createIndex("permissions_key_unique")
     .unique()
@@ -497,7 +522,7 @@ export async function down(db: Kysely<Database>): Promise<void> {
   await sql`
     drop trigger if exists auth_scopes_maintain_bottom_scope_closure on auth_scopes;
   `.execute(db);
-  await sql`drop function if exists maintain_bottom_scope_closure();`.execute(db);
+  await sql`drop function if exists maintain_auth_scope_closure();`.execute(db);
   await db.schema.dropTable("documents").ifExists().cascade().execute();
   await db.schema
     .dropTable("user_role_assignments")
