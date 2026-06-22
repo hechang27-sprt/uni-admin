@@ -31,6 +31,6 @@ export default withNuxt(
     },
   },
   {
-    ignores: [".codex/*", ".claude/*", ".omp/*"],
+    ignores: [".codex/*", ".claude/*", ".omp/*", ".gitnexus/*"],
   },
 );
