@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 45
+- **Total Sessions**: 46
 - **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1488 | Active |
+| `journal-1.md` | ~1520 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 46 | 2026-06-22 | move auth_scope_closure maintenance to db triggers | `6fb2c6fa` | `-` |
 | 45 | 2026-06-22 | Rewrite document scope filtering semantics | `9bade8c1` | `-` |
 | 44 | 2026-06-18 | Rename create grant APIs | `46ab68e8` | `-` |
 | 43 | 2026-06-18 | Unify bottom-scope RBAC semantics | `1fd280f1` | `-` |

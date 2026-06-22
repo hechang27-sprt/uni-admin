@@ -1486,3 +1486,35 @@ Cut document and RBAC scope filtering over to explicit bottom-scope sentinel sem
 ### Next Steps
 
 - None - task complete
+
+
+## Session 46: move auth_scope_closure maintenance to db triggers
+
+**Date**: 2026-06-22
+**Task**: move auth_scope_closure maintenance to db triggers
+
+### Summary
+
+Moved auth_scope_closure maintenance into the auth_scopes insert trigger, removed repository-side closure writes, renamed the trigger function to maintain_auth_scope_closure, added focused auth RBAC coverage, and updated the repository/database spec with the tenant-scoped bottom-self-row invariant.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6fb2c6fa` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
