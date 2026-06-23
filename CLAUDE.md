@@ -1,3 +1,26 @@
+<!-- NUXT-AUTOIMPORT:START -->
+
+# Nuxt Autoimport Warning
+
+Here are the directories Nuxt auto-imports from:
+
+- **`app/components/`** — Vue components, available in templates globally
+- **`app/composables/`** — composables (e.g. `useMyThing.ts`)
+- **`app/utils/`** — helper functions and utilities
+- **`server/utils/`** — server-side functions and variables
+
+<!-- NUXT-AUTOIMPORT:END -->
+
+<!-- HEADROOM-WARNING:START -->
+
+# Headroom Tool Call Compression Warning
+
+Warning: tool call results may appear mangled as a result of compression via Headroom proxy.
+Do NOT assume actual syntax error in code unless corroborated by LSP or typechecker.
+DO NOT TRY TO BYPASS THE COMPRESSION via code
+
+<!-- HEADROOM-WARNING:END -->
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
@@ -42,3 +65,19 @@ This project is indexed by GitNexus as **uni-admin** (699 symbols, 1978 relation
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+<!-- agent-skills:start -->
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repo’s GitHub Issues; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain docs are configured as single-context: one root `CONTEXT.md` plus root `docs/adr/`. See `docs/agents/domain.md`.
+<!-- agent-skills:end -->
