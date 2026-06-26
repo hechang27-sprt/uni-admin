@@ -1,0 +1,148 @@
+datasource db {
+  provider = 'postgresql'
+  url      = env('DATABASE_URL')
+}
+
+plugin policy {
+  provider = '@zenstackhq/plugin-policy'
+}
+
+model User {
+  id String @id
+
+  memberships   Membership[]
+  actorContexts ActorContext[]
+}
+
+model Tenant {
+  id String @id
+
+  memberships      Membership[]
+  actorContexts    ActorContext[]
+  authScopes       AuthScope[]
+  capabilityGrants DerivedCapabilityGrant[]
+  documents        DocumentBase[]
+}
+
+model Membership {
+  id       String @id
+  userId   String
+  tenantId String
+
+  user          User           @relation(fields: [userId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  actorContexts ActorContext[]
+
+  @@unique([userId, tenantId])
+}
+
+model ActorContext {
+  id           String @id
+  userId       String
+  tenantId     String
+  membershipId String
+
+  user             User                     @relation(fields: [userId], references: [id])
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id])
+  membership       Membership               @relation(fields: [membershipId], references: [id])
+  capabilityGrants DerivedCapabilityGrant[]
+
+  @@auth
+  @@unique([userId, tenantId, membershipId])
+}
+
+model AuthScope {
+  id       String @id
+  tenantId String
+  label    String?
+
+  tenant              Tenant                                @relation(fields: [tenantId], references: [id])
+  closureAsAncestor   AuthScopeClosure[]                    @relation('ScopeClosureAncestor')
+  closureAsDescendant AuthScopeClosure[]                    @relation('ScopeClosureDescendant')
+  grantsAsGrantScope  DerivedCapabilityGrant[]              @relation('GrantScope')
+  reachableByGrants   DerivedCapabilityGrantReachableScope[]
+  documents           DocumentBase[]
+}
+
+model AuthScopeClosure {
+  ancestorId   String
+  descendantId String
+
+  ancestor   AuthScope @relation('ScopeClosureAncestor', fields: [ancestorId], references: [id])
+  descendant AuthScope @relation('ScopeClosureDescendant', fields: [descendantId], references: [id])
+
+  @@id([ancestorId, descendantId])
+}
+
+model DerivedCapabilityGrant {
+  id             String @id
+  actorContextId String
+  tenantId       String
+  capabilityKey  String
+  grantScopeId   String
+
+  actorContext    ActorContext                          @relation(fields: [actorContextId], references: [id])
+  tenant          Tenant                                @relation(fields: [tenantId], references: [id])
+  grantScope      AuthScope                             @relation('GrantScope', fields: [grantScopeId], references: [id])
+  reachableScopes DerivedCapabilityGrantReachableScope[]
+
+  @@index([actorContextId, capabilityKey])
+  @@index([grantScopeId])
+}
+
+model DerivedCapabilityGrantReachableScope {
+  grantId String
+  scopeId String
+
+  grant DerivedCapabilityGrant @relation(fields: [grantId], references: [id])
+  scope AuthScope              @relation(fields: [scopeId], references: [id])
+
+  @@id([grantId, scopeId])
+}
+
+model App {
+  key  String @id
+  name String
+
+  collections Collection[]
+}
+
+model Collection {
+  qualifiedKey  String @id
+  appKey        String
+  collectionKey String
+  name          String
+
+  app App @relation(fields: [appKey], references: [key])
+
+  @@unique([appKey, collectionKey])
+}
+
+model DocumentBase {
+  documentId   String @id
+  tenantId     String
+  authScopeId  String
+  qualifiedKey String
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  authScope AuthScope @relation(fields: [authScopeId], references: [id])
+
+  @@delegate(qualifiedKey)
+  @@allow('read', auth() != null && auth().tenantId == tenantId && auth().capabilityGrants?[tenantId == this.tenantId && capabilityKey == 'document:read' && reachableScopes?[scopeId == this.authScopeId]])
+  @@allow('update', auth() != null && auth().tenantId == tenantId && auth().capabilityGrants?[tenantId == this.tenantId && capabilityKey == 'document:update' && reachableScopes?[scopeId == this.authScopeId]])
+}
+
+model ProjectDocument extends DocumentBase {
+  title  String
+  status String @default('draft')
+
+  @@delegateMap('default:projects')
+}
+
+model LockedDocument extends DocumentBase {
+  title  String
+  locked Boolean @default(true)
+
+  @@delegateMap('default:locked-documents')
+  @@deny('update', locked == true)
+}

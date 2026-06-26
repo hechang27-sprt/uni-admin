@@ -271,6 +271,136 @@ Reason:
 - hand-writing closure joins in user code would recreate the same complexity the ZenStack-first pivot is trying to absorb
 
 
+### 18. Explicit `DocumentBase` managed-collection contract
+
+Current leaning:
+
+- the platform-managed collection contract should be explicit: only models extending framework-owned `DocumentBase` are managed collections
+- `DocumentBase` should carry the shared platform row identity, tenant/scope targeting, collection discriminator, and default policy contract
+- `collectionKey` should serve as the ZenStack delegate discriminator because concrete submodels are exactly the managed business collections
+- each concrete managed collection should use a stable discriminator value via `@@delegateMap(<collection-key>)`
+
+Current leaning for identity:
+
+- `documentId` should be the shared primary key for `DocumentBase` and all managed concrete submodels
+- user-defined domain identifiers may still exist, but as ordinary fields / unique fields rather than replacing the platform primary key
+
+Reason:
+
+- v3 delegate polymorphism assumes shared base/concrete identity values
+- the platform benefits from one canonical row identity for audit, actions, policy, remote projection, and admin surfaces
+- using collection key as discriminator is coherent because the subtype models are exactly the managed collections
+
+
+### 19. Base-level default policy ownership
+
+Current leaning:
+
+- the standard generated CRUD access rules should live primarily on `DocumentBase`
+- managed concrete submodels should inherit the default tenant/scope/capability policy automatically
+- concrete models may add stricter collection-specific rules when needed, but should not need to restate the baseline platform policy contract
+
+Reason:
+
+- best matches the explicit `DocumentBase` managed-collection contract
+- keeps default ZenStack policy logic in one place
+- reduces per-collection policy duplication further
+- makes platform management of a collection materially meaningful at the schema layer
+
+
+### 20. Composition of collection-specific stricter rules
+
+Current leaning:
+
+- concrete managed submodels may tighten the inherited `DocumentBase` policy contract
+- they should not casually weaken or replace the baseline platform tenant/scope/capability guarantees
+- collection-specific rules should primarily add stricter business constraints on top of the inherited base policy
+
+Reason:
+
+- preserves the meaning of platform-managed collections
+- avoids silent weakening of the shared auth contract
+- still leaves domain collections room for stricter business-specific access constraints
+
+
+### 21. Unmanaged auxiliary relational models
+
+Current leaning:
+
+- models that do not extend `DocumentBase` should be treated as ordinary auxiliary/support relational models
+- they may still be queried and used by user business logic
+- but they should not automatically become first-class platform collections
+
+That means they do not automatically receive:
+
+- collection identity
+- capability generation
+- default generated CRUD policy contract
+- admin collection surfacing
+- remote-backed collection semantics
+
+Reason:
+
+- gives a clean split between platform-managed collections and supporting relational tables
+- avoids forcing every support table to pretend to be a collection
+- preserves relational freedom under the managed collection layer
+
+
+### 22. Relations between managed and unmanaged models
+
+Current leaning:
+
+- platform-managed `DocumentBase` collections should be allowed to relate freely to unmanaged auxiliary/support relational models
+- only the `DocumentBase` side should participate in collection identity, default CRUD policy generation, admin surfacing, and other first-class platform collection semantics
+
+Reason:
+
+- preserves relational freedom under the managed collection layer
+- allows normalized helper/support tables without forcing them into the platform collection model
+- keeps the platform boundary semantic rather than relationally isolating managed collections from ordinary support tables
+
+
+### 23. Collections catalog ownership
+
+Current leaning:
+
+- app ownership should be declared at the managed concrete collection level, not at `DocumentBase`
+- there should be a `collections` catalog table with an `appId` foreign key
+- managed concrete collection metadata should map stable collection identity to owning app through that catalog
+
+Open design fork:
+
+- whether `collectionKey` remains app-scoped and duplicate across apps, or becomes globally unique in the new `DocumentBase`/delegate-discriminator design
+
+Reason:
+
+- `DocumentBase` is shared platform infrastructure, while app ownership belongs to concrete managed collections
+- the collections catalog is now a first-class bridge between app ownership, stable collection identity, and capability generation
+
+
+### 24. Qualified collection identity and discriminator naming
+
+Current leaning:
+
+- app-local collection keys may remain scoped within an app
+- the globally unique technical identity for a managed collection should be the qualified form `app-key:collection-key`
+- `DocumentBase` should store that qualified identity as its delegate discriminator
+- for naming clarity, the base-model discriminator field should not overload the meaning of a bare local `collectionKey`
+
+Recommended naming split:
+
+- catalog local key: `collectionKey`
+- catalog/global discriminator key: `qualifiedCollectionKey`
+- `DocumentBase` discriminator field: `qualifiedCollectionKey`
+
+Reason:
+
+- preserves app-local collection naming flexibility
+- keeps the ZenStack delegate discriminator globally unique
+- avoids forcing bare collection keys to be globally unique
+- makes the difference between local collection naming and global technical identity explicit
+
+
 ### 9. Effective-access surface
 
 Current leaning:
@@ -401,6 +531,30 @@ Design consequence:
    **Settled:** **Yes**.
 21. Should the framework expose first-class scope-aware query helpers over `auth_scope_id`, likely as reusable Kysely expressions/helpers?
    **Settled:** **Yes**.
+22. Should user-authored custom policies and query customizations be allowed to reference injected `auth_scope_id` directly as a first-class field, while `tenant_id` remains mostly implicit?
+   **Superseded by later `DocumentBase` direction.**
+
+23. Should the platform-managed collection contract become explicit `DocumentBase` inheritance rather than plain-model implicit injection?
+   **Settled:** **Yes**.
+
+24. Should `DocumentBase.collectionKey` serve as the ZenStack delegate discriminator for managed collection subtypes?
+   **Settled:** **Yes**.
+
+25. Should `DocumentBase.documentId` be the shared primary key for all managed collection subtypes?
+   **Settled:** **Yes**.
+
+26. Should the standard generated CRUD access rules live primarily on `DocumentBase`, with managed submodels inheriting them and only adding stricter rules when needed?
+   **Settled:** **Yes**.
+27. Should concrete managed submodels be allowed to tighten inherited `DocumentBase` policies but not weaken/replace the baseline platform policy wholesale?
+   **Settled:** **Yes**.
+28. Should models that do not extend `DocumentBase` remain ordinary auxiliary/support relational models rather than first-class platform collections?
+   **Settled:** **Yes**.
+29. Should platform-managed `DocumentBase` collections be allowed to relate freely to unmanaged auxiliary/support models, with only the `DocumentBase` side participating in platform collection semantics?
+   **Settled:** **Yes**.
+30. Should app ownership live on concrete managed collections via a `collections` table with an `appId` foreign key rather than at `DocumentBase`?
+   **Settled:** **Yes**.
+31. Should the base-model discriminator use a globally unique qualified collection identity like `app-key:collection-key`, while keeping a separate local app-scoped `collectionKey` for catalog naming?
+   **Settled:** **Yes**.
 
 
 ## Suggested Next Questions
@@ -411,3 +565,255 @@ Design consequence:
 4. How should app-to-collection ownership metadata be represented and generated?
 5. How should auth-scope closure semantics be remodeled so ZenStack policies stay readable?
 6. How should remote-backed collections materialize relational projections in this new model?
+
+## Draft Schema Sketch
+
+The sketch below is a design draft, not a validated final schema. It is intended to make the currently settled direction concrete.
+
+### Catalog and app ownership
+
+```zmodel
+model App {
+    id          String   @id @default(uuid(4)) @db.Uuid
+    key         String   @unique
+    name        String
+    collections Collection[]
+}
+
+model Collection {
+    id                   String @id @default(uuid(4)) @db.Uuid
+    app                  App    @relation(fields: [appId], references: [id])
+    appId                String @db.Uuid
+
+    // app-scoped human/authoring key, e.g. "post"
+    collectionKey        String
+
+    // globally unique technical identity, e.g. "blog:post"
+    qualifiedCollectionKey String @unique
+
+    name                 String
+
+    @@unique([appId, collectionKey])
+}
+```
+
+### Auth / actor context
+
+```zmodel
+model User {
+    id           String       @id @default(uuid(4)) @db.Uuid
+    memberships  Membership[]
+    actorContexts ActorContext[]
+}
+
+model Tenant {
+    id           String       @id @default(uuid(4)) @db.Uuid
+    memberships  Membership[]
+    authScopes   AuthScope[]
+}
+
+model Membership {
+    id        String @id @default(uuid(4)) @db.Uuid
+    user      User   @relation(fields: [userId], references: [id])
+    userId    String @db.Uuid
+    tenant    Tenant @relation(fields: [tenantId], references: [id])
+    tenantId  String @db.Uuid
+
+    actorContexts ActorContext[]
+
+    @@unique([userId, tenantId])
+}
+
+model ActorContext {
+    id            String      @id @default(uuid(4)) @db.Uuid
+    user          User        @relation(fields: [userId], references: [id])
+    userId        String      @db.Uuid
+    tenant        Tenant      @relation(fields: [tenantId], references: [id])
+    tenantId      String      @db.Uuid
+    membership    Membership  @relation(fields: [membershipId], references: [id])
+    membershipId  String      @db.Uuid
+
+    capabilityGrants DerivedCapabilityGrant[]
+
+    @@unique([userId, tenantId, membershipId])
+}
+
+type Auth {
+    id           String
+    userId       String
+    tenantId     String
+    membershipId String
+    @@auth
+}
+```
+
+### Scope hierarchy and derived grant surface
+
+```zmodel
+model AuthScope {
+    id        String @id @default(uuid(4)) @db.Uuid
+    tenant    Tenant @relation(fields: [tenantId], references: [id])
+    tenantId  String @db.Uuid
+}
+
+model AuthScopeClosure {
+    ancestorScope   AuthScope @relation("ClosureAncestor", fields: [ancestorScopeId], references: [id])
+    ancestorScopeId String    @db.Uuid
+
+    descendantScope   AuthScope @relation("ClosureDescendant", fields: [descendantScopeId], references: [id])
+    descendantScopeId String    @db.Uuid
+
+    @@id([ancestorScopeId, descendantScopeId])
+}
+
+model DerivedCapabilityGrant {
+    id                    String       @id @default(uuid(4)) @db.Uuid
+    actorContext          ActorContext @relation(fields: [actorContextId], references: [id])
+    actorContextId        String       @db.Uuid
+
+    tenantId              String       @db.Uuid
+    capabilityKey         String
+    grantScopeId          String       @db.Uuid
+
+    @@index([actorContextId, capabilityKey])
+    @@index([grantScopeId])
+}
+```
+
+### Managed collection base model
+
+```zmodel
+model DocumentBase {
+    documentId             String   @id @default(uuid(4)) @db.Uuid
+    tenantId               String   @db.Uuid
+    authScopeId            String   @db.Uuid
+
+    // globally unique discriminator, e.g. "blog:post"
+    qualifiedCollectionKey String
+
+    @@delegate(qualifiedCollectionKey)
+
+    // Default generated CRUD policy lives here.
+    // Concrete submodels inherit and may only tighten.
+}
+```
+
+### Example managed collection
+
+```zmodel
+model Post extends DocumentBase {
+    title   String
+    content String?
+
+    @@delegateMap("blog:post")
+}
+```
+
+### Example auxiliary support model
+
+```zmodel
+model PostRevision {
+    id        String @id @default(uuid(4)) @db.Uuid
+    post      Post   @relation(fields: [postDocumentId], references: [documentId])
+    postDocumentId String @db.Uuid
+    body      String
+}
+```
+
+### Policy shape sketch
+
+The default generated `DocumentBase` policy is expected to encode the shared baseline:
+
+- row belongs to the current tenant
+- actor has the relevant capability key
+- actor's grant scope reaches the row's `authScopeId` via shared scope closure
+
+Concrete managed collections may add stricter rules, but should not weaken this baseline.
+
+### Notes
+
+- This sketch keeps managed collections explicit via `extends DocumentBase`.
+- Unmanaged relational models remain ordinary support tables.
+- Remote-backed collections are still expected to materialize as ordinary managed collection subtypes, with remote behavior handled above the local relational model.
+- `qualifiedCollectionKey` is the globally unique technical identity; bare `collectionKey` remains app-scoped catalog metadata.
+
+## ADR-Style Conclusion
+
+### Status
+
+Provisional architectural direction. Strong enough for prototyping. Not yet validated end-to-end against a real ZenStack v3 schema and policy runtime.
+
+### Decision
+
+Adopt a **ZenStack-first relational architecture** with an explicit **`DocumentBase` polymorphic base model** as the contract for platform-managed collections.
+
+Under this direction:
+
+- a first-class platform collection is a concrete ZModel subtype that extends `DocumentBase`
+- unmanaged/support relational tables remain ordinary models that do not extend `DocumentBase`
+- `DocumentBase` owns shared platform row identity, tenant targeting, auth-scope targeting, collection discrimination, and baseline generated CRUD policy
+- concrete managed collections inherit the base policy and may only tighten it with stricter collection-specific constraints
+- app ownership lives in a `collections` catalog table rather than on `DocumentBase`
+
+### Identity model
+
+- `documentId` is the shared primary key for `DocumentBase` and all managed concrete submodels
+- local app-scoped collection naming remains available through `collectionKey`
+- globally unique technical collection identity is carried by `qualifiedCollectionKey = app-key:collection-key`
+- `qualifiedCollectionKey` is the ZenStack delegate discriminator used by `@@delegate(...)`
+
+### Authorization model
+
+- `auth()` represents the current tenant-bound actor context, not merely the platform user
+- managed rows carry tenant and auth-scope targeting through the base contract
+- default access control is based on actor-derived `(actor_context, capability_key, grant_scope)` rows plus shared auth-scope closure
+- baseline CRUD policy should live on `DocumentBase` and be inherited by managed submodels
+
+### Remote-backed model
+
+- remote-backed collections remain ordinary managed collection subtypes
+- local relational rows stay the policy/query/admin surface
+- remote sync/write differences live in adapter logic above the model, not in a separate collection kind
+
+### Why this direction
+
+This direction was chosen because it best balances:
+
+- explicit platform semantics for managed collections
+- strong reuse of ZenStack’s schema, polymorphism, and policy system
+- preservation of relational freedom for auxiliary/support tables
+- a clean split between platform-managed collections and unmanaged helper models
+- a single canonical platform row identity
+
+It also avoids two failure modes:
+
+- making every user table pretend to be a collection
+- rebuilding policy, tenant, and scope semantics ad hoc on every model or query path
+
+### Consequences
+
+Positive:
+
+- the managed/unmanaged boundary becomes explicit and inspectable
+- default CRUD policy can be centralized in one schema layer
+- capability/catalog identity aligns with discriminator identity
+- end users keep full freedom to define auxiliary relational tables and joins outside the collection model
+
+Costs:
+
+- the design now depends on ZenStack delegate-polymorphism behavior for inherited policy composition
+- `DocumentBase` introduces a real polymorphic base table rather than invisible field injection only
+- collection/catalog/auth generation becomes a more opinionated framework pipeline
+
+### Validation required before committing fully
+
+Prototype these first:
+
+1. a minimal ZenStack v3 schema proving `DocumentBase` + `@@delegate` + inherited policy behavior on submodels
+2. a tenant/scope/capability rule that joins derived grant rows with shared auth-scope closure
+3. a concrete managed subtype that adds stricter rules without weakening the base contract
+4. a catalog/discriminator setup proving `qualifiedCollectionKey` cleanly aligns app ownership, collection identity, and capability namespace
+
+### Current recommendation
+
+Proceed with this architecture as the leading design. Do not treat it as final until the four validation prototypes above succeed.

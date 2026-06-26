@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "test": "vitest run",
+    "prototype:zenstack-relational-redesign": "bunx zen generate --schema server/zenstack/prototype-relational-redesign/prototype.zmodel --output server/zenstack/prototype-relational-redesign/generated && bunx vitest run test/unit/server/zenstack/prototype-relational-redesign.test.ts",
     "typecheck": "bunx tsc -b --noEmit",
     "postinstall": "nuxt prepare",
     "lint": "run-s --continue-on-error lint:oxlint lint:eslint",
@@ -39,11 +40,16 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "^0.2.5",
     "@nuxt/test-utils": "^4.0.3",
     "@types/bun": "^1.3.14",
     "@types/pg": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.7",
     "@vue/test-utils": "^2.4.10",
+    "@zenstackhq/cli": "^3.8.0",
+    "@zenstackhq/orm": "^3.8.0",
+    "@zenstackhq/plugin-policy": "^3.8.0",
+    "@zenstackhq/schema": "^3.8.0",
     "eslint": "^10.4.0",
     "eslint-plugin-oxlint": "^1.66.0",
     "eslint-plugin-unicorn": "^64.0.0",
@@ -54,5 +60,9 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tsx": "^4.22.0",
     "vitest": "^4.1.7"
-  }
+  },
+  "trustedDependencies": [
+    "@parcel/watcher",
+    "unrs-resolver"
+  ]
 }
