@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 48
-- **Last Active**: 2026-06-22
+- **Total Sessions**: 49
+- **Last Active**: 2026-06-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1597 | Active |
+| `journal-1.md` | ~1629 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 49 | 2026-06-26 | ZenStack relational redesign prototype | `de8a9ad3` | `-` |
 | 48 | 2026-06-22 | Implement auth session domain module | `935f1253` | `-` |
 | 47 | 2026-06-22 | Fix protected list scope filtering | `59b5c920` | `-` |
 | 46 | 2026-06-22 | move auth_scope_closure maintenance to db triggers | `6fb2c6fa` | `-` |

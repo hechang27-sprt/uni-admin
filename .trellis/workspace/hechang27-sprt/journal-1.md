@@ -1595,3 +1595,35 @@ Verification:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 49: ZenStack relational redesign prototype
+
+**Date**: 2026-06-26
+**Task**: ZenStack relational redesign prototype
+
+### Summary
+
+Built and tightened a Bun-only ZenStack + PGlite prototype for the relational redesign, validated delegate inheritance and actor-context policy behavior, then simplified App/Collection identity to key-based primary keys.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de8a9ad3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
