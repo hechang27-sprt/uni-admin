@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/server/index.md", "reason": "server package review guidance"}
+{"file": ".trellis/spec/server/testing.md", "reason": "prototype demo verification expectations"}
+{"file": "docs/zenstack-relational-redesign-grilling.md", "reason": "compare prototype outcome to architecture claims"}
