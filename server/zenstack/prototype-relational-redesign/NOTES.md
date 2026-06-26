@@ -32,3 +32,35 @@ Important prototype findings:
 - A direct nested closure traversal inside the policy expression was awkward in practice under ZenStack; the tightened prototype had to materialize `DerivedCapabilityGrantReachableScope` rows to keep the policy surface reliable.
 - Under the simplified identity model, collection metadata remains explicit but authorization is still row/scope-driven. A sibling-scoped row created outside the grant's reachable scopes is correctly filtered out by policy.
 - The clean PGlite + ZenStack seam here remains: PGlite runtime + `@electric-sql/pglite-socket` bridge for `zen db push` + ZenStackClient over `PGliteDialect`.
+
+# Enrichment Round (2026-06-26)
+
+Question: can the prototype carry the full framework-owned relational surface (catalog, RBAC, sessions, lifecycle metadata) while using closure-only scope matching in policy?
+
+Verdict: yes for the surface breadth, but with a confirmed limitation on closure traversal.
+
+## Changes
+
+- Full Postgres-native types (@db.Uuid, @db.Timestamptz(6)) for identity/lifecycle fields.
+- Added models: UserPasswordCredential, AuthSession, TenantApp, Permission, Role, RolePermission, RoleAssignment, ProjectRevision.
+- Removed DerivedCapabilityGrantReachableScope.
+- Added timestamps, version, remote identity, soft-delete fields to DocumentBase.
+
+## Key finding: closure traversal in ZenStack policy
+
+The expression `auth().capabilityGrants?[grantScope.closureAsAncestor?[descendantId == this.authScopeId]]` fails with `Field "closureAsAncestor" not found in model "DerivedCapabilityGrant"`. The policy engine cannot nest to-many `?[...]` collection predicates through a to-one → to-many chain.
+
+**Resolution for now:** policy checks tenant isolation (`auth().tenantId == tenantId`) + capability presence (`auth().capabilityGrants?[capabilityKey == K]`). Full scope-closure authorization is deferred to the application layer.
+
+**Implication:** if scope-level RBAC enforcement inside ZenStack policy is a hard requirement, the existing approach is either:
+- Keep a narrow reachable-scope materialization per grant (the prior prototype's approach, which worked).
+- Wait for ZenStack to support deeper nested collection predicates.
+- Use a different access model (e.g., policy operates on a flat pre-joined view).
+
+## Other findings
+
+- ZenStack does not auto-increment version fields on update; that's an app-layer responsibility.
+- Composite unique constraints on compound FKs (e.g., `TenantApp.tenantId + appId`) require the one-to-many relation from the FK-owning model; opposite relations must be declared on both sides.
+- `UserPasswordCredential.userId` needs both `@id` and `@unique` for a one-to-one relation where the FK is also the PK.
+- Postgres native UUID types + ZenStack's `@default(uuid(4))` work correctly with PGlite.
+- Policy with capability presence + tenant isolation alone produces clean SQL without runtime errors.

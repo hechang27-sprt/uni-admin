@@ -18,7 +18,37 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                displayName: {
+                    name: "displayName",
+                    type: "String",
+                    optional: true
+                },
+                status: {
+                    name: "status",
+                    type: "String",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal("active") }] }] as readonly AttributeApplication[],
+                    default: "active" as FieldDefault
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                passwordCredential: {
+                    name: "passwordCredential",
+                    type: "UserPasswordCredential",
+                    optional: true,
+                    relation: { opposite: "user" }
                 },
                 memberships: {
                     name: "memberships",
@@ -31,11 +61,71 @@ export class SchemaType implements SchemaDef {
                     type: "ActorContext",
                     array: true,
                     relation: { opposite: "user" }
+                },
+                sessions: {
+                    name: "sessions",
+                    type: "AuthSession",
+                    array: true,
+                    relation: { opposite: "user" }
+                },
+                roleAssignments: {
+                    name: "roleAssignments",
+                    type: "RoleAssignment",
+                    array: true,
+                    relation: { opposite: "user" }
                 }
             },
             idFields: ["id"],
             uniqueFields: {
                 id: { type: "String" }
+            }
+        },
+        UserPasswordCredential: {
+            name: "UserPasswordCredential",
+            fields: {
+                userId: {
+                    name: "userId",
+                    type: "String",
+                    id: true,
+                    unique: true,
+                    attributes: [{ name: "@id" }, { name: "@unique" }] as readonly AttributeApplication[],
+                    foreignKeyFor: [
+                        "user"
+                    ] as readonly string[]
+                },
+                user: {
+                    name: "user",
+                    type: "User",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "passwordCredential", fields: ["userId"], references: ["id"] }
+                },
+                username: {
+                    name: "username",
+                    type: "String",
+                    unique: true,
+                    attributes: [{ name: "@unique" }] as readonly AttributeApplication[]
+                },
+                passwordHash: {
+                    name: "passwordHash",
+                    type: "String"
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                }
+            },
+            idFields: ["userId"],
+            uniqueFields: {
+                userId: { type: "String" },
+                username: { type: "String" }
             }
         },
         Tenant: {
@@ -45,7 +135,13 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                name: {
+                    name: "name",
+                    type: "String",
+                    optional: true
                 },
                 memberships: {
                     name: "memberships",
@@ -76,6 +172,24 @@ export class SchemaType implements SchemaDef {
                     type: "DocumentBase",
                     array: true,
                     relation: { opposite: "tenant" }
+                },
+                tenantApps: {
+                    name: "tenantApps",
+                    type: "TenantApp",
+                    array: true,
+                    relation: { opposite: "tenant" }
+                },
+                roles: {
+                    name: "roles",
+                    type: "Role",
+                    array: true,
+                    relation: { opposite: "tenant" }
+                },
+                roleAssignments: {
+                    name: "roleAssignments",
+                    type: "RoleAssignment",
+                    array: true,
+                    relation: { opposite: "tenant" }
                 }
             },
             idFields: ["id"],
@@ -90,14 +204,8 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
-                },
-                userId: {
-                    name: "userId",
-                    type: "String",
-                    foreignKeyFor: [
-                        "user"
-                    ] as readonly string[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 tenantId: {
                     name: "tenantId",
@@ -106,11 +214,30 @@ export class SchemaType implements SchemaDef {
                         "tenant"
                     ] as readonly string[]
                 },
-                user: {
-                    name: "user",
-                    type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "memberships", fields: ["userId"], references: ["id"] }
+                userId: {
+                    name: "userId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "user"
+                    ] as readonly string[]
+                },
+                status: {
+                    name: "status",
+                    type: "String",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal("active") }] }] as readonly AttributeApplication[],
+                    default: "active" as FieldDefault
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
                 },
                 tenant: {
                     name: "tenant",
@@ -118,9 +245,21 @@ export class SchemaType implements SchemaDef {
                     attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
                     relation: { opposite: "memberships", fields: ["tenantId"], references: ["id"] }
                 },
+                user: {
+                    name: "user",
+                    type: "User",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "memberships", fields: ["userId"], references: ["id"] }
+                },
                 actorContexts: {
                     name: "actorContexts",
                     type: "ActorContext",
+                    array: true,
+                    relation: { opposite: "membership" }
+                },
+                sessions: {
+                    name: "sessions",
+                    type: "AuthSession",
                     array: true,
                     relation: { opposite: "membership" }
                 }
@@ -141,7 +280,8 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 userId: {
                     name: "userId",
@@ -199,6 +339,265 @@ export class SchemaType implements SchemaDef {
                 userId_tenantId_membershipId: { userId: { type: "String" }, tenantId: { type: "String" }, membershipId: { type: "String" } }
             }
         },
+        AuthSession: {
+            name: "AuthSession",
+            fields: {
+                tokenHash: {
+                    name: "tokenHash",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                },
+                userId: {
+                    name: "userId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "user",
+                        "membership"
+                    ] as readonly string[]
+                },
+                tenantId: {
+                    name: "tenantId",
+                    type: "String",
+                    optional: true,
+                    foreignKeyFor: [
+                        "membership"
+                    ] as readonly string[]
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                lastRenewedAt: {
+                    name: "lastRenewedAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                expiresAt: {
+                    name: "expiresAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                absoluteExpiresAt: {
+                    name: "absoluteExpiresAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                user: {
+                    name: "user",
+                    type: "User",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "sessions", fields: ["userId"], references: ["id"] }
+                },
+                membership: {
+                    name: "membership",
+                    type: "Membership",
+                    optional: true,
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "sessions", fields: ["tenantId", "userId"], references: ["tenantId", "userId"] }
+                }
+            },
+            idFields: ["tokenHash"],
+            uniqueFields: {
+                tokenHash: { type: "String" }
+            }
+        },
+        App: {
+            name: "App",
+            fields: {
+                id: {
+                    name: "id",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                key: {
+                    name: "key",
+                    type: "String",
+                    unique: true,
+                    attributes: [{ name: "@unique" }] as readonly AttributeApplication[]
+                },
+                name: {
+                    name: "name",
+                    type: "String",
+                    optional: true
+                },
+                config: {
+                    name: "config",
+                    type: "Json",
+                    optional: true
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                collections: {
+                    name: "collections",
+                    type: "Collection",
+                    array: true,
+                    relation: { opposite: "app" }
+                },
+                tenantApps: {
+                    name: "tenantApps",
+                    type: "TenantApp",
+                    array: true,
+                    relation: { opposite: "app" }
+                },
+                permissions: {
+                    name: "permissions",
+                    type: "Permission",
+                    array: true,
+                    relation: { opposite: "app" }
+                },
+                roles: {
+                    name: "roles",
+                    type: "Role",
+                    array: true,
+                    relation: { opposite: "app" }
+                }
+            },
+            idFields: ["id"],
+            uniqueFields: {
+                id: { type: "String" },
+                key: { type: "String" }
+            }
+        },
+        TenantApp: {
+            name: "TenantApp",
+            fields: {
+                tenantId: {
+                    name: "tenantId",
+                    type: "String",
+                    id: true,
+                    foreignKeyFor: [
+                        "tenant"
+                    ] as readonly string[]
+                },
+                appId: {
+                    name: "appId",
+                    type: "String",
+                    id: true,
+                    foreignKeyFor: [
+                        "app"
+                    ] as readonly string[]
+                },
+                config: {
+                    name: "config",
+                    type: "Json",
+                    optional: true
+                },
+                enabledAt: {
+                    name: "enabledAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                tenant: {
+                    name: "tenant",
+                    type: "Tenant",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "tenantApps", fields: ["tenantId"], references: ["id"] }
+                },
+                app: {
+                    name: "app",
+                    type: "App",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "tenantApps", fields: ["appId"], references: ["id"] }
+                }
+            },
+            attributes: [
+                { name: "@@id", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("appId")]) }] }
+            ] as readonly AttributeApplication[],
+            idFields: ["tenantId", "appId"],
+            uniqueFields: {
+                tenantId_appId: { tenantId: { type: "String" }, appId: { type: "String" } }
+            }
+        },
+        Collection: {
+            name: "Collection",
+            fields: {
+                id: {
+                    name: "id",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                appId: {
+                    name: "appId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "app"
+                    ] as readonly string[]
+                },
+                collectionKey: {
+                    name: "collectionKey",
+                    type: "String"
+                },
+                qualifiedCollectionKey: {
+                    name: "qualifiedCollectionKey",
+                    type: "String",
+                    unique: true,
+                    attributes: [{ name: "@unique" }] as readonly AttributeApplication[]
+                },
+                definitionKey: {
+                    name: "definitionKey",
+                    type: "String"
+                },
+                name: {
+                    name: "name",
+                    type: "String",
+                    optional: true
+                },
+                schemaVersion: {
+                    name: "schemaVersion",
+                    type: "Int"
+                },
+                config: {
+                    name: "config",
+                    type: "Json",
+                    optional: true
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                app: {
+                    name: "app",
+                    type: "App",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "collections", fields: ["appId"], references: ["id"] }
+                }
+            },
+            attributes: [
+                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appId"), ExpressionUtils.field("collectionKey")]) }] }
+            ] as readonly AttributeApplication[],
+            idFields: ["id"],
+            uniqueFields: {
+                id: { type: "String" },
+                qualifiedCollectionKey: { type: "String" },
+                appId_collectionKey: { appId: { type: "String" }, collectionKey: { type: "String" } }
+            }
+        },
         AuthScope: {
             name: "AuthScope",
             fields: {
@@ -206,7 +605,8 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 tenantId: {
                     name: "tenantId",
@@ -215,10 +615,44 @@ export class SchemaType implements SchemaDef {
                         "tenant"
                     ] as readonly string[]
                 },
-                label: {
-                    name: "label",
+                parentId: {
+                    name: "parentId",
+                    type: "String",
+                    optional: true,
+                    foreignKeyFor: [
+                        "parent"
+                    ] as readonly string[]
+                },
+                path: {
+                    name: "path",
+                    type: "String",
+                    array: true
+                },
+                type: {
+                    name: "type",
+                    type: "String"
+                },
+                key: {
+                    name: "key",
                     type: "String",
                     optional: true
+                },
+                name: {
+                    name: "name",
+                    type: "String",
+                    optional: true
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
                 },
                 tenant: {
                     name: "tenant",
@@ -226,19 +660,33 @@ export class SchemaType implements SchemaDef {
                     attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
                     relation: { opposite: "authScopes", fields: ["tenantId"], references: ["id"] }
                 },
-                closureAsAncestor: {
-                    name: "closureAsAncestor",
-                    type: "AuthScopeClosure",
-                    array: true,
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeClosureAncestor") }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "ancestor", name: "ScopeClosureAncestor" }
+                parent: {
+                    name: "parent",
+                    type: "AuthScope",
+                    optional: true,
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeParent") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("parentId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "children", name: "ScopeParent", fields: ["parentId"], references: ["id"] }
                 },
-                closureAsDescendant: {
-                    name: "closureAsDescendant",
+                children: {
+                    name: "children",
+                    type: "AuthScope",
+                    array: true,
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeParent") }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "parent", name: "ScopeParent" }
+                },
+                ancestors: {
+                    name: "ancestors",
                     type: "AuthScopeClosure",
                     array: true,
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeClosureDescendant") }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "descendant", name: "ScopeClosureDescendant" }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Ancestor") }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "ancestor", name: "Ancestor" }
+                },
+                descendants: {
+                    name: "descendants",
+                    type: "AuthScopeClosure",
+                    array: true,
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Descendant") }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "descendant", name: "Descendant" }
                 },
                 grantsAsGrantScope: {
                     name: "grantsAsGrantScope",
@@ -247,17 +695,17 @@ export class SchemaType implements SchemaDef {
                     attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("GrantScope") }] }] as readonly AttributeApplication[],
                     relation: { opposite: "grantScope", name: "GrantScope" }
                 },
-                reachableByGrants: {
-                    name: "reachableByGrants",
-                    type: "DerivedCapabilityGrantReachableScope",
-                    array: true,
-                    relation: { opposite: "scope" }
-                },
                 documents: {
                     name: "documents",
                     type: "DocumentBase",
                     array: true,
                     relation: { opposite: "authScope" }
+                },
+                roleAssignments: {
+                    name: "roleAssignments",
+                    type: "RoleAssignment",
+                    array: true,
+                    relation: { opposite: "scope" }
                 }
             },
             idFields: ["id"],
@@ -284,17 +732,21 @@ export class SchemaType implements SchemaDef {
                         "descendant"
                     ] as readonly string[]
                 },
+                depth: {
+                    name: "depth",
+                    type: "Int"
+                },
                 ancestor: {
                     name: "ancestor",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeClosureAncestor") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("ancestorId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "closureAsAncestor", name: "ScopeClosureAncestor", fields: ["ancestorId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Ancestor") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("ancestorId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "ancestors", name: "Ancestor", fields: ["ancestorId"], references: ["id"] }
                 },
                 descendant: {
                     name: "descendant",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeClosureDescendant") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("descendantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "closureAsDescendant", name: "ScopeClosureDescendant", fields: ["descendantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Descendant") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("descendantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "descendants", name: "Descendant", fields: ["descendantId"], references: ["id"] }
                 }
             },
             attributes: [
@@ -305,6 +757,279 @@ export class SchemaType implements SchemaDef {
                 ancestorId_descendantId: { ancestorId: { type: "String" }, descendantId: { type: "String" } }
             }
         },
+        Permission: {
+            name: "Permission",
+            fields: {
+                key: {
+                    name: "key",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                },
+                appId: {
+                    name: "appId",
+                    type: "String",
+                    optional: true,
+                    foreignKeyFor: [
+                        "app"
+                    ] as readonly string[]
+                },
+                collectionId: {
+                    name: "collectionId",
+                    type: "String",
+                    optional: true
+                },
+                capabilityId: {
+                    name: "capabilityId",
+                    type: "String"
+                },
+                source: {
+                    name: "source",
+                    type: "String"
+                },
+                description: {
+                    name: "description",
+                    type: "String",
+                    optional: true
+                },
+                resourceScope: {
+                    name: "resourceScope",
+                    type: "String",
+                    optional: true
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                app: {
+                    name: "app",
+                    type: "App",
+                    optional: true,
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "permissions", fields: ["appId"], references: ["id"] }
+                },
+                rolePermissions: {
+                    name: "rolePermissions",
+                    type: "RolePermission",
+                    array: true,
+                    relation: { opposite: "permission" }
+                }
+            },
+            idFields: ["key"],
+            uniqueFields: {
+                key: { type: "String" }
+            }
+        },
+        Role: {
+            name: "Role",
+            fields: {
+                id: {
+                    name: "id",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                tenantId: {
+                    name: "tenantId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "tenant"
+                    ] as readonly string[]
+                },
+                appId: {
+                    name: "appId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "app"
+                    ] as readonly string[]
+                },
+                key: {
+                    name: "key",
+                    type: "String"
+                },
+                name: {
+                    name: "name",
+                    type: "String",
+                    optional: true
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                tenant: {
+                    name: "tenant",
+                    type: "Tenant",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roles", fields: ["tenantId"], references: ["id"] }
+                },
+                app: {
+                    name: "app",
+                    type: "App",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roles", fields: ["appId"], references: ["id"] }
+                },
+                rolePermissions: {
+                    name: "rolePermissions",
+                    type: "RolePermission",
+                    array: true,
+                    relation: { opposite: "role" }
+                },
+                roleAssignments: {
+                    name: "roleAssignments",
+                    type: "RoleAssignment",
+                    array: true,
+                    relation: { opposite: "role" }
+                }
+            },
+            attributes: [
+                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("key")]) }] }
+            ] as readonly AttributeApplication[],
+            idFields: ["id"],
+            uniqueFields: {
+                id: { type: "String" },
+                tenantId_key: { tenantId: { type: "String" }, key: { type: "String" } }
+            }
+        },
+        RolePermission: {
+            name: "RolePermission",
+            fields: {
+                tenantId: {
+                    name: "tenantId",
+                    type: "String",
+                    id: true
+                },
+                roleId: {
+                    name: "roleId",
+                    type: "String",
+                    id: true,
+                    foreignKeyFor: [
+                        "role"
+                    ] as readonly string[]
+                },
+                permissionKey: {
+                    name: "permissionKey",
+                    type: "String",
+                    id: true,
+                    foreignKeyFor: [
+                        "permission"
+                    ] as readonly string[]
+                },
+                role: {
+                    name: "role",
+                    type: "Role",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "rolePermissions", fields: ["roleId"], references: ["id"] }
+                },
+                permission: {
+                    name: "permission",
+                    type: "Permission",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("permissionKey")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("key")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "rolePermissions", fields: ["permissionKey"], references: ["key"] }
+                }
+            },
+            attributes: [
+                { name: "@@id", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("roleId"), ExpressionUtils.field("permissionKey")]) }] }
+            ] as readonly AttributeApplication[],
+            idFields: ["tenantId", "roleId", "permissionKey"],
+            uniqueFields: {
+                tenantId_roleId_permissionKey: { tenantId: { type: "String" }, roleId: { type: "String" }, permissionKey: { type: "String" } }
+            }
+        },
+        RoleAssignment: {
+            name: "RoleAssignment",
+            fields: {
+                id: {
+                    name: "id",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                tenantId: {
+                    name: "tenantId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "tenant"
+                    ] as readonly string[]
+                },
+                userId: {
+                    name: "userId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "user"
+                    ] as readonly string[]
+                },
+                roleId: {
+                    name: "roleId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "role"
+                    ] as readonly string[]
+                },
+                scopeId: {
+                    name: "scopeId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "scope"
+                    ] as readonly string[]
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                tenant: {
+                    name: "tenant",
+                    type: "Tenant",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["tenantId"], references: ["id"] }
+                },
+                user: {
+                    name: "user",
+                    type: "User",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["userId"], references: ["id"] }
+                },
+                role: {
+                    name: "role",
+                    type: "Role",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["roleId"], references: ["id"] }
+                },
+                scope: {
+                    name: "scope",
+                    type: "AuthScope",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["scopeId"], references: ["id"] }
+                }
+            },
+            attributes: [
+                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("userId"), ExpressionUtils.field("roleId"), ExpressionUtils.field("scopeId")]) }] }
+            ] as readonly AttributeApplication[],
+            idFields: ["id"],
+            uniqueFields: {
+                id: { type: "String" },
+                tenantId_userId_roleId_scopeId: { tenantId: { type: "String" }, userId: { type: "String" }, roleId: { type: "String" }, scopeId: { type: "String" } }
+            }
+        },
         DerivedCapabilityGrant: {
             name: "DerivedCapabilityGrant",
             fields: {
@@ -312,7 +1037,8 @@ export class SchemaType implements SchemaDef {
                     name: "id",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 actorContextId: {
                     name: "actorContextId",
@@ -356,12 +1082,6 @@ export class SchemaType implements SchemaDef {
                     type: "AuthScope",
                     attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("GrantScope") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("grantScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
                     relation: { opposite: "grantsAsGrantScope", name: "GrantScope", fields: ["grantScopeId"], references: ["id"] }
-                },
-                reachableScopes: {
-                    name: "reachableScopes",
-                    type: "DerivedCapabilityGrantReachableScope",
-                    array: true,
-                    relation: { opposite: "grant" }
                 }
             },
             attributes: [
@@ -373,111 +1093,6 @@ export class SchemaType implements SchemaDef {
                 id: { type: "String" }
             }
         },
-        DerivedCapabilityGrantReachableScope: {
-            name: "DerivedCapabilityGrantReachableScope",
-            fields: {
-                grantId: {
-                    name: "grantId",
-                    type: "String",
-                    id: true,
-                    foreignKeyFor: [
-                        "grant"
-                    ] as readonly string[]
-                },
-                scopeId: {
-                    name: "scopeId",
-                    type: "String",
-                    id: true,
-                    foreignKeyFor: [
-                        "scope"
-                    ] as readonly string[]
-                },
-                grant: {
-                    name: "grant",
-                    type: "DerivedCapabilityGrant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("grantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "reachableScopes", fields: ["grantId"], references: ["id"] }
-                },
-                scope: {
-                    name: "scope",
-                    type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "reachableByGrants", fields: ["scopeId"], references: ["id"] }
-                }
-            },
-            attributes: [
-                { name: "@@id", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("grantId"), ExpressionUtils.field("scopeId")]) }] }
-            ] as readonly AttributeApplication[],
-            idFields: ["grantId", "scopeId"],
-            uniqueFields: {
-                grantId_scopeId: { grantId: { type: "String" }, scopeId: { type: "String" } }
-            }
-        },
-        App: {
-            name: "App",
-            fields: {
-                key: {
-                    name: "key",
-                    type: "String",
-                    id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
-                },
-                name: {
-                    name: "name",
-                    type: "String"
-                },
-                collections: {
-                    name: "collections",
-                    type: "Collection",
-                    array: true,
-                    relation: { opposite: "app" }
-                }
-            },
-            idFields: ["key"],
-            uniqueFields: {
-                key: { type: "String" }
-            }
-        },
-        Collection: {
-            name: "Collection",
-            fields: {
-                qualifiedKey: {
-                    name: "qualifiedKey",
-                    type: "String",
-                    id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
-                },
-                appKey: {
-                    name: "appKey",
-                    type: "String",
-                    foreignKeyFor: [
-                        "app"
-                    ] as readonly string[]
-                },
-                collectionKey: {
-                    name: "collectionKey",
-                    type: "String"
-                },
-                name: {
-                    name: "name",
-                    type: "String"
-                },
-                app: {
-                    name: "app",
-                    type: "App",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appKey")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("key")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "collections", fields: ["appKey"], references: ["key"] }
-                }
-            },
-            attributes: [
-                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("appKey"), ExpressionUtils.field("collectionKey")]) }] }
-            ] as readonly AttributeApplication[],
-            idFields: ["qualifiedKey"],
-            uniqueFields: {
-                qualifiedKey: { type: "String" },
-                appKey_collectionKey: { appKey: { type: "String" }, collectionKey: { type: "String" } }
-            }
-        },
         DocumentBase: {
             name: "DocumentBase",
             fields: {
@@ -485,7 +1100,8 @@ export class SchemaType implements SchemaDef {
                     name: "documentId",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 tenantId: {
                     name: "tenantId",
@@ -501,10 +1117,44 @@ export class SchemaType implements SchemaDef {
                         "authScope"
                     ] as readonly string[]
                 },
-                qualifiedKey: {
-                    name: "qualifiedKey",
+                qualifiedCollectionKey: {
+                    name: "qualifiedCollectionKey",
                     type: "String",
                     isDiscriminator: true
+                },
+                version: {
+                    name: "version",
+                    type: "Int",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal(1) }] }] as readonly AttributeApplication[],
+                    default: 1 as FieldDefault
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                deletedAt: {
+                    name: "deletedAt",
+                    type: "DateTime",
+                    optional: true,
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                remoteSource: {
+                    name: "remoteSource",
+                    type: "String",
+                    optional: true
+                },
+                remoteId: {
+                    name: "remoteId",
+                    type: "String",
+                    optional: true
                 },
                 tenant: {
                     name: "tenant",
@@ -520,9 +1170,11 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@delegate", args: [{ name: "discriminator", value: ExpressionUtils.field("qualifiedKey") }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:read"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:update"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] }
+                { name: "@@delegate", args: [{ name: "discriminator", value: ExpressionUtils.field("qualifiedCollectionKey") }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":create")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":read")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":update")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":delete")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] }
             ] as readonly AttributeApplication[],
             idFields: ["documentId"],
             uniqueFields: {
@@ -539,7 +1191,8 @@ export class SchemaType implements SchemaDef {
                     name: "documentId",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 tenantId: {
                     name: "tenantId",
@@ -557,11 +1210,51 @@ export class SchemaType implements SchemaDef {
                         "authScope"
                     ] as readonly string[]
                 },
-                qualifiedKey: {
-                    name: "qualifiedKey",
+                qualifiedCollectionKey: {
+                    name: "qualifiedCollectionKey",
                     type: "String",
                     originModel: "DocumentBase",
                     isDiscriminator: true
+                },
+                version: {
+                    name: "version",
+                    type: "Int",
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal(1) }] }] as readonly AttributeApplication[],
+                    default: 1 as FieldDefault
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                deletedAt: {
+                    name: "deletedAt",
+                    type: "DateTime",
+                    optional: true,
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                remoteSource: {
+                    name: "remoteSource",
+                    type: "String",
+                    optional: true,
+                    originModel: "DocumentBase"
+                },
+                remoteId: {
+                    name: "remoteId",
+                    type: "String",
+                    optional: true,
+                    originModel: "DocumentBase"
                 },
                 tenant: {
                     name: "tenant",
@@ -586,11 +1279,19 @@ export class SchemaType implements SchemaDef {
                     type: "String",
                     attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal("draft") }] }] as readonly AttributeApplication[],
                     default: "draft" as FieldDefault
+                },
+                revisions: {
+                    name: "revisions",
+                    type: "ProjectRevision",
+                    array: true,
+                    relation: { opposite: "document" }
                 }
             },
             attributes: [
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:read"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:update"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":create")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":read")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":update")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":delete")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
                 { name: "@@delegateMap", args: [{ name: "value", value: ExpressionUtils.literal("default:projects") }] }
             ] as readonly AttributeApplication[],
             idFields: ["documentId"],
@@ -607,7 +1308,8 @@ export class SchemaType implements SchemaDef {
                     name: "documentId",
                     type: "String",
                     id: true,
-                    attributes: [{ name: "@id" }] as readonly AttributeApplication[]
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
                 },
                 tenantId: {
                     name: "tenantId",
@@ -625,11 +1327,51 @@ export class SchemaType implements SchemaDef {
                         "authScope"
                     ] as readonly string[]
                 },
-                qualifiedKey: {
-                    name: "qualifiedKey",
+                qualifiedCollectionKey: {
+                    name: "qualifiedCollectionKey",
                     type: "String",
                     originModel: "DocumentBase",
                     isDiscriminator: true
+                },
+                version: {
+                    name: "version",
+                    type: "Int",
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.literal(1) }] }] as readonly AttributeApplication[],
+                    default: 1 as FieldDefault
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                updatedAt: {
+                    name: "updatedAt",
+                    type: "DateTime",
+                    updatedAt: true,
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@updatedAt" }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                deletedAt: {
+                    name: "deletedAt",
+                    type: "DateTime",
+                    optional: true,
+                    originModel: "DocumentBase",
+                    attributes: [{ name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[]
+                },
+                remoteSource: {
+                    name: "remoteSource",
+                    type: "String",
+                    optional: true,
+                    originModel: "DocumentBase"
+                },
+                remoteId: {
+                    name: "remoteId",
+                    type: "String",
+                    optional: true,
+                    originModel: "DocumentBase"
                 },
                 tenant: {
                     name: "tenant",
@@ -657,8 +1399,10 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:read"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.field("tenantId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.field("capabilityKey"), "==", ExpressionUtils.literal("document:update"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("reachableScopes"), "?", ExpressionUtils.binary(ExpressionUtils.field("scopeId"), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])))))) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":create")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":read")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":update")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["capabilityGrants"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.call("endsWith", [ExpressionUtils.member(ExpressionUtils.binding("g"), ["capabilityKey"]), ExpressionUtils.literal(":delete")])), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScopeId"])), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("g"), ["grantScopeId"]), "in", ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "path"])))), "g")) }] },
                 { name: "@@delegateMap", args: [{ name: "value", value: ExpressionUtils.literal("default:locked-documents") }] },
                 { name: "@@deny", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.field("locked"), "==", ExpressionUtils.literal(true)) }] }
             ] as readonly AttributeApplication[],
@@ -667,6 +1411,45 @@ export class SchemaType implements SchemaDef {
                 documentId: { type: "String" }
             },
             delegateMap: "default:locked-documents"
+        },
+        ProjectRevision: {
+            name: "ProjectRevision",
+            fields: {
+                id: {
+                    name: "id",
+                    type: "String",
+                    id: true,
+                    attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) as FieldDefault
+                },
+                documentId: {
+                    name: "documentId",
+                    type: "String",
+                    foreignKeyFor: [
+                        "document"
+                    ] as readonly string[]
+                },
+                body: {
+                    name: "body",
+                    type: "String"
+                },
+                createdAt: {
+                    name: "createdAt",
+                    type: "DateTime",
+                    attributes: [{ name: "@default", args: [{ name: "value", value: ExpressionUtils.call("now") }] }, { name: "@db.Timestamptz", args: [{ name: "x", value: ExpressionUtils.literal(6) }] }] as readonly AttributeApplication[],
+                    default: ExpressionUtils.call("now") as FieldDefault
+                },
+                document: {
+                    name: "document",
+                    type: "ProjectDocument",
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("documentId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("documentId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "revisions", fields: ["documentId"], references: ["documentId"] }
+                }
+            },
+            idFields: ["id"],
+            uniqueFields: {
+                id: { type: "String" }
+            }
         }
     } as const;
     authType = "ActorContext" as const;
