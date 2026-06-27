@@ -1627,3 +1627,35 @@ Built and tightened a Bun-only ZenStack + PGlite prototype for the relational re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 50: Apply zenstack #2733 patch, remove AuthScope policies
+
+**Date**: 2026-06-27
+**Task**: Apply zenstack #2733 patch, remove AuthScope policies
+
+### Summary
+
+Applied patched @zenstackhq/plugin-policy (PR #2734) via dist copy from devenv/zenstack-fork submodule. Fixed this.authScope.path resolution and g.grantScopeId in this.authScope.path for PGlite. Removed AuthScope access policies (delegated to DocumentBase). Updated test for ancestor-scope grant inheritance. Changed PGliteSocketServer to port 0 to avoid PG container conflict.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6086421b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
