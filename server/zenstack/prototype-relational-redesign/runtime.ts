@@ -17,44 +17,46 @@ export const prototypeRoot = join(
 export const prototypeSchemaPath = join(prototypeRoot, "prototype.zmodel");
 
 export const prototypeIds = {
+  bottomScopeId: "00000000-0000-0000-0000-000000000000",
   userId: "10000000-0000-0000-0000-000000000001",
+  bottomUserId: "10000000-0000-0000-0000-000000000002",
   tenantId: "20000000-0000-0000-0000-000000000001",
   membershipId: "30000000-0000-0000-0000-000000000001",
+  bottomMembershipId: "30000000-0000-0000-0000-000000000002",
   actorContextId: "40000000-0000-0000-0000-000000000001",
+  bottomActorContextId: "40000000-0000-0000-0000-000000000002",
   appKey: "default",
+  partnerAppKey: "partner",
   rootScopeId: "a0000000-0000-0000-0000-000000000001",
   childScopeId: "b0000000-0000-0000-0000-000000000001",
   siblingScopeId: "c0000000-0000-0000-0000-000000000001",
   projectDocId: "d0000000-0000-0000-0000-000000000001",
+  bottomProjectDocId: "d0000000-0000-0000-0000-000000000002",
+  partnerProjectDocId: "d0000000-0000-0000-0000-000000000003",
   lockedDocId: "e0000000-0000-0000-0000-000000000001",
   projectCollectionKey: "default:projects",
+  partnerProjectCollectionKey: "partner:projects",
   lockedCollectionKey: "default:locked-documents",
-  readGrantId: "f0000000-0000-0000-0000-000000000001",
-  updateGrantId: "f0000000-0000-0000-0000-000000000002",
-  createGrantId: "f0000000-0000-0000-0000-000000000003",
-  deleteGrantId: "f0000000-0000-0000-0000-000000000004",
-  siblingDocId: "d0000000-0000-0000-0000-000000000002",
+  projectAdminRoleId: "f0000000-0000-0000-0000-000000000001",
+  bottomReaderRoleId: "f0000000-0000-0000-0000-000000000002",
+  projectAdminAssignmentId: "f1000000-0000-0000-0000-000000000001",
+  bottomReaderAssignmentId: "f1000000-0000-0000-0000-000000000002",
   projectRevisionId: "50000000-0000-0000-0000-000000000001",
-  appId: "60000000-0000-0000-0000-000000000001",
-  projectCollectionId: "70000000-0000-0000-0000-000000000001",
-  lockedCollectionId: "70000000-0000-0000-0000-000000000002",
 } as const;
 
 export type PrototypeClient = ZenStackClientType<typeof schema>;
 
 export async function pushPrototypeSchema(databaseUrl: string) {
   await new Promise<void>((resolve, reject) => {
-    const proc = spawn("bunx", [
-      "zen",
-      "db",
-      "push",
-      "--schema",
-      prototypeSchemaPath,
-    ], {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const proc = spawn(
+      "bunx",
+      ["zen", "db", "push", "--schema", prototypeSchemaPath],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: databaseUrl },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     let stderr = "";
     proc.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
@@ -102,11 +104,26 @@ export async function seedPrototypeState(raw: PrototypeClient) {
     },
   });
 
+  await raw.user.create({
+    data: {
+      id: prototypeIds.bottomUserId,
+      displayName: "Bottom-only User",
+    },
+  });
+
   await raw.userPasswordCredential.create({
     data: {
       userId: prototypeIds.userId,
       username: "prototype",
       passwordHash: "$2b$10$prototype-hash",
+    },
+  });
+
+  await raw.userPasswordCredential.create({
+    data: {
+      userId: prototypeIds.bottomUserId,
+      username: "prototype-bottom",
+      passwordHash: "$2b$10$prototype-bottom-hash",
     },
   });
 
@@ -129,12 +146,29 @@ export async function seedPrototypeState(raw: PrototypeClient) {
     },
   });
 
+  await raw.membership.create({
+    data: {
+      id: prototypeIds.bottomMembershipId,
+      tenant: { connect: { id: prototypeIds.tenantId } },
+      user: { connect: { id: prototypeIds.bottomUserId } },
+    },
+  });
+
   await raw.actorContext.create({
     data: {
       id: prototypeIds.actorContextId,
       user: { connect: { id: prototypeIds.userId } },
       tenant: { connect: { id: prototypeIds.tenantId } },
       membership: { connect: { id: prototypeIds.membershipId } },
+    },
+  });
+
+  await raw.actorContext.create({
+    data: {
+      id: prototypeIds.bottomActorContextId,
+      user: { connect: { id: prototypeIds.bottomUserId } },
+      tenant: { connect: { id: prototypeIds.tenantId } },
+      membership: { connect: { id: prototypeIds.bottomMembershipId } },
     },
   });
 
@@ -155,41 +189,44 @@ export async function seedPrototypeState(raw: PrototypeClient) {
 
   await raw.app.create({
     data: {
-      id: prototypeIds.appId,
-      key: prototypeIds.appKey,
+      appKey: prototypeIds.appKey,
       name: "Default app",
+    },
+  });
+
+  await raw.app.create({
+    data: {
+      appKey: prototypeIds.partnerAppKey,
+      name: "Partner app",
     },
   });
 
   await raw.tenantApp.create({
     data: {
       tenant: { connect: { id: prototypeIds.tenantId } },
-      app: { connect: { id: prototypeIds.appId } },
+      app: { connect: { appKey: prototypeIds.appKey } },
     },
   });
 
-  // ── Permissions ──
-
-  const createPermission = async (key: string, capabilityId: string) => {
-    await raw.permission.create({
-      data: {
-        key,
-        app: { connect: { id: prototypeIds.appId } },
-        capabilityId,
-        source: "collection",
-      },
-    });
-  };
-
-  await createPermission("default:projects:create", "create");
-  await createPermission("default:projects:read", "read");
-  await createPermission("default:projects:update", "update");
-  await createPermission("default:projects:delete", "delete");
-  await createPermission("default:locked-documents:read", "read");
-  await createPermission("default:locked-documents:update", "update");
-  await createPermission("default:locked-documents:delete", "delete");
+  await raw.tenantApp.create({
+    data: {
+      tenant: { connect: { id: prototypeIds.tenantId } },
+      app: { connect: { appKey: prototypeIds.partnerAppKey } },
+    },
+  });
 
   // ── Auth Scopes ──
+
+  await raw.authScope.create({
+    data: {
+      id: prototypeIds.bottomScopeId,
+      tenant: { connect: { id: prototypeIds.tenantId } },
+      type: "bottom",
+      key: "__bottom",
+      name: "Bottom scope",
+      path: [prototypeIds.bottomScopeId],
+    },
+  });
 
   await raw.authScope.create({
     data: {
@@ -227,7 +264,14 @@ export async function seedPrototypeState(raw: PrototypeClient) {
   });
 
   // ── Auth Scope Closure ──
-  // root → child, root → sibling, root → root, child → child, sibling → sibling
+
+  await raw.authScopeClosure.create({
+    data: {
+      ancestor: { connect: { id: prototypeIds.bottomScopeId } },
+      descendant: { connect: { id: prototypeIds.bottomScopeId } },
+      depth: 0,
+    },
+  });
 
   await raw.authScopeClosure.create({
     data: {
@@ -269,55 +313,17 @@ export async function seedPrototypeState(raw: PrototypeClient) {
     },
   });
 
-  // Grant document:read, document:update, document:create, document:delete
-  // at rootScope, with closure matching childScope (and not siblingScope if not granted there)
-
-  await raw.derivedCapabilityGrant.create({
+  await raw.authScopeClosure.create({
     data: {
-      id: prototypeIds.readGrantId,
-      actorContext: { connect: { id: prototypeIds.actorContextId } },
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      capabilityKey: "default:projects:read",
-      grantScope: { connect: { id: prototypeIds.rootScopeId } },
+      ancestor: { connect: { id: prototypeIds.rootScopeId } },
+      descendant: { connect: { id: prototypeIds.bottomScopeId } },
+      depth: 1,
     },
   });
-
-  await raw.derivedCapabilityGrant.create({
-    data: {
-      id: prototypeIds.updateGrantId,
-      actorContext: { connect: { id: prototypeIds.actorContextId } },
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      capabilityKey: "default:projects:update",
-      grantScope: { connect: { id: prototypeIds.rootScopeId } },
-    },
-  });
-
-  await raw.derivedCapabilityGrant.create({
-    data: {
-      id: prototypeIds.createGrantId,
-      actorContext: { connect: { id: prototypeIds.actorContextId } },
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      capabilityKey: "default:projects:create",
-      grantScope: { connect: { id: prototypeIds.rootScopeId } },
-    },
-  });
-
-  await raw.derivedCapabilityGrant.create({
-    data: {
-      id: prototypeIds.deleteGrantId,
-      actorContext: { connect: { id: prototypeIds.actorContextId } },
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      capabilityKey: "default:projects:delete",
-      grantScope: { connect: { id: prototypeIds.rootScopeId } },
-    },
-  });
-
-  // ── Collections ──
 
   await raw.collection.create({
     data: {
-      id: prototypeIds.projectCollectionId,
-      app: { connect: { id: prototypeIds.appId } },
+      appKey: prototypeIds.appKey,
       qualifiedCollectionKey: prototypeIds.projectCollectionKey,
       collectionKey: "projects",
       definitionKey: "projects",
@@ -328,8 +334,18 @@ export async function seedPrototypeState(raw: PrototypeClient) {
 
   await raw.collection.create({
     data: {
-      id: prototypeIds.lockedCollectionId,
-      app: { connect: { id: prototypeIds.appId } },
+      appKey: prototypeIds.partnerAppKey,
+      qualifiedCollectionKey: prototypeIds.partnerProjectCollectionKey,
+      collectionKey: "projects",
+      definitionKey: "projects",
+      name: "Partner projects",
+      schemaVersion: 1,
+    },
+  });
+
+  await raw.collection.create({
+    data: {
+      appKey: prototypeIds.appKey,
       qualifiedCollectionKey: prototypeIds.lockedCollectionKey,
       collectionKey: "locked-documents",
       definitionKey: "locked-documents",
@@ -338,14 +354,133 @@ export async function seedPrototypeState(raw: PrototypeClient) {
     },
   });
 
+  // ── Permissions / Roles / Assignments ──
+
+  await raw.permission.createMany({
+    data: [
+      ...["create", "read", "update", "delete"].map((actionKey) => ({
+        actionKey,
+        appKey: prototypeIds.appKey,
+        collectionKey: "projects",
+        key: `${prototypeIds.appKey}:projects:${actionKey}`,
+        source: "collection",
+      })),
+      ...["read", "update", "delete"].map((actionKey) => ({
+        actionKey,
+        appKey: prototypeIds.appKey,
+        collectionKey: "locked-documents",
+        key: `${prototypeIds.appKey}:locked-documents:${actionKey}`,
+        source: "collection",
+      })),
+      {
+        key: "partner:projects:read",
+        actionKey: "read",
+        appKey: prototypeIds.partnerAppKey,
+        collectionKey: "projects",
+        source: "collection",
+      },
+    ],
+  });
+
+  await raw.role.createMany({
+    data: [
+      {
+        id: prototypeIds.projectAdminRoleId,
+        tenantId: prototypeIds.tenantId,
+        appKey: prototypeIds.appKey,
+        key: "project-admin",
+        name: "Project admin",
+      },
+      {
+        id: prototypeIds.bottomReaderRoleId,
+        tenantId: prototypeIds.tenantId,
+        appKey: prototypeIds.appKey,
+        key: "bottom-reader",
+        name: "Bottom reader",
+      },
+    ],
+  });
+
+  const permissionKeys = [
+    "default:projects:create",
+    "default:projects:read",
+    "default:projects:update",
+    "default:projects:delete",
+    "default:locked-documents:read",
+    "default:locked-documents:update",
+    "default:locked-documents:delete",
+  ];
+
+  await raw.rolePermission.createMany({
+    data: [
+      ...permissionKeys.map((permissionKey) => ({
+        tenantId: prototypeIds.tenantId,
+        roleId: prototypeIds.projectAdminRoleId,
+        permissionKey,
+      })),
+
+      {
+        tenantId: prototypeIds.tenantId,
+        roleId: prototypeIds.bottomReaderRoleId,
+        permissionKey: "default:projects:read",
+      },
+    ],
+  });
+
+  await raw.roleAssignment.create({
+    data: {
+      id: prototypeIds.projectAdminAssignmentId,
+      tenantId: prototypeIds.tenantId,
+      userId: prototypeIds.userId,
+      roleId: prototypeIds.projectAdminRoleId,
+      scopeId: prototypeIds.rootScopeId,
+    },
+  });
+
+  await raw.roleAssignment.create({
+    data: {
+      id: prototypeIds.bottomReaderAssignmentId,
+      tenantId: prototypeIds.tenantId,
+      userId: prototypeIds.bottomUserId,
+      roleId: prototypeIds.bottomReaderRoleId,
+      scopeId: prototypeIds.bottomScopeId,
+    },
+  });
+
   // ── Managed Documents ──
 
   await raw.projectDocument.create({
     data: {
       documentId: prototypeIds.projectDocId,
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      authScope: { connect: { id: prototypeIds.childScopeId } },
+      tenantId: prototypeIds.tenantId,
+      authScopeId: prototypeIds.childScopeId,
+      appKey: prototypeIds.appKey,
+      collectionKey: "projects",
       title: "Prototype project",
+      status: "draft",
+    },
+  });
+
+  await raw.projectDocument.create({
+    data: {
+      documentId: prototypeIds.bottomProjectDocId,
+      tenantId: prototypeIds.tenantId,
+      authScopeId: prototypeIds.bottomScopeId,
+      appKey: prototypeIds.appKey,
+      collectionKey: "projects",
+      title: "Bottom-scoped project",
+      status: "draft",
+    },
+  });
+
+  await raw.partnerProjectDocument.create({
+    data: {
+      documentId: prototypeIds.partnerProjectDocId,
+      tenantId: prototypeIds.tenantId,
+      authScopeId: prototypeIds.childScopeId,
+      appKey: prototypeIds.partnerAppKey,
+      collectionKey: "projects",
+      title: "Partner project",
       status: "draft",
     },
   });
@@ -353,8 +488,10 @@ export async function seedPrototypeState(raw: PrototypeClient) {
   await raw.lockedDocument.create({
     data: {
       documentId: prototypeIds.lockedDocId,
-      tenant: { connect: { id: prototypeIds.tenantId } },
-      authScope: { connect: { id: prototypeIds.childScopeId } },
+      tenantId: prototypeIds.tenantId,
+      authScopeId: prototypeIds.childScopeId,
+      appKey: prototypeIds.appKey,
+      collectionKey: "locked-documents",
       title: "Locked prototype",
       locked: true,
     },
@@ -373,9 +510,60 @@ export async function seedPrototypeState(raw: PrototypeClient) {
   const actorContext = await raw.actorContext.findUniqueOrThrow({
     where: { id: prototypeIds.actorContextId },
     include: {
-      capabilityGrants: true,
+      user: {
+        include: {
+          roleAssignments: {
+            include: {
+              scope: true,
+              role: {
+                include: {
+                  rolePermissions: {
+                    include: {
+                      permission: {
+                        include: {
+                          app: true,
+                          collection: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
-  return { actorContext } as const;
+  const bottomActorContext = await raw.actorContext.findUniqueOrThrow({
+    where: { id: prototypeIds.bottomActorContextId },
+    include: {
+      user: {
+        include: {
+          roleAssignments: {
+            include: {
+              scope: true,
+              role: {
+                include: {
+                  rolePermissions: {
+                    include: {
+                      permission: {
+                        include: {
+                          app: true,
+                          collection: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return { actorContext, bottomActorContext } as const;
 }

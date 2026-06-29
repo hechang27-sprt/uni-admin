@@ -10,17 +10,17 @@ plugin policy {
 // ── Identity / Membership / Sessions ─────────────────────────────────────────
 
 model User {
-  id          String   @id @default(uuid(4))
-  displayName String?
-  status      String   @default('active')
-  createdAt   DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  id                 String                  @id @default(uuid(4))
+  displayName        String?
+  status             String                  @default('active')
+  createdAt          DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @db.Timestamptz(6)
 
   passwordCredential UserPasswordCredential?
   memberships        Membership[]
   actorContexts      ActorContext[]
   sessions           AuthSession[]
-  roleAssignments RoleAssignment[]
+  roleAssignments    RoleAssignment[]
 }
 model UserPasswordCredential {
 
@@ -33,13 +33,12 @@ model UserPasswordCredential {
 }
 
 model Tenant {
-  id   String @id @default(uuid(4))
-  name String?
+  id               String          @id @default(uuid(4))
+  name             String?
 
   memberships      Membership[]
   actorContexts    ActorContext[]
   authScopes       AuthScope[]
-  capabilityGrants DerivedCapabilityGrant[]
   documents        DocumentBase[]
   tenantApps       TenantApp[]
   roles            Role[]
@@ -47,12 +46,12 @@ model Tenant {
 }
 
 model Membership {
-  id        String   @id @default(uuid(4))
-  tenantId   String  
-  userId    String  
-  status    String   @default('active')
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  id            String         @id @default(uuid(4))
+  tenantId      String
+  userId        String
+  status        String         @default('active')
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(6)
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   user          User           @relation(fields: [userId], references: [id])
@@ -63,101 +62,99 @@ model Membership {
 }
 
 model ActorContext {
-  id           String @id @default(uuid(4))
+  id           String     @id @default(uuid(4))
   userId       String
   tenantId     String
   membershipId String
 
-  user             User                   @relation(fields: [userId], references: [id])
-  tenant           Tenant                 @relation(fields: [tenantId], references: [id])
-  membership       Membership             @relation(fields: [membershipId], references: [id])
-  capabilityGrants DerivedCapabilityGrant[]
+  user         User       @relation(fields: [userId], references: [id])
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  membership   Membership @relation(fields: [membershipId], references: [id])
 
   @@auth
   @@unique([userId, tenantId, membershipId])
 }
 
 model AuthSession {
-  tokenHash         String   @id
-  userId            String  
-  tenantId          String? 
-  createdAt         DateTime @default(now()) @db.Timestamptz(6)
-  lastRenewedAt     DateTime @db.Timestamptz(6)
-  expiresAt         DateTime @db.Timestamptz(6)
-  absoluteExpiresAt DateTime @db.Timestamptz(6)
+  tokenHash         String      @id
+  userId            String
+  tenantId          String?
+  createdAt         DateTime    @default(now()) @db.Timestamptz(6)
+  lastRenewedAt     DateTime    @db.Timestamptz(6)
+  expiresAt         DateTime    @db.Timestamptz(6)
+  absoluteExpiresAt DateTime    @db.Timestamptz(6)
 
-  user     User       @relation(fields: [userId], references: [id])
-  membership Membership? @relation(fields: [tenantId, userId], references: [tenantId, userId])
+  user              User        @relation(fields: [userId], references: [id])
+  membership        Membership? @relation(fields: [tenantId, userId], references: [tenantId, userId])
 }
 
 // ── App / Collection Catalog ──────────────────────────────────────────────────
 
 model App {
-  id        String   @id @default(uuid(4))
-  key       String   @unique
-  name      String?
-  config    Json?
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  appKey      String         @id
+  name        String?
+  config      Json?
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @db.Timestamptz(6)
 
   collections Collection[]
   tenantApps  TenantApp[]
   permissions Permission[]
   roles       Role[]
+  documents   DocumentBase[]
 }
 
 model TenantApp {
-  tenantId  String   
-  appId     String   
+  tenantId  String
+  appKey    String
   config    Json?
-  enabledAt DateTime  @default(now()) @db.Timestamptz(6)
+  enabledAt DateTime @default(now()) @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  app    App    @relation(fields: [appId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  app       App      @relation(fields: [appKey], references: [appKey])
 
-  @@id([tenantId, appId])
+  @@id([tenantId, appKey])
 }
 
 model Collection {
-  id                   String   @id @default(uuid(4))
-  appId                String  
-  collectionKey        String
-  qualifiedCollectionKey String @unique
-  definitionKey        String
-  name                 String?
-  schemaVersion        Int
-  config               Json?
-  createdAt            DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt            DateTime @updatedAt @db.Timestamptz(6)
+  appKey                 String
+  collectionKey          String
+  qualifiedCollectionKey String         @unique
+  definitionKey          String
+  name                   String?
+  schemaVersion          Int
+  config                 Json?
+  createdAt              DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime       @updatedAt @db.Timestamptz(6)
 
-  app  App  @relation(fields: [appId], references: [id])
+  app                    App            @relation(fields: [appKey], references: [appKey])
+  permissions            Permission[]
+  documents              DocumentBase[]
 
-  @@unique([appId, collectionKey])
+  @@id([appKey, collectionKey])
 }
 
 // ── Scope Tree ────────────────────────────────────────────────────────────────
 
 model AuthScope {
-  id        String   @id @default(uuid(4))
-  tenantId  String  
-  parentId  String?
-  path  String[]
-  type      String
-  key       String?
-  name      String?
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  id              String           @id @default(uuid(4))
+  tenantId        String
+  parentId        String?
+  path            String[]
+  type            String
+  key             String?
+  name            String?
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
 
-  tenant            Tenant                    @relation(fields: [tenantId], references: [id])
-  parent            AuthScope?                @relation('ScopeParent', fields: [parentId], references: [id])
-  children          AuthScope[]               @relation('ScopeParent')
-  ancestors           AuthScopeClosure[]        @relation('Ancestor')
-  descendants         AuthScopeClosure[]        @relation('Descendant')
-  grantsAsGrantScope  DerivedCapabilityGrant[] @relation('GrantScope')
-  documents           DocumentBase[]
-  roleAssignments     RoleAssignment[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  parent          AuthScope?       @relation('ScopeParent', fields: [parentId], references: [id])
+  children        AuthScope[]      @relation('ScopeParent')
+  ancestors       AuthScopeClosure[] @relation('Descendant')
+  descendants     AuthScopeClosure[] @relation('Ancestor')
+  documents       DocumentBase[]
+  roleAssignments RoleAssignment[]
   // Scope-tree RBAC: path = [this.id, ...ancestor_ids] (includes self).
-  // Access controlled via DocumentBase policies using this.authScope.path.
   // AuthScope is read through the protected client's DocumentBase delegate.
 }
 model AuthScopeClosure {
@@ -165,8 +162,8 @@ model AuthScopeClosure {
   descendantId String
   depth        Int
 
-  ancestor   AuthScope @relation('Ancestor', fields: [ancestorId], references: [id])
-  descendant AuthScope @relation('Descendant', fields: [descendantId], references: [id])
+  ancestor     AuthScope @relation('Ancestor', fields: [ancestorId], references: [id])
+  descendant   AuthScope @relation('Descendant', fields: [descendantId], references: [id])
 
   @@id([ancestorId, descendantId])
 }
@@ -174,31 +171,32 @@ model AuthScopeClosure {
 // ── RBAC Definitions ──────────────────────────────────────────────────────────
 
 model Permission {
-  key           String @id
-  appId         String?
-  collectionId  String?
-  capabilityId  String
-  source        String
-  description   String?
-  resourceScope String?
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+  key             String           @id
+  appKey          String?
+  collectionKey   String?
+  actionKey       String
+  source          String
+  description     String?
+  resourceScope   String?
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
 
-  app         App?            @relation(fields: [appId], references: [id])
+  app             App?             @relation(fields: [appKey], references: [appKey])
+  collection      Collection?      @relation(fields: [appKey, collectionKey], references: [appKey, collectionKey])
   rolePermissions RolePermission[]
 }
 
 model Role {
-  id        String   @id @default(uuid(4))
-  tenantId  String  
-  appId     String  
-  key       String
-  name      String?
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  id              String           @id @default(uuid(4))
+  tenantId        String
+  appKey          String
+  key             String
+  name            String?
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
 
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
-  app             App              @relation(fields: [appId], references: [id])
+  app             App              @relation(fields: [appKey], references: [appKey])
   rolePermissions RolePermission[]
   roleAssignments RoleAssignment[]
 
@@ -210,112 +208,124 @@ model RolePermission {
   roleId        String
   permissionKey String
 
-  role       Role       @relation(fields: [roleId], references: [id])
-  permission Permission @relation(fields: [permissionKey], references: [key])
+  role          Role       @relation(fields: [roleId], references: [id])
+  permission    Permission @relation(fields: [permissionKey], references: [key])
 
   @@id([tenantId, roleId, permissionKey])
 }
 
 model RoleAssignment {
-  id        String   @id @default(uuid(4))
-  tenantId  String  
-  userId    String  
-  roleId    String  
-  scopeId   String  
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  id        String    @id @default(uuid(4))
+  tenantId  String
+  userId    String
+  roleId    String
+  scopeId   String
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
 
-  tenant Tenant    @relation(fields: [tenantId], references: [id])
-  user   User      @relation(fields: [userId], references: [id])
-  role   Role      @relation(fields: [roleId], references: [id])
-  scope  AuthScope @relation(fields: [scopeId], references: [id])
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  role      Role      @relation(fields: [roleId], references: [id])
+  scope     AuthScope @relation(fields: [scopeId], references: [id])
 
   @@unique([tenantId, userId, roleId, scopeId])
 }
 
-// ── Effective Access Surface ──────────────────────────────────────────────────
-
-model DerivedCapabilityGrant {
-  id             String @id @default(uuid(4))
-  actorContextId String
-  tenantId       String
-  capabilityKey  String
-  grantScopeId   String
-
-  actorContext ActorContext @relation(fields: [actorContextId], references: [id])
-  tenant       Tenant       @relation(fields: [tenantId], references: [id])
-  grantScope   AuthScope    @relation('GrantScope', fields: [grantScopeId], references: [id])
-
-  @@index([actorContextId, capabilityKey])
-  @@index([grantScopeId])
-}
 
 // ── Managed Documents ─────────────────────────────────────────────────────────
 
 model DocumentBase {
-  documentId           String    @id @default(uuid(4))
-  tenantId             String   
-  authScopeId          String   
+  documentId             String     @id @default(uuid(4))
+  tenantId               String
+  authScopeId            String
   qualifiedCollectionKey String
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt            DateTime  @updatedAt @db.Timestamptz(6)
-  deletedAt            DateTime? @db.Timestamptz(6)
-  remoteSource         String?
-  remoteId             String?
+  appKey                 String
+  collectionKey          String
+  version                Int        @default(1)
+  createdAt              DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime   @updatedAt @db.Timestamptz(6)
+  deletedAt              DateTime?  @db.Timestamptz(6)
+  remoteSource           String?
+  remoteId               String?
 
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
-  authScope AuthScope @relation(fields: [authScopeId], references: [id])
+  tenant                 Tenant     @relation(fields: [tenantId], references: [id])
+  authScope              AuthScope  @relation(fields: [authScopeId], references: [id])
+  app                    App        @relation(fields: [appKey], references: [appKey])
+  collection             Collection @relation(fields: [appKey, collectionKey], references: [appKey, collectionKey])
 
   @@delegate(qualifiedCollectionKey)
 
+
   // ── Baseline CRUD policy ──
-  // FQN capabilityKey + ancestor scope match via authScope.path.
+  // Nested role/permission traversal + asymmetric bottom-scope semantics.
   // Fixed: #2733 (this.relation.field resolution + array subquery handling)
   @@allow('create',
     auth() != null &&
     auth().tenantId == tenantId &&
-    auth().capabilityGrants?[g,
-      g.tenantId == this.tenantId &&
-      endsWith(g.capabilityKey, ':create') &&
-      (g.grantScopeId == this.authScopeId || g.grantScopeId in this.authScope.path)
+    auth().user.roleAssignments?[rs,
+      rs.tenantId == this.tenantId &&
+      rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'create'] &&
+      (
+        this.authScope.key == '__bottom' ||
+        rs.scope == this.authScope ||
+        this.authScope.ancestors?[ancestor == rs.scope]
+      )
     ]
   )
   @@allow('read',
     auth() != null &&
     auth().tenantId == tenantId &&
     deletedAt == null &&
-    auth().capabilityGrants?[g,
-      g.tenantId == this.tenantId &&
-      endsWith(g.capabilityKey, ':read') &&
-      (g.grantScopeId == this.authScopeId || g.grantScopeId in this.authScope.path)
+    auth().user.roleAssignments?[rs,
+      rs.tenantId == this.tenantId &&
+      rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'read'] &&
+      (
+        this.authScope.key == '__bottom' ||
+        rs.scope == this.authScope ||
+        this.authScope.ancestors?[ancestor == rs.scope]
+      )
     ]
   )
   @@allow('update',
     auth() != null &&
     auth().tenantId == tenantId &&
-    auth().capabilityGrants?[g,
-      g.tenantId == this.tenantId &&
-      endsWith(g.capabilityKey, ':update') &&
-      (g.grantScopeId == this.authScopeId || g.grantScopeId in this.authScope.path)
+    auth().user.roleAssignments?[rs,
+      rs.tenantId == this.tenantId &&
+      rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'update'] &&
+      (
+        this.authScope.key == '__bottom' ||
+        rs.scope == this.authScope ||
+        this.authScope.ancestors?[ancestor == rs.scope]
+      )
     ]
   )
   @@allow('delete',
     auth() != null &&
     auth().tenantId == tenantId &&
-    auth().capabilityGrants?[g,
-      g.tenantId == this.tenantId &&
-      endsWith(g.capabilityKey, ':delete') &&
-      (g.grantScopeId == this.authScopeId || g.grantScopeId in this.authScope.path)
+    auth().user.roleAssignments?[rs,
+      rs.tenantId == this.tenantId &&
+      rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'delete'] &&
+      (
+        this.authScope.key == '__bottom' ||
+        rs.scope == this.authScope ||
+        this.authScope.ancestors?[ancestor == rs.scope]
+      )
     ]
   )
 }
 
 model ProjectDocument extends DocumentBase {
-  title  String
-  status String @default('draft')
+  title     String
+  status    String            @default('draft')
 
   @@delegateMap('default:projects')
   revisions ProjectRevision[]
+}
+
+model PartnerProjectDocument extends DocumentBase {
+  title  String
+  status String @default('draft')
+
+  @@delegateMap('partner:projects')
 }
 
 model LockedDocument extends DocumentBase {
@@ -329,10 +339,10 @@ model LockedDocument extends DocumentBase {
 // ── Unmanaged Support Tables ──────────────────────────────────────────────────
 
 model ProjectRevision {
-  id         String   @id @default(uuid(4))
-  documentId String  
+  id         String          @id @default(uuid(4))
+  documentId String
   body       String
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  createdAt  DateTime        @default(now()) @db.Timestamptz(6)
 
-  document ProjectDocument @relation(fields: [documentId], references: [documentId])
+  document   ProjectDocument @relation(fields: [documentId], references: [documentId])
 }
