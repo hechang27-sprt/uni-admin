@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   createProjectDocument,
@@ -10,14 +10,18 @@ import {
   setupPrototypeLifecycle,
   softDeleteDocument,
   updateProjectStatus,
-} from '#server/zenstack/prototype-relational-redesign/runtime';
+} from "#server/zenstack/prototype-relational-redesign/runtime";
 
-let database: Awaited<ReturnType<typeof createPrototypeClients>>['database'];
-let server: Awaited<ReturnType<typeof createPrototypeClients>>['server'];
-let raw: Awaited<ReturnType<typeof createPrototypeClients>>['raw'];
-let projectAdminDb: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['projectAdminDb'];
-let bottomOnlyDb: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['bottomOnlyDb'];
-let bootstrap: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['bootstrap'];
+let database: Awaited<ReturnType<typeof createPrototypeClients>>["database"];
+let server: Awaited<ReturnType<typeof createPrototypeClients>>["server"];
+let raw: Awaited<ReturnType<typeof createPrototypeClients>>["raw"];
+let projectAdminDb: Awaited<
+  ReturnType<typeof setupPrototypeLifecycle>
+>["projectAdminDb"];
+let bottomOnlyDb: Awaited<
+  ReturnType<typeof setupPrototypeLifecycle>
+>["bottomOnlyDb"];
+let bootstrap: Awaited<ReturnType<typeof setupPrototypeLifecycle>>["bootstrap"];
 
 beforeAll(async () => {
   const clients = await createPrototypeClients();
@@ -36,51 +40,55 @@ afterAll(async () => {
   await database?.close();
 });
 
-describe('ZenStack prototype relational redesign', () => {
-  it('establishes actor context from memberships and sessions', async () => {
+describe("ZenStack prototype relational redesign", () => {
+  it("establishes actor context from memberships and sessions", async () => {
     const user = await raw.user.findUniqueOrThrow({
-      where: { id: bootstrap.users.projectAdmin.id },
+      where: { userId: bootstrap.users.projectAdmin.userId },
       select: {
         displayName: true,
         status: true,
         passwordCredential: { select: { username: true } },
-        memberships: { select: { id: true, tenantId: true, status: true } },
+        memberships: {
+          select: { userId: true, tenantId: true, status: true },
+        },
         sessions: { select: { tokenHash: true, tenantId: true, userId: true } },
       },
     });
 
     expect(user).toMatchObject({
-      displayName: 'Prototype User',
-      status: 'active',
-      passwordCredential: { username: 'prototype' },
+      displayName: "Prototype User",
+      status: "active",
+      passwordCredential: { username: "prototype" },
       memberships: [
         {
-          id: bootstrap.memberships.projectAdmin.id,
-          tenantId: bootstrap.tenant.id,
-          status: 'active',
+          userId: bootstrap.memberships.projectAdmin.userId,
+          tenantId: bootstrap.tenant.tenantId,
+          status: "active",
         },
       ],
       sessions: [
         {
           tokenHash: bootstrap.session.tokenHash,
-          tenantId: bootstrap.tenant.id,
-          userId: bootstrap.users.projectAdmin.id,
+          tenantId: bootstrap.tenant.tenantId,
+          userId: bootstrap.users.projectAdmin.userId,
         },
       ],
     });
 
     expect(bootstrap.actorContexts.projectAdmin.membershipId).toBe(
-      bootstrap.memberships.projectAdmin.id,
+      bootstrap.memberships.projectAdmin.membershipId,
     );
-    expect(bootstrap.actorContexts.projectAdmin.tenantId).toBe(bootstrap.tenant.id);
+    expect(bootstrap.actorContexts.projectAdmin.tenantId).toBe(
+      bootstrap.tenant.tenantId,
+    );
     expect(bootstrap.actorContexts.bottomOnly.membershipId).toBe(
-      bootstrap.memberships.bottomOnly.id,
+      bootstrap.memberships.bottomOnly.membershipId,
     );
   });
 
-  it('keeps tenant app enablement and collection catalog aligned', async () => {
+  it("keeps tenant app enablement and collection catalog aligned", async () => {
     const tenantApps = await raw.tenantApp.findMany({
-      orderBy: { appKey: 'asc' },
+      orderBy: { appKey: "asc" },
       select: {
         tenantId: true,
         appKey: true,
@@ -91,21 +99,21 @@ describe('ZenStack prototype relational redesign', () => {
 
     expect(tenantApps).toEqual([
       {
-        tenantId: bootstrap.tenant.id,
+        tenantId: bootstrap.tenant.tenantId,
         appKey: prototypeKeys.appKey,
-        config: { lifecycle: 'enabled' },
-        app: { appKey: prototypeKeys.appKey, name: 'Default app' },
+        config: { lifecycle: "enabled" },
+        app: { appKey: prototypeKeys.appKey, name: "Default app" },
       },
       {
-        tenantId: bootstrap.tenant.id,
+        tenantId: bootstrap.tenant.tenantId,
         appKey: prototypeKeys.partnerAppKey,
-        config: { lifecycle: 'enabled' },
-        app: { appKey: prototypeKeys.partnerAppKey, name: 'Partner app' },
+        config: { lifecycle: "enabled" },
+        app: { appKey: prototypeKeys.partnerAppKey, name: "Partner app" },
       },
     ]);
 
     const catalogRows = await raw.collection.findMany({
-      orderBy: [{ qualifiedCollectionKey: 'asc' }],
+      orderBy: [{ qualifiedCollectionKey: "asc" }],
       select: {
         app: { select: { appKey: true } },
         collectionKey: true,
@@ -122,7 +130,7 @@ describe('ZenStack prototype relational redesign', () => {
         collectionKey: prototypeKeys.lockedCollectionLocalKey,
         qualifiedCollectionKey: prototypeKeys.lockedCollectionKey,
         definitionKey: prototypeKeys.lockedCollectionLocalKey,
-        name: 'Locked documents',
+        name: "Locked documents",
         schemaVersion: 1,
       },
       {
@@ -130,7 +138,7 @@ describe('ZenStack prototype relational redesign', () => {
         collectionKey: prototypeKeys.projectCollectionLocalKey,
         qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
         definitionKey: prototypeKeys.projectCollectionLocalKey,
-        name: 'Projects',
+        name: "Projects",
         schemaVersion: 1,
       },
       {
@@ -138,42 +146,42 @@ describe('ZenStack prototype relational redesign', () => {
         collectionKey: prototypeKeys.projectCollectionLocalKey,
         qualifiedCollectionKey: prototypeKeys.partnerProjectCollectionKey,
         definitionKey: prototypeKeys.projectCollectionLocalKey,
-        name: 'Partner projects',
+        name: "Partner projects",
         schemaVersion: 1,
       },
     ]);
   });
 
-  it('creates managed rows through actor-bound operations and keeps capability boundaries exact', async () => {
+  it("creates managed rows through actor-bound operations and keeps capability boundaries exact", async () => {
     const project = await createProjectDocument({
       db: projectAdminDb,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.child.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.child.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      title: 'Lifecycle project',
+      title: "Lifecycle project",
     });
 
     const bottomProject = await createProjectDocument({
       db: projectAdminDb,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.bottom.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.bottom.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      title: 'Bottom lifecycle project',
+      title: "Bottom lifecycle project",
     });
 
     await expect(
       createProjectDocument({
         db: projectAdminDb,
-        tenantId: bootstrap.tenant.id,
-        authScopeId: bootstrap.scopes.child.id,
+        tenantId: bootstrap.tenant.tenantId,
+        authScopeId: bootstrap.scopes.child.scopeId,
         appKey: prototypeKeys.partnerAppKey,
         collectionKey: prototypeKeys.projectCollectionLocalKey,
-        title: 'Partner write should be denied',
+        title: "Partner write should be denied",
       }),
     ).rejects.toMatchObject({
-      reason: 'rejected-by-policy',
+      reason: "rejected-by-policy",
     });
 
     const projectBase = await projectAdminDb.documentBase.findUnique({
@@ -203,24 +211,26 @@ describe('ZenStack prototype relational redesign', () => {
       },
     });
 
-    const bottomVisibleToBottomActor = await bottomOnlyDb.projectDocument.findUnique({
-      where: { documentId: bottomProject.documentId },
-      select: {
-        documentId: true,
-        authScopeId: true,
-        title: true,
-      },
-    });
+    const bottomVisibleToBottomActor =
+      await bottomOnlyDb.projectDocument.findUnique({
+        where: { documentId: bottomProject.documentId },
+        select: {
+          documentId: true,
+          authScopeId: true,
+          title: true,
+        },
+      });
 
-    const childHiddenFromBottomActor = await bottomOnlyDb.projectDocument.findUnique({
-      where: { documentId: project.documentId },
-      select: { documentId: true },
-    });
+    const childHiddenFromBottomActor =
+      await bottomOnlyDb.projectDocument.findUnique({
+        where: { documentId: project.documentId },
+        select: { documentId: true },
+      });
 
     expect(projectBase).toMatchObject({
       documentId: project.documentId,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.child.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.child.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
       qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
@@ -229,41 +239,41 @@ describe('ZenStack prototype relational redesign', () => {
 
     expect(visibleProject).toMatchObject({
       documentId: project.documentId,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.child.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.child.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
       qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
-      title: 'Lifecycle project',
-      status: 'draft',
+      title: "Lifecycle project",
+      status: "draft",
     });
 
     expect(bottomVisibleToBottomActor).toMatchObject({
       documentId: bottomProject.documentId,
-      authScopeId: bootstrap.scopes.bottom.id,
-      title: 'Bottom lifecycle project',
+      authScopeId: bootstrap.scopes.bottom.scopeId,
+      title: "Bottom lifecycle project",
     });
     expect(childHiddenFromBottomActor).toBeNull();
   });
 
-  it('supports managed document lifecycle transitions through runtime helpers', async () => {
+  it("supports managed document lifecycle transitions through runtime helpers", async () => {
     const created = await createProjectDocument({
       db: projectAdminDb,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.root.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.root.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      title: 'Lifecycle transitions',
+      title: "Lifecycle transitions",
     });
 
     const updated = await updateProjectStatus(
       projectAdminDb,
       created.documentId,
-      'active',
+      "active",
     );
     expect(updated).toMatchObject({
       documentId: created.documentId,
-      status: 'active',
+      status: "active",
       version: 1,
     });
 
@@ -283,13 +293,15 @@ describe('ZenStack prototype relational redesign', () => {
       deletedAt: null,
     });
 
-    const visibleAfterRestore = await projectAdminDb.projectDocument.findUnique({
-      where: { documentId: created.documentId },
-      select: { documentId: true, status: true },
-    });
+    const visibleAfterRestore = await projectAdminDb.projectDocument.findUnique(
+      {
+        where: { documentId: created.documentId },
+        select: { documentId: true, status: true },
+      },
+    );
     expect(visibleAfterRestore).toMatchObject({
       documentId: created.documentId,
-      status: 'active',
+      status: "active",
     });
 
     await hardDeleteDocument(raw, created.documentId);
@@ -301,14 +313,14 @@ describe('ZenStack prototype relational redesign', () => {
     expect(missingAfterHardDelete).toBeNull();
   });
 
-  it('keeps subtype tightenings on top of the baseline managed lifecycle', async () => {
+  it("keeps subtype tightenings on top of the baseline managed lifecycle", async () => {
     const locked = await raw.lockedDocument.create({
       data: {
-        tenantId: bootstrap.tenant.id,
-        authScopeId: bootstrap.scopes.child.id,
+        tenantId: bootstrap.tenant.tenantId,
+        authScopeId: bootstrap.scopes.child.scopeId,
         appKey: prototypeKeys.appKey,
         collectionKey: prototypeKeys.lockedCollectionLocalKey,
-        title: 'Locked lifecycle document',
+        title: "Locked lifecycle document",
         locked: true,
       },
       select: {
@@ -320,7 +332,7 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     expect(locked).toMatchObject({
-      authScopeId: bootstrap.scopes.child.id,
+      authScopeId: bootstrap.scopes.child.scopeId,
       locked: true,
       qualifiedCollectionKey: prototypeKeys.lockedCollectionKey,
     });
@@ -328,43 +340,43 @@ describe('ZenStack prototype relational redesign', () => {
     await expect(
       projectAdminDb.lockedDocument.update({
         where: { documentId: locked.documentId },
-        data: { title: 'Trying to update locked doc' },
+        data: { title: "Trying to update locked doc" },
       }),
     ).rejects.toMatchObject({
-      reason: 'not-found',
+      reason: "not-found",
     });
   });
 
-  it('keeps unmanaged support rows attached to managed document activity', async () => {
+  it("keeps unmanaged support rows attached to managed document activity", async () => {
     const project = await createProjectDocument({
       db: projectAdminDb,
-      tenantId: bootstrap.tenant.id,
-      authScopeId: bootstrap.scopes.child.id,
+      tenantId: bootstrap.tenant.tenantId,
+      authScopeId: bootstrap.scopes.child.scopeId,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      title: 'Revisioned project',
+      title: "Revisioned project",
     });
 
     const revision = await createProjectRevision(
       raw,
       project.documentId,
-      'Initial revision body',
+      "Initial revision body",
     );
 
     expect(revision).toMatchObject({
-      body: 'Initial revision body',
+      body: "Initial revision body",
       document: {
         documentId: project.documentId,
-        title: 'Revisioned project',
+        title: "Revisioned project",
       },
     });
   });
 
-  it('reads permission definitions and role grants through actor context', async () => {
+  it("reads permission definitions and role grants through actor context", async () => {
     const permissions = await raw.permission.findMany({
-      orderBy: { key: 'asc' },
+      orderBy: { qualifiedKey: "asc" },
       select: {
-        key: true,
+        qualifiedKey: true,
         appKey: true,
         collectionKey: true,
         actionKey: true,
@@ -375,11 +387,11 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     expect(permissions).toContainEqual({
-      key: bootstrap.permissions.projectCreateKey,
+      qualifiedKey: bootstrap.permissions.projectCreateKey,
       appKey: prototypeKeys.appKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      actionKey: 'create',
-      source: 'collection',
+      actionKey: "create",
+      source: "collection",
       app: { appKey: prototypeKeys.appKey },
       collection: {
         appKey: prototypeKeys.appKey,
@@ -387,11 +399,11 @@ describe('ZenStack prototype relational redesign', () => {
       },
     });
     expect(permissions).toContainEqual({
-      key: bootstrap.permissions.partnerProjectReadKey,
+      qualifiedKey: bootstrap.permissions.partnerProjectReadKey,
       appKey: prototypeKeys.partnerAppKey,
       collectionKey: prototypeKeys.projectCollectionLocalKey,
-      actionKey: 'read',
-      source: 'collection',
+      actionKey: "read",
+      source: "collection",
       app: { appKey: prototypeKeys.partnerAppKey },
       collection: {
         appKey: prototypeKeys.partnerAppKey,
@@ -400,28 +412,30 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     const actorContext = await raw.actorContext.findUniqueOrThrow({
-      where: { id: bootstrap.actorContexts.projectAdmin.id },
+      where: { ctxId: bootstrap.actorContexts.projectAdmin.ctxId },
       select: {
         tenantId: true,
         membershipId: true,
         user: {
           select: {
             roleAssignments: {
-              orderBy: { id: 'asc' },
+              orderBy: { assignmentId: "asc" },
               select: {
-                id: true,
+                assignmentId: true,
                 scopeId: true,
                 role: {
                   select: {
-                    key: true,
+                    roleKey: true,
                     rolePermissions: {
-                      orderBy: { permissionKey: 'asc' },
+                      orderBy: { permissionKey: "asc" },
                       select: {
                         permission: {
                           select: {
-                            key: true,
+                            qualifiedKey: true,
                             actionKey: true,
-                            collection: { select: { appKey: true, collectionKey: true } },
+                            collection: {
+                              select: { appKey: true, collectionKey: true },
+                            },
                           },
                         },
                       },
@@ -436,20 +450,20 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     expect(actorContext).toMatchObject({
-      tenantId: bootstrap.tenant.id,
-      membershipId: bootstrap.memberships.projectAdmin.id,
+      tenantId: bootstrap.tenant.tenantId,
+      membershipId: bootstrap.memberships.projectAdmin.membershipId,
       user: {
         roleAssignments: [
           {
-            id: bootstrap.assignments.projectAdmin.id,
-            scopeId: bootstrap.scopes.root.id,
+            assignmentId: bootstrap.assignments.projectAdmin.assignmentId,
+            scopeId: bootstrap.scopes.root.scopeId,
             role: {
-              key: 'project-admin',
+              roleKey: "project-admin",
               rolePermissions: expect.arrayContaining([
                 {
                   permission: {
-                    key: bootstrap.permissions.projectCreateKey,
-                    actionKey: 'create',
+                    qualifiedKey: bootstrap.permissions.projectCreateKey,
+                    actionKey: "create",
                     collection: {
                       appKey: prototypeKeys.appKey,
                       collectionKey: prototypeKeys.projectCollectionLocalKey,
@@ -458,8 +472,8 @@ describe('ZenStack prototype relational redesign', () => {
                 },
                 {
                   permission: {
-                    key: bootstrap.permissions.projectReadKey,
-                    actionKey: 'read',
+                    qualifiedKey: bootstrap.permissions.projectReadKey,
+                    actionKey: "read",
                     collection: {
                       appKey: prototypeKeys.appKey,
                       collectionKey: prototypeKeys.projectCollectionLocalKey,
@@ -468,8 +482,8 @@ describe('ZenStack prototype relational redesign', () => {
                 },
                 {
                   permission: {
-                    key: bootstrap.permissions.lockedUpdateKey,
-                    actionKey: 'update',
+                    qualifiedKey: bootstrap.permissions.lockedUpdateKey,
+                    actionKey: "update",
                     collection: {
                       appKey: prototypeKeys.appKey,
                       collectionKey: prototypeKeys.lockedCollectionLocalKey,
@@ -484,35 +498,35 @@ describe('ZenStack prototype relational redesign', () => {
     });
   });
 
-  it('keeps auth scope closure data aligned with the lifecycle bootstrap', async () => {
+  it("keeps auth scope closure data aligned with the lifecycle bootstrap", async () => {
     const closureRows = await raw.authScopeClosure.findMany({
-      orderBy: [{ ancestorId: 'asc' }, { depth: 'asc' }],
+      orderBy: [{ ancestorId: "asc" }, { depth: "asc" }],
       select: { ancestorId: true, descendantId: true, depth: true },
     });
 
     expect(closureRows).toContainEqual({
-      ancestorId: bootstrap.scopes.bottom.id,
-      descendantId: bootstrap.scopes.bottom.id,
+      ancestorId: bootstrap.scopes.bottom.scopeId,
+      descendantId: bootstrap.scopes.bottom.scopeId,
       depth: 0,
     });
     expect(closureRows).toContainEqual({
-      ancestorId: bootstrap.scopes.root.id,
-      descendantId: bootstrap.scopes.root.id,
+      ancestorId: bootstrap.scopes.root.scopeId,
+      descendantId: bootstrap.scopes.root.scopeId,
       depth: 0,
     });
     expect(closureRows).toContainEqual({
-      ancestorId: bootstrap.scopes.root.id,
-      descendantId: bootstrap.scopes.child.id,
+      ancestorId: bootstrap.scopes.root.scopeId,
+      descendantId: bootstrap.scopes.child.scopeId,
       depth: 1,
     });
     expect(closureRows).toContainEqual({
-      ancestorId: bootstrap.scopes.root.id,
-      descendantId: bootstrap.scopes.sibling.id,
+      ancestorId: bootstrap.scopes.root.scopeId,
+      descendantId: bootstrap.scopes.sibling.scopeId,
       depth: 1,
     });
     expect(closureRows).toContainEqual({
-      ancestorId: bootstrap.scopes.root.id,
-      descendantId: bootstrap.scopes.bottom.id,
+      ancestorId: bootstrap.scopes.root.scopeId,
+      descendantId: bootstrap.scopes.bottom.scopeId,
       depth: 1,
     });
   });

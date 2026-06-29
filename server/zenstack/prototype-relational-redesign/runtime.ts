@@ -63,18 +63,18 @@ export type PrototypeClients = Awaited<
 >;
 
 export interface PrototypeBootstrapState {
-  tenant: { id: string; name: string | null };
+  tenant: { tenantId: string; name: string | null };
   users: {
-    projectAdmin: { id: string; displayName: string | null };
-    bottomOnly: { id: string; displayName: string | null };
+    projectAdmin: { userId: string; displayName: string | null };
+    bottomOnly: { userId: string; displayName: string | null };
   };
   credentials: {
     projectAdmin: { userId: string; username: string };
     bottomOnly: { userId: string; username: string };
   };
   memberships: {
-    projectAdmin: { id: string; tenantId: string; userId: string };
-    bottomOnly: { id: string; tenantId: string; userId: string };
+    projectAdmin: { membershipId: string; tenantId: string; userId: string };
+    bottomOnly: { membershipId: string; tenantId: string; userId: string };
   };
   actorContexts: {
     projectAdmin: PrototypeActorContext;
@@ -90,10 +90,10 @@ export interface PrototypeBootstrapState {
     partner: { tenantId: string; appKey: string };
   };
   scopes: {
-    bottom: { id: string; key: string | null; path: string[] };
-    root: { id: string; key: string | null; path: string[] };
-    child: { id: string; key: string | null; path: string[] };
-    sibling: { id: string; key: string | null; path: string[] };
+    bottom: { scopeId: string; scopeKey: string | null; path: string[] };
+    root: { scopeId: string; scopeKey: string | null; path: string[] };
+    child: { scopeId: string; scopeKey: string | null; path: string[] };
+    sibling: { scopeId: string; scopeKey: string | null; path: string[] };
   };
   collections: {
     project: {
@@ -113,12 +113,12 @@ export interface PrototypeBootstrapState {
     };
   };
   roles: {
-    projectAdmin: { id: string; key: string };
-    bottomReader: { id: string; key: string };
+    projectAdmin: { roleId: string; roleKey: string };
+    bottomReader: { roleId: string; roleKey: string };
   };
   assignments: {
-    projectAdmin: { id: string; userId: string; scopeId: string };
-    bottomReader: { id: string; userId: string; scopeId: string };
+    projectAdmin: { assignmentId: string; userId: string; scopeId: string };
+    bottomReader: { assignmentId: string; userId: string; scopeId: string };
   };
   permissions: {
     projectCreateKey: string;
@@ -210,7 +210,7 @@ async function bootstrapPrototypeIdentity(raw: PrototypeClient) {
       displayName: "Prototype User",
       status: "active",
     },
-    select: { id: true, displayName: true },
+    select: { userId: true, displayName: true },
   });
 
   const bottomOnly = await raw.user.create({
@@ -218,12 +218,12 @@ async function bootstrapPrototypeIdentity(raw: PrototypeClient) {
       displayName: "Bottom-only User",
       status: "active",
     },
-    select: { id: true, displayName: true },
+    select: { userId: true, displayName: true },
   });
 
   const projectAdminCredential = await raw.userPasswordCredential.create({
     data: {
-      userId: projectAdmin.id,
+      userId: projectAdmin.userId,
       username: "prototype",
       passwordHash: "$2b$10$prototype-hash",
     },
@@ -232,7 +232,7 @@ async function bootstrapPrototypeIdentity(raw: PrototypeClient) {
 
   const bottomOnlyCredential = await raw.userPasswordCredential.create({
     data: {
-      userId: bottomOnly.id,
+      userId: bottomOnly.userId,
       username: "prototype-bottom",
       passwordHash: "$2b$10$prototype-bottom-hash",
     },
@@ -243,50 +243,50 @@ async function bootstrapPrototypeIdentity(raw: PrototypeClient) {
     data: {
       name: "Prototype Tenant",
     },
-    select: { id: true, name: true },
+    select: { tenantId: true, name: true },
   });
 
   const projectAdminMembership = await raw.membership.create({
     data: {
-      tenantId: tenant.id,
-      userId: projectAdmin.id,
+      tenantId: tenant.tenantId,
+      userId: projectAdmin.userId,
       status: "active",
     },
-    select: { id: true, tenantId: true, userId: true },
+    select: { membershipId: true, tenantId: true, userId: true },
   });
 
   const bottomOnlyMembership = await raw.membership.create({
     data: {
-      tenantId: tenant.id,
-      userId: bottomOnly.id,
+      tenantId: tenant.tenantId,
+      userId: bottomOnly.userId,
       status: "active",
     },
-    select: { id: true, tenantId: true, userId: true },
+    select: { membershipId: true, tenantId: true, userId: true },
   });
 
   const projectAdminActor = await raw.actorContext.create({
     data: {
-      userId: projectAdmin.id,
-      tenantId: tenant.id,
-      membershipId: projectAdminMembership.id,
+      userId: projectAdmin.userId,
+      tenantId: tenant.tenantId,
+      membershipId: projectAdminMembership.membershipId,
     },
-    select: { id: true },
+    select: { ctxId: true },
   });
 
   const bottomOnlyActor = await raw.actorContext.create({
     data: {
-      userId: bottomOnly.id,
-      tenantId: tenant.id,
-      membershipId: bottomOnlyMembership.id,
+      userId: bottomOnly.userId,
+      tenantId: tenant.tenantId,
+      membershipId: bottomOnlyMembership.membershipId,
     },
-    select: { id: true },
+    select: { ctxId: true },
   });
 
   const session = await raw.authSession.create({
     data: {
-      tokenHash: `prototype-token-${projectAdmin.id}`,
-      tenantId: tenant.id,
-      userId: projectAdmin.id,
+      tokenHash: `prototype-token-${projectAdmin.userId}`,
+      tenantId: tenant.tenantId,
+      userId: projectAdmin.userId,
       lastRenewedAt: new Date(),
       expiresAt: new Date(Date.now() + 3600_000),
       absoluteExpiresAt: new Date(Date.now() + 7200_000),
@@ -309,8 +309,8 @@ async function bootstrapPrototypeIdentity(raw: PrototypeClient) {
       bottomOnly: bottomOnlyMembership,
     },
     actorIds: {
-      projectAdmin: projectAdminActor.id,
-      bottomOnly: bottomOnlyActor.id,
+      projectAdmin: projectAdminActor.ctxId,
+      bottomOnly: bottomOnlyActor.ctxId,
     },
     session,
   } as const;
@@ -419,14 +419,14 @@ async function createAuthScope(
     tenantId: string;
     parentId?: string;
     type: string;
-    key: string;
+    scopeKey: string;
     name: string;
     bottomScopeId: string;
   },
 ) {
   const parent = data.parentId
     ? await raw.authScope.findFirstOrThrow({
-        where: { id: data.parentId },
+        where: { scopeId: data.parentId },
         include: {
           ancestors: {
             select: { depth: true, ancestorId: true },
@@ -441,21 +441,21 @@ async function createAuthScope(
       tenantId: data.tenantId,
       parentId: data.parentId,
       type: data.type,
-      key: data.key,
+      scopeKey: data.scopeKey,
       name: data.name,
     },
-    select: { id: true, key: true, path: true },
+    select: { scopeId: true, scopeKey: true, path: true },
   });
 
   await raw.authScope.update({
-    where: { id: scope.id },
-    data: { path: [...(parent?.path ?? []), scope.id] },
+    where: { scopeId: scope.scopeId },
+    data: { path: [...(parent?.path ?? []), scope.scopeId] },
   });
 
   const ancestorCls = parent
     ? parent.ancestors.map((cls) => ({
         ancestorId: cls.ancestorId,
-        descendantId: scope.id,
+        descendantId: scope.scopeId,
         depth: cls.depth + 1,
       }))
     : [];
@@ -464,12 +464,12 @@ async function createAuthScope(
     data: [
       ...ancestorCls,
       {
-        ancestorId: scope.id,
-        descendantId: scope.id,
+        ancestorId: scope.scopeId,
+        descendantId: scope.scopeId,
         depth: 0,
       },
       {
-        ancestorId: scope.id,
+        ancestorId: scope.scopeId,
         descendantId: data.bottomScopeId,
         depth: 1,
       },
@@ -493,7 +493,7 @@ async function addPermissions(
     data: actionKeys.map((actionKey) =>
       Object.assign({}, collectionData, {
         actionKey,
-        key: `${collectionData.appKey}:${collectionData.collectionKey}:${actionKey}`,
+        qualifiedKey: `${collectionData.appKey}:${collectionData.collectionKey}:${actionKey}`,
       }),
     ),
   });
@@ -505,16 +505,16 @@ async function bootstrapPrototypeAuthz(
 ) {
   const bottomScope = await raw.authScope.create({
     data: {
-      id: prototypeKeys.bottomScopeId,
-      tenantId: identity.tenant.id,
+      scopeId: prototypeKeys.bottomScopeId,
+      tenantId: identity.tenant.tenantId,
       type: "bottom",
-      key: "__bottom",
+      scopeKey: "__bottom",
       name: "Bottom scope",
       path: [prototypeKeys.bottomScopeId],
     },
-    select: { id: true, key: true, path: true },
+    select: { scopeId: true, scopeKey: true, path: true },
   });
-  const bottomScopeId = bottomScope.id;
+  const bottomScopeId = bottomScope.scopeId;
 
   await raw.authScopeClosure.create({
     data: {
@@ -525,27 +525,27 @@ async function bootstrapPrototypeAuthz(
   });
 
   const rootScope = await createAuthScope(raw, {
-    tenantId: identity.tenant.id,
+    tenantId: identity.tenant.tenantId,
     type: "tenant-root",
-    key: "__root",
+    scopeKey: "__root",
     name: "Root scope",
     bottomScopeId,
   });
 
   const childScope = await createAuthScope(raw, {
-    tenantId: identity.tenant.id,
-    parentId: rootScope.id,
+    tenantId: identity.tenant.tenantId,
+    parentId: rootScope.scopeId,
     type: "organization",
-    key: "engineering",
+    scopeKey: "engineering",
     name: "Engineering",
     bottomScopeId,
   });
 
   const siblingScope = await createAuthScope(raw, {
-    tenantId: identity.tenant.id,
-    parentId: rootScope.id,
+    tenantId: identity.tenant.tenantId,
+    parentId: rootScope.scopeId,
     type: "organization",
-    key: "marketing",
+    scopeKey: "marketing",
     name: "Marketing",
     bottomScopeId,
   });
@@ -584,58 +584,58 @@ async function bootstrapPrototypeAuthz(
 
   const projectAdminRole = await raw.role.create({
     data: {
-      tenantId: identity.tenant.id,
+      tenantId: identity.tenant.tenantId,
       appKey: prototypeKeys.appKey,
-      key: "project-admin",
+      roleKey: "project-admin",
       name: "Project admin",
     },
-    select: { id: true, key: true },
+    select: { roleId: true, roleKey: true },
   });
 
   const bottomReaderRole = await raw.role.create({
     data: {
-      tenantId: identity.tenant.id,
+      tenantId: identity.tenant.tenantId,
       appKey: prototypeKeys.appKey,
-      key: "bottom-reader",
+      roleKey: "bottom-reader",
       name: "Bottom reader",
     },
-    select: { id: true, key: true },
+    select: { roleId: true, roleKey: true },
   });
 
   await raw.rolePermission.createMany({
     data: Object.values(permissions).map((permissionKey) => ({
-      tenantId: identity.tenant.id,
-      roleId: projectAdminRole.id,
+      tenantId: identity.tenant.tenantId,
+      roleId: projectAdminRole.roleId,
       permissionKey,
     })),
   });
 
   await raw.rolePermission.create({
     data: {
-      tenantId: identity.tenant.id,
-      roleId: bottomReaderRole.id,
+      tenantId: identity.tenant.tenantId,
+      roleId: bottomReaderRole.roleId,
       permissionKey: permissions.projectReadKey,
     },
   });
 
   const projectAdminAssignment = await raw.roleAssignment.create({
     data: {
-      tenantId: identity.tenant.id,
-      userId: identity.users.projectAdmin.id,
-      roleId: projectAdminRole.id,
-      scopeId: rootScope.id,
+      tenantId: identity.tenant.tenantId,
+      userId: identity.users.projectAdmin.userId,
+      roleId: projectAdminRole.roleId,
+      scopeId: rootScope.scopeId,
     },
-    select: { id: true, userId: true, scopeId: true },
+    select: { assignmentId: true, userId: true, scopeId: true },
   });
 
   const bottomReaderAssignment = await raw.roleAssignment.create({
     data: {
-      tenantId: identity.tenant.id,
-      userId: identity.users.bottomOnly.id,
-      roleId: bottomReaderRole.id,
-      scopeId: bottomScope.id,
+      tenantId: identity.tenant.tenantId,
+      userId: identity.users.bottomOnly.userId,
+      roleId: bottomReaderRole.roleId,
+      scopeId: bottomScope.scopeId,
     },
-    select: { id: true, userId: true, scopeId: true },
+    select: { assignmentId: true, userId: true, scopeId: true },
   });
 
   return {
@@ -662,14 +662,17 @@ async function loadPrototypeActorContext(
   actorContextId: string,
 ) {
   return raw.actorContext.findUniqueOrThrow({
-    where: { id: actorContextId },
+    where: { ctxId: actorContextId },
     include: actorAuthIncludes,
   });
 }
 
 export async function seedPrototypeState(raw: PrototypeClient) {
   const identity = await bootstrapPrototypeIdentity(raw);
-  const catalog = await bootstrapPrototypeCatalog(raw, identity.tenant.id);
+  const catalog = await bootstrapPrototypeCatalog(
+    raw,
+    identity.tenant.tenantId,
+  );
   const authz = await bootstrapPrototypeAuthz(raw, identity);
 
   const [projectAdmin, bottomOnly] = await Promise.all([

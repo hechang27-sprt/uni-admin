@@ -14,8 +14,8 @@ export class SchemaType implements SchemaDef {
         User: {
             name: "User",
             fields: {
-                id: {
-                    name: "id",
+                userId: {
+                    name: "userId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -75,9 +75,9 @@ export class SchemaType implements SchemaDef {
                     relation: { opposite: "user" }
                 }
             },
-            idFields: ["id"],
+            idFields: ["userId"],
             uniqueFields: {
-                id: { type: "String" }
+                userId: { type: "String" }
             }
         },
         UserPasswordCredential: {
@@ -96,8 +96,8 @@ export class SchemaType implements SchemaDef {
                 user: {
                     name: "user",
                     type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "passwordCredential", fields: ["userId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "passwordCredential", fields: ["userId"], references: ["userId"] }
                 },
                 username: {
                     name: "username",
@@ -131,8 +131,8 @@ export class SchemaType implements SchemaDef {
         Tenant: {
             name: "Tenant",
             fields: {
-                id: {
-                    name: "id",
+                tenantId: {
+                    name: "tenantId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -186,16 +186,16 @@ export class SchemaType implements SchemaDef {
                     relation: { opposite: "tenant" }
                 }
             },
-            idFields: ["id"],
+            idFields: ["tenantId"],
             uniqueFields: {
-                id: { type: "String" }
+                tenantId: { type: "String" }
             }
         },
         Membership: {
             name: "Membership",
             fields: {
-                id: {
-                    name: "id",
+                membershipId: {
+                    name: "membershipId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -236,14 +236,14 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "memberships", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "memberships", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 user: {
                     name: "user",
                     type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "memberships", fields: ["userId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "memberships", fields: ["userId"], references: ["userId"] }
                 },
                 actorContexts: {
                     name: "actorContexts",
@@ -261,17 +261,17 @@ export class SchemaType implements SchemaDef {
             attributes: [
                 { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId"), ExpressionUtils.field("tenantId")]) }] }
             ] as readonly AttributeApplication[],
-            idFields: ["id"],
+            idFields: ["membershipId"],
             uniqueFields: {
-                id: { type: "String" },
+                membershipId: { type: "String" },
                 userId_tenantId: { userId: { type: "String" }, tenantId: { type: "String" } }
             }
         },
         ActorContext: {
             name: "ActorContext",
             fields: {
-                id: {
-                    name: "id",
+                ctxId: {
+                    name: "ctxId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -301,29 +301,29 @@ export class SchemaType implements SchemaDef {
                 user: {
                     name: "user",
                     type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "actorContexts", fields: ["userId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "actorContexts", fields: ["userId"], references: ["userId"] }
                 },
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "actorContexts", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "actorContexts", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 membership: {
                     name: "membership",
                     type: "Membership",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("membershipId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "actorContexts", fields: ["membershipId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("membershipId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("membershipId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "actorContexts", fields: ["membershipId"], references: ["membershipId"] }
                 }
             },
             attributes: [
                 { name: "@@auth" },
                 { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId"), ExpressionUtils.field("tenantId"), ExpressionUtils.field("membershipId")]) }] }
             ] as readonly AttributeApplication[],
-            idFields: ["id"],
+            idFields: ["ctxId"],
             uniqueFields: {
-                id: { type: "String" },
+                ctxId: { type: "String" },
                 userId_tenantId_membershipId: { userId: { type: "String" }, tenantId: { type: "String" }, membershipId: { type: "String" } }
             }
         },
@@ -376,8 +376,8 @@ export class SchemaType implements SchemaDef {
                 user: {
                     name: "user",
                     type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "sessions", fields: ["userId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "sessions", fields: ["userId"], references: ["userId"] }
                 },
                 membership: {
                     name: "membership",
@@ -492,8 +492,8 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "tenantApps", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "tenantApps", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 app: {
                     name: "app",
@@ -593,8 +593,8 @@ export class SchemaType implements SchemaDef {
         AuthScope: {
             name: "AuthScope",
             fields: {
-                id: {
-                    name: "id",
+                scopeId: {
+                    name: "scopeId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -624,8 +624,8 @@ export class SchemaType implements SchemaDef {
                     name: "type",
                     type: "String"
                 },
-                key: {
-                    name: "key",
+                scopeKey: {
+                    name: "scopeKey",
                     type: "String",
                     optional: true
                 },
@@ -649,15 +649,15 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "authScopes", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "authScopes", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 parent: {
                     name: "parent",
                     type: "AuthScope",
                     optional: true,
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeParent") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("parentId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "children", name: "ScopeParent", fields: ["parentId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("ScopeParent") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("parentId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "children", name: "ScopeParent", fields: ["parentId"], references: ["scopeId"] }
                 },
                 children: {
                     name: "children",
@@ -693,9 +693,9 @@ export class SchemaType implements SchemaDef {
                     relation: { opposite: "scope" }
                 }
             },
-            idFields: ["id"],
+            idFields: ["scopeId"],
             uniqueFields: {
-                id: { type: "String" }
+                scopeId: { type: "String" }
             }
         },
         AuthScopeClosure: {
@@ -724,14 +724,14 @@ export class SchemaType implements SchemaDef {
                 ancestor: {
                     name: "ancestor",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Ancestor") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("ancestorId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "descendants", name: "Ancestor", fields: ["ancestorId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Ancestor") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("ancestorId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "descendants", name: "Ancestor", fields: ["ancestorId"], references: ["scopeId"] }
                 },
                 descendant: {
                     name: "descendant",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Descendant") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("descendantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "ancestors", name: "Descendant", fields: ["descendantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "name", value: ExpressionUtils.literal("Descendant") }, { name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("descendantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "ancestors", name: "Descendant", fields: ["descendantId"], references: ["scopeId"] }
                 }
             },
             attributes: [
@@ -745,8 +745,8 @@ export class SchemaType implements SchemaDef {
         Permission: {
             name: "Permission",
             fields: {
-                key: {
-                    name: "key",
+                qualifiedKey: {
+                    name: "qualifiedKey",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }] as readonly AttributeApplication[]
@@ -819,16 +819,16 @@ export class SchemaType implements SchemaDef {
                     relation: { opposite: "permission" }
                 }
             },
-            idFields: ["key"],
+            idFields: ["qualifiedKey"],
             uniqueFields: {
-                key: { type: "String" }
+                qualifiedKey: { type: "String" }
             }
         },
         Role: {
             name: "Role",
             fields: {
-                id: {
-                    name: "id",
+                roleId: {
+                    name: "roleId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -848,8 +848,8 @@ export class SchemaType implements SchemaDef {
                         "app"
                     ] as readonly string[]
                 },
-                key: {
-                    name: "key",
+                roleKey: {
+                    name: "roleKey",
                     type: "String"
                 },
                 name: {
@@ -872,8 +872,8 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "roles", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roles", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 app: {
                     name: "app",
@@ -895,12 +895,12 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("key")]) }] }
+                { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("roleKey")]) }] }
             ] as readonly AttributeApplication[],
-            idFields: ["id"],
+            idFields: ["roleId"],
             uniqueFields: {
-                id: { type: "String" },
-                tenantId_key: { tenantId: { type: "String" }, key: { type: "String" } }
+                roleId: { type: "String" },
+                tenantId_roleKey: { tenantId: { type: "String" }, roleKey: { type: "String" } }
             }
         },
         RolePermission: {
@@ -930,14 +930,14 @@ export class SchemaType implements SchemaDef {
                 role: {
                     name: "role",
                     type: "Role",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "rolePermissions", fields: ["roleId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "rolePermissions", fields: ["roleId"], references: ["roleId"] }
                 },
                 permission: {
                     name: "permission",
                     type: "Permission",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("permissionKey")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("key")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "rolePermissions", fields: ["permissionKey"], references: ["key"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("permissionKey")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("qualifiedKey")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "rolePermissions", fields: ["permissionKey"], references: ["qualifiedKey"] }
                 }
             },
             attributes: [
@@ -951,8 +951,8 @@ export class SchemaType implements SchemaDef {
         RoleAssignment: {
             name: "RoleAssignment",
             fields: {
-                id: {
-                    name: "id",
+                assignmentId: {
+                    name: "assignmentId",
                     type: "String",
                     id: true,
                     attributes: [{ name: "@id" }, { name: "@default", args: [{ name: "value", value: ExpressionUtils.call("uuid", [ExpressionUtils.literal(4)]) }] }] as readonly AttributeApplication[],
@@ -995,34 +995,34 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "roleAssignments", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 user: {
                     name: "user",
                     type: "User",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "roleAssignments", fields: ["userId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("userId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["userId"], references: ["userId"] }
                 },
                 role: {
                     name: "role",
                     type: "Role",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "roleAssignments", fields: ["roleId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("roleId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["roleId"], references: ["roleId"] }
                 },
                 scope: {
                     name: "scope",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "roleAssignments", fields: ["scopeId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "roleAssignments", fields: ["scopeId"], references: ["scopeId"] }
                 }
             },
             attributes: [
                 { name: "@@unique", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId"), ExpressionUtils.field("userId"), ExpressionUtils.field("roleId"), ExpressionUtils.field("scopeId")]) }] }
             ] as readonly AttributeApplication[],
-            idFields: ["id"],
+            idFields: ["assignmentId"],
             uniqueFields: {
-                id: { type: "String" },
+                assignmentId: { type: "String" },
                 tenantId_userId_roleId_scopeId: { tenantId: { type: "String" }, userId: { type: "String" }, roleId: { type: "String" }, scopeId: { type: "String" } }
             }
         },
@@ -1107,14 +1107,14 @@ export class SchemaType implements SchemaDef {
                 tenant: {
                     name: "tenant",
                     type: "Tenant",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 authScope: {
                     name: "authScope",
                     type: "AuthScope",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["scopeId"] }
                 },
                 app: {
                     name: "app",
@@ -1131,10 +1131,10 @@ export class SchemaType implements SchemaDef {
             },
             attributes: [
                 { name: "@@delegate", args: [{ name: "discriminator", value: ExpressionUtils.field("qualifiedCollectionKey") }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] }
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] }
             ] as readonly AttributeApplication[],
             idFields: ["documentId"],
             uniqueFields: {
@@ -1237,15 +1237,15 @@ export class SchemaType implements SchemaDef {
                     name: "tenant",
                     type: "Tenant",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 authScope: {
                     name: "authScope",
                     type: "AuthScope",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["scopeId"] }
                 },
                 app: {
                     name: "app",
@@ -1279,10 +1279,10 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
                 { name: "@@delegateMap", args: [{ name: "value", value: ExpressionUtils.literal("default:projects") }] }
             ] as readonly AttributeApplication[],
             idFields: ["documentId"],
@@ -1385,15 +1385,15 @@ export class SchemaType implements SchemaDef {
                     name: "tenant",
                     type: "Tenant",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 authScope: {
                     name: "authScope",
                     type: "AuthScope",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["scopeId"] }
                 },
                 app: {
                     name: "app",
@@ -1421,10 +1421,10 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
                 { name: "@@delegateMap", args: [{ name: "value", value: ExpressionUtils.literal("partner:projects") }] }
             ] as readonly AttributeApplication[],
             idFields: ["documentId"],
@@ -1527,15 +1527,15 @@ export class SchemaType implements SchemaDef {
                     name: "tenant",
                     type: "Tenant",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["tenantId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("tenantId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["tenantId"], references: ["tenantId"] }
                 },
                 authScope: {
                     name: "authScope",
                     type: "AuthScope",
                     originModel: "DocumentBase",
-                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("id")]) }] }] as readonly AttributeApplication[],
-                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["id"] }
+                    attributes: [{ name: "@relation", args: [{ name: "fields", value: ExpressionUtils.array("String", [ExpressionUtils.field("authScopeId")]) }, { name: "references", value: ExpressionUtils.array("String", [ExpressionUtils.field("scopeId")]) }] }] as readonly AttributeApplication[],
+                    relation: { opposite: "documents", fields: ["authScopeId"], references: ["scopeId"] }
                 },
                 app: {
                     name: "app",
@@ -1563,10 +1563,10 @@ export class SchemaType implements SchemaDef {
                 }
             },
             attributes: [
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
-                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "key"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("create") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("create"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("read") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.field("deletedAt"), "==", ExpressionUtils._null())), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("read"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("update"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
+                { name: "@@allow", args: [{ name: "operation", value: ExpressionUtils.literal("delete") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.call("auth"), "!=", ExpressionUtils._null()), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["tenantId"]), "==", ExpressionUtils.field("tenantId"))), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.call("auth"), ["user", "roleAssignments"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["tenantId"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["tenantId"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["role", "rolePermissions"]), "?", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "collection"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["collection"])), "&&", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rp"), ["permission", "actionKey"]), "==", ExpressionUtils.literal("delete"))), "rp")), "&&", ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "scopeKey"]), "==", ExpressionUtils.literal("__bottom")), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]), "==", ExpressionUtils.member(ExpressionUtils._this(), ["authScope"]))), "||", ExpressionUtils.binary(ExpressionUtils.member(ExpressionUtils._this(), ["authScope", "ancestors"]), "?", ExpressionUtils.binary(ExpressionUtils.field("ancestor"), "==", ExpressionUtils.member(ExpressionUtils.binding("rs"), ["scope"]))))), "rs")) }] },
                 { name: "@@delegateMap", args: [{ name: "value", value: ExpressionUtils.literal("default:locked-documents") }] },
                 { name: "@@deny", args: [{ name: "operation", value: ExpressionUtils.literal("update") }, { name: "condition", value: ExpressionUtils.binary(ExpressionUtils.field("locked"), "==", ExpressionUtils.literal(true)) }] }
             ] as readonly AttributeApplication[],

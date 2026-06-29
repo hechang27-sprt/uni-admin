@@ -10,7 +10,7 @@ plugin policy {
 // ── Identity / Membership / Sessions ─────────────────────────────────────────
 
 model User {
-  id                 String                  @id @default(uuid(4))
+  userId             String                  @id @default(uuid(4))
   displayName        String?
   status             String                  @default('active')
   createdAt          DateTime                @default(now()) @db.Timestamptz(6)
@@ -25,7 +25,7 @@ model User {
 model UserPasswordCredential {
 
   userId       String   @id @unique
-  user         User     @relation(fields: [userId], references: [id])
+  user         User     @relation(fields: [userId], references: [userId])
   username     String   @unique
   passwordHash String
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
@@ -33,28 +33,28 @@ model UserPasswordCredential {
 }
 
 model Tenant {
-  id               String          @id @default(uuid(4))
-  name             String?
+  tenantId        String           @id @default(uuid(4))
+  name            String?
 
-  memberships      Membership[]
-  actorContexts    ActorContext[]
-  authScopes       AuthScope[]
-  documents        DocumentBase[]
-  tenantApps       TenantApp[]
-  roles            Role[]
-  roleAssignments  RoleAssignment[]
+  memberships     Membership[]
+  actorContexts   ActorContext[]
+  authScopes      AuthScope[]
+  documents       DocumentBase[]
+  tenantApps      TenantApp[]
+  roles           Role[]
+  roleAssignments RoleAssignment[]
 }
 
 model Membership {
-  id            String         @id @default(uuid(4))
+  membershipId  String         @id @default(uuid(4))
   tenantId      String
   userId        String
   status        String         @default('active')
   createdAt     DateTime       @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime       @updatedAt @db.Timestamptz(6)
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  user          User           @relation(fields: [userId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [tenantId])
+  user          User           @relation(fields: [userId], references: [userId])
   actorContexts ActorContext[]
   sessions      AuthSession[]
 
@@ -62,14 +62,14 @@ model Membership {
 }
 
 model ActorContext {
-  id           String     @id @default(uuid(4))
+  ctxId        String     @id @default(uuid(4))
   userId       String
   tenantId     String
   membershipId String
 
-  user         User       @relation(fields: [userId], references: [id])
-  tenant       Tenant     @relation(fields: [tenantId], references: [id])
-  membership   Membership @relation(fields: [membershipId], references: [id])
+  user         User       @relation(fields: [userId], references: [userId])
+  tenant       Tenant     @relation(fields: [tenantId], references: [tenantId])
+  membership   Membership @relation(fields: [membershipId], references: [membershipId])
 
   @@auth
   @@unique([userId, tenantId, membershipId])
@@ -84,7 +84,7 @@ model AuthSession {
   expiresAt         DateTime    @db.Timestamptz(6)
   absoluteExpiresAt DateTime    @db.Timestamptz(6)
 
-  user              User        @relation(fields: [userId], references: [id])
+  user              User        @relation(fields: [userId], references: [userId])
   membership        Membership? @relation(fields: [tenantId, userId], references: [tenantId, userId])
 }
 
@@ -110,7 +110,7 @@ model TenantApp {
   config    Json?
   enabledAt DateTime @default(now()) @db.Timestamptz(6)
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [tenantId])
   app       App      @relation(fields: [appKey], references: [appKey])
 
   @@id([tenantId, appKey])
@@ -137,19 +137,19 @@ model Collection {
 // ── Scope Tree ────────────────────────────────────────────────────────────────
 
 model AuthScope {
-  id              String           @id @default(uuid(4))
+  scopeId         String             @id @default(uuid(4))
   tenantId        String
   parentId        String?
   path            String[]
   type            String
-  key             String?
+  scopeKey        String?
   name            String?
-  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
 
-  tenant          Tenant           @relation(fields: [tenantId], references: [id])
-  parent          AuthScope?       @relation('ScopeParent', fields: [parentId], references: [id])
-  children        AuthScope[]      @relation('ScopeParent')
+  tenant          Tenant             @relation(fields: [tenantId], references: [tenantId])
+  parent          AuthScope?         @relation('ScopeParent', fields: [parentId], references: [scopeId])
+  children        AuthScope[]        @relation('ScopeParent')
   ancestors       AuthScopeClosure[] @relation('Descendant')
   descendants     AuthScopeClosure[] @relation('Ancestor')
   documents       DocumentBase[]
@@ -162,8 +162,8 @@ model AuthScopeClosure {
   descendantId String
   depth        Int
 
-  ancestor     AuthScope @relation('Ancestor', fields: [ancestorId], references: [id])
-  descendant   AuthScope @relation('Descendant', fields: [descendantId], references: [id])
+  ancestor     AuthScope @relation('Ancestor', fields: [ancestorId], references: [scopeId])
+  descendant   AuthScope @relation('Descendant', fields: [descendantId], references: [scopeId])
 
   @@id([ancestorId, descendantId])
 }
@@ -171,7 +171,7 @@ model AuthScopeClosure {
 // ── RBAC Definitions ──────────────────────────────────────────────────────────
 
 model Permission {
-  key             String           @id
+  qualifiedKey    String           @id
   appKey          String?
   collectionKey   String?
   actionKey       String
@@ -187,20 +187,20 @@ model Permission {
 }
 
 model Role {
-  id              String           @id @default(uuid(4))
+  roleId          String           @id @default(uuid(4))
   tenantId        String
   appKey          String
-  key             String
+  roleKey         String
   name            String?
   createdAt       DateTime         @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
 
-  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  tenant          Tenant           @relation(fields: [tenantId], references: [tenantId])
   app             App              @relation(fields: [appKey], references: [appKey])
   rolePermissions RolePermission[]
   roleAssignments RoleAssignment[]
 
-  @@unique([tenantId, key])
+  @@unique([tenantId, roleKey])
 }
 
 model RolePermission {
@@ -208,24 +208,24 @@ model RolePermission {
   roleId        String
   permissionKey String
 
-  role          Role       @relation(fields: [roleId], references: [id])
-  permission    Permission @relation(fields: [permissionKey], references: [key])
+  role          Role       @relation(fields: [roleId], references: [roleId])
+  permission    Permission @relation(fields: [permissionKey], references: [qualifiedKey])
 
   @@id([tenantId, roleId, permissionKey])
 }
 
 model RoleAssignment {
-  id        String    @id @default(uuid(4))
-  tenantId  String
-  userId    String
-  roleId    String
-  scopeId   String
-  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  assignmentId String    @id @default(uuid(4))
+  tenantId     String
+  userId       String
+  roleId       String
+  scopeId      String
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
 
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
-  role      Role      @relation(fields: [roleId], references: [id])
-  scope     AuthScope @relation(fields: [scopeId], references: [id])
+  tenant       Tenant    @relation(fields: [tenantId], references: [tenantId])
+  user         User      @relation(fields: [userId], references: [userId])
+  role         Role      @relation(fields: [roleId], references: [roleId])
+  scope        AuthScope @relation(fields: [scopeId], references: [scopeId])
 
   @@unique([tenantId, userId, roleId, scopeId])
 }
@@ -247,8 +247,8 @@ model DocumentBase {
   remoteSource           String?
   remoteId               String?
 
-  tenant                 Tenant     @relation(fields: [tenantId], references: [id])
-  authScope              AuthScope  @relation(fields: [authScopeId], references: [id])
+  tenant                 Tenant     @relation(fields: [tenantId], references: [tenantId])
+  authScope              AuthScope  @relation(fields: [authScopeId], references: [scopeId])
   app                    App        @relation(fields: [appKey], references: [appKey])
   collection             Collection @relation(fields: [appKey, collectionKey], references: [appKey, collectionKey])
 
@@ -265,7 +265,7 @@ model DocumentBase {
       rs.tenantId == this.tenantId &&
       rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'create'] &&
       (
-        this.authScope.key == '__bottom' ||
+        this.authScope.scopeKey == '__bottom' ||
         rs.scope == this.authScope ||
         this.authScope.ancestors?[ancestor == rs.scope]
       )
@@ -279,7 +279,7 @@ model DocumentBase {
       rs.tenantId == this.tenantId &&
       rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'read'] &&
       (
-        this.authScope.key == '__bottom' ||
+        this.authScope.scopeKey == '__bottom' ||
         rs.scope == this.authScope ||
         this.authScope.ancestors?[ancestor == rs.scope]
       )
@@ -292,7 +292,7 @@ model DocumentBase {
       rs.tenantId == this.tenantId &&
       rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'update'] &&
       (
-        this.authScope.key == '__bottom' ||
+        this.authScope.scopeKey == '__bottom' ||
         rs.scope == this.authScope ||
         this.authScope.ancestors?[ancestor == rs.scope]
       )
@@ -305,7 +305,7 @@ model DocumentBase {
       rs.tenantId == this.tenantId &&
       rs.role.rolePermissions?[rp, rp.permission.collection == this.collection && rp.permission.actionKey == 'delete'] &&
       (
-        this.authScope.key == '__bottom' ||
+        this.authScope.scopeKey == '__bottom' ||
         rs.scope == this.authScope ||
         this.authScope.ancestors?[ancestor == rs.scope]
       )
