@@ -1659,3 +1659,35 @@ Applied patched @zenstackhq/plugin-policy (PR #2734) via dist copy from devenv/z
 ### Next Steps
 
 - None - task complete
+
+
+## Session 51: Tighten ZenStack prototype DocumentBase policy
+
+**Date**: 2026-06-29
+**Task**: Tighten ZenStack prototype DocumentBase policy
+
+### Summary
+
+Tightened the ZenStack prototype DocumentBase CRUD policy, aligned bottom-scope and exact capability-key behavior, verified the prototype end to end against the patched fork, and validated the upstream ZenStack policy-plugin fix with focused A/B regressions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d79074e7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
