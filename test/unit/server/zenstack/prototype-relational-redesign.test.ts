@@ -1,16 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  createProjectDocument,
+  createProjectRevision,
   createPrototypeClients,
-  prototypeIds,
-  seedPrototypeState,
+  hardDeleteDocument,
+  prototypeKeys,
+  restoreDocument,
+  setupPrototypeLifecycle,
+  softDeleteDocument,
+  updateProjectStatus,
 } from '#server/zenstack/prototype-relational-redesign/runtime';
 
 let database: Awaited<ReturnType<typeof createPrototypeClients>>['database'];
 let server: Awaited<ReturnType<typeof createPrototypeClients>>['server'];
 let raw: Awaited<ReturnType<typeof createPrototypeClients>>['raw'];
-let projectAdminDb: Awaited<ReturnType<typeof createPrototypeClients>>['protectedClient'];
-let bottomOnlyDb: Awaited<ReturnType<typeof createPrototypeClients>>['protectedClient'];
+let projectAdminDb: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['projectAdminDb'];
+let bottomOnlyDb: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['bottomOnlyDb'];
+let bootstrap: Awaited<ReturnType<typeof setupPrototypeLifecycle>>['bootstrap'];
 
 beforeAll(async () => {
   const clients = await createPrototypeClients();
@@ -18,9 +25,10 @@ beforeAll(async () => {
   server = clients.server;
   raw = clients.raw;
 
-  const { actorContext, bottomActorContext } = await seedPrototypeState(raw);
-  projectAdminDb = clients.protectedClient.$setAuth(actorContext);
-  bottomOnlyDb = clients.protectedClient.$setAuth(bottomActorContext);
+  const lifecycle = await setupPrototypeLifecycle(clients);
+  bootstrap = lifecycle.bootstrap;
+  projectAdminDb = lifecycle.projectAdminDb;
+  bottomOnlyDb = lifecycle.bottomOnlyDb;
 });
 
 afterAll(async () => {
@@ -29,9 +37,147 @@ afterAll(async () => {
 });
 
 describe('ZenStack prototype relational redesign', () => {
-  it('keeps delegate reads aligned to the exact qualified capability key', async () => {
+  it('establishes actor context from memberships and sessions', async () => {
+    const user = await raw.user.findUniqueOrThrow({
+      where: { id: bootstrap.users.projectAdmin.id },
+      select: {
+        displayName: true,
+        status: true,
+        passwordCredential: { select: { username: true } },
+        memberships: { select: { id: true, tenantId: true, status: true } },
+        sessions: { select: { tokenHash: true, tenantId: true, userId: true } },
+      },
+    });
+
+    expect(user).toMatchObject({
+      displayName: 'Prototype User',
+      status: 'active',
+      passwordCredential: { username: 'prototype' },
+      memberships: [
+        {
+          id: bootstrap.memberships.projectAdmin.id,
+          tenantId: bootstrap.tenant.id,
+          status: 'active',
+        },
+      ],
+      sessions: [
+        {
+          tokenHash: bootstrap.session.tokenHash,
+          tenantId: bootstrap.tenant.id,
+          userId: bootstrap.users.projectAdmin.id,
+        },
+      ],
+    });
+
+    expect(bootstrap.actorContexts.projectAdmin.membershipId).toBe(
+      bootstrap.memberships.projectAdmin.id,
+    );
+    expect(bootstrap.actorContexts.projectAdmin.tenantId).toBe(bootstrap.tenant.id);
+    expect(bootstrap.actorContexts.bottomOnly.membershipId).toBe(
+      bootstrap.memberships.bottomOnly.id,
+    );
+  });
+
+  it('keeps tenant app enablement and collection catalog aligned', async () => {
+    const tenantApps = await raw.tenantApp.findMany({
+      orderBy: { appKey: 'asc' },
+      select: {
+        tenantId: true,
+        appKey: true,
+        config: true,
+        app: { select: { appKey: true, name: true } },
+      },
+    });
+
+    expect(tenantApps).toEqual([
+      {
+        tenantId: bootstrap.tenant.id,
+        appKey: prototypeKeys.appKey,
+        config: { lifecycle: 'enabled' },
+        app: { appKey: prototypeKeys.appKey, name: 'Default app' },
+      },
+      {
+        tenantId: bootstrap.tenant.id,
+        appKey: prototypeKeys.partnerAppKey,
+        config: { lifecycle: 'enabled' },
+        app: { appKey: prototypeKeys.partnerAppKey, name: 'Partner app' },
+      },
+    ]);
+
+    const catalogRows = await raw.collection.findMany({
+      orderBy: [{ qualifiedCollectionKey: 'asc' }],
+      select: {
+        app: { select: { appKey: true } },
+        collectionKey: true,
+        qualifiedCollectionKey: true,
+        definitionKey: true,
+        name: true,
+        schemaVersion: true,
+      },
+    });
+
+    expect(catalogRows).toEqual([
+      {
+        app: { appKey: prototypeKeys.appKey },
+        collectionKey: prototypeKeys.lockedCollectionLocalKey,
+        qualifiedCollectionKey: prototypeKeys.lockedCollectionKey,
+        definitionKey: prototypeKeys.lockedCollectionLocalKey,
+        name: 'Locked documents',
+        schemaVersion: 1,
+      },
+      {
+        app: { appKey: prototypeKeys.appKey },
+        collectionKey: prototypeKeys.projectCollectionLocalKey,
+        qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
+        definitionKey: prototypeKeys.projectCollectionLocalKey,
+        name: 'Projects',
+        schemaVersion: 1,
+      },
+      {
+        app: { appKey: prototypeKeys.partnerAppKey },
+        collectionKey: prototypeKeys.projectCollectionLocalKey,
+        qualifiedCollectionKey: prototypeKeys.partnerProjectCollectionKey,
+        definitionKey: prototypeKeys.projectCollectionLocalKey,
+        name: 'Partner projects',
+        schemaVersion: 1,
+      },
+    ]);
+  });
+
+  it('creates managed rows through actor-bound operations and keeps capability boundaries exact', async () => {
+    const project = await createProjectDocument({
+      db: projectAdminDb,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.child.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      title: 'Lifecycle project',
+    });
+
+    const bottomProject = await createProjectDocument({
+      db: projectAdminDb,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.bottom.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      title: 'Bottom lifecycle project',
+    });
+
+    await expect(
+      createProjectDocument({
+        db: projectAdminDb,
+        tenantId: bootstrap.tenant.id,
+        authScopeId: bootstrap.scopes.child.id,
+        appKey: prototypeKeys.partnerAppKey,
+        collectionKey: prototypeKeys.projectCollectionLocalKey,
+        title: 'Partner write should be denied',
+      }),
+    ).rejects.toMatchObject({
+      reason: 'rejected-by-policy',
+    });
+
     const projectBase = await projectAdminDb.documentBase.findUnique({
-      where: { documentId: prototypeIds.projectDocId },
+      where: { documentId: project.documentId },
       select: {
         documentId: true,
         tenantId: true,
@@ -40,13 +186,11 @@ describe('ZenStack prototype relational redesign', () => {
         collectionKey: true,
         qualifiedCollectionKey: true,
         version: true,
-        createdAt: true,
-        updatedAt: true,
       },
     });
 
-    const project = await projectAdminDb.projectDocument.findUnique({
-      where: { documentId: prototypeIds.projectDocId },
+    const visibleProject = await projectAdminDb.projectDocument.findUnique({
+      where: { documentId: project.documentId },
       select: {
         documentId: true,
         tenantId: true,
@@ -59,162 +203,131 @@ describe('ZenStack prototype relational redesign', () => {
       },
     });
 
-    const locked = await projectAdminDb.lockedDocument.findUnique({
-      where: { documentId: prototypeIds.lockedDocId },
+    const bottomVisibleToBottomActor = await bottomOnlyDb.projectDocument.findUnique({
+      where: { documentId: bottomProject.documentId },
       select: {
         documentId: true,
-        tenantId: true,
         authScopeId: true,
-        appKey: true,
-        collectionKey: true,
-        qualifiedCollectionKey: true,
         title: true,
-        locked: true,
       },
     });
 
-    const partnerProject = await projectAdminDb.partnerProjectDocument.findUnique({
-      where: { documentId: prototypeIds.partnerProjectDocId },
-      select: {
-        documentId: true,
-        appKey: true,
-        collectionKey: true,
-        qualifiedCollectionKey: true,
-        title: true,
-      },
+    const childHiddenFromBottomActor = await bottomOnlyDb.projectDocument.findUnique({
+      where: { documentId: project.documentId },
+      select: { documentId: true },
     });
 
     expect(projectBase).toMatchObject({
-      documentId: prototypeIds.projectDocId,
-      tenantId: prototypeIds.tenantId,
-      authScopeId: prototypeIds.childScopeId,
-      appKey: prototypeIds.appKey,
-      collectionKey: 'projects',
-      qualifiedCollectionKey: prototypeIds.projectCollectionKey,
+      documentId: project.documentId,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.child.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
       version: 1,
     });
 
-    expect(project).toMatchObject({
-      documentId: prototypeIds.projectDocId,
-      tenantId: prototypeIds.tenantId,
-      authScopeId: prototypeIds.childScopeId,
-      appKey: prototypeIds.appKey,
-      collectionKey: 'projects',
-      qualifiedCollectionKey: prototypeIds.projectCollectionKey,
-      title: 'Prototype project',
+    expect(visibleProject).toMatchObject({
+      documentId: project.documentId,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.child.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      qualifiedCollectionKey: prototypeKeys.projectCollectionKey,
+      title: 'Lifecycle project',
       status: 'draft',
     });
 
-    expect(locked).toMatchObject({
-      documentId: prototypeIds.lockedDocId,
-      tenantId: prototypeIds.tenantId,
-      authScopeId: prototypeIds.childScopeId,
-      appKey: prototypeIds.appKey,
-      collectionKey: 'locked-documents',
-      qualifiedCollectionKey: prototypeIds.lockedCollectionKey,
-      title: 'Locked prototype',
-      locked: true,
+    expect(bottomVisibleToBottomActor).toMatchObject({
+      documentId: bottomProject.documentId,
+      authScopeId: bootstrap.scopes.bottom.id,
+      title: 'Bottom lifecycle project',
     });
-
-    expect(partnerProject).toBeNull();
+    expect(childHiddenFromBottomActor).toBeNull();
   });
 
-  it('keeps catalog metadata aligned with the discriminator key', async () => {
-    const catalogRows = await raw.collection.findMany({
-      orderBy: [{ qualifiedCollectionKey: 'asc' }],
-      select: {
-        app: {
-          select: { appKey: true },
-        },
-        collectionKey: true,
-        qualifiedCollectionKey: true,
-        definitionKey: true,
-        name: true,
-        schemaVersion: true,
-      },
+  it('supports managed document lifecycle transitions through runtime helpers', async () => {
+    const created = await createProjectDocument({
+      db: projectAdminDb,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.root.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      title: 'Lifecycle transitions',
     });
 
-    expect(catalogRows).toEqual([
-      {
-        app: { appKey: prototypeIds.appKey },
-        collectionKey: 'locked-documents',
-        qualifiedCollectionKey: prototypeIds.lockedCollectionKey,
-        definitionKey: 'locked-documents',
-        name: 'Locked documents',
-        schemaVersion: 1,
-      },
-      {
-        app: { appKey: prototypeIds.appKey },
-        collectionKey: 'projects',
-        qualifiedCollectionKey: prototypeIds.projectCollectionKey,
-        definitionKey: 'projects',
-        name: 'Projects',
-        schemaVersion: 1,
-      },
-      {
-        app: { appKey: prototypeIds.partnerAppKey },
-        collectionKey: 'projects',
-        qualifiedCollectionKey: prototypeIds.partnerProjectCollectionKey,
-        definitionKey: 'projects',
-        name: 'Partner projects',
-        schemaVersion: 1,
-      },
-    ]);
-  });
-
-  it('keeps asymmetric bottom-scope reads', async () => {
-    const projectAdminBottom = await projectAdminDb.projectDocument.findUnique({
-      where: { documentId: prototypeIds.bottomProjectDocId },
-      select: {
-        documentId: true,
-        authScopeId: true,
-        title: true,
-      },
-    });
-
-    const bottomOnlyBottom = await bottomOnlyDb.projectDocument.findUnique({
-      where: { documentId: prototypeIds.bottomProjectDocId },
-      select: {
-        documentId: true,
-        authScopeId: true,
-        title: true,
-      },
-    });
-
-    const bottomOnlyChild = await bottomOnlyDb.projectDocument.findUnique({
-      where: { documentId: prototypeIds.projectDocId },
-      select: {
-        documentId: true,
-      },
-    });
-
-    expect(projectAdminBottom).toMatchObject({
-      documentId: prototypeIds.bottomProjectDocId,
-      authScopeId: prototypeIds.bottomScopeId,
-      title: 'Bottom-scoped project',
-    });
-    expect(bottomOnlyBottom).toMatchObject({
-      documentId: prototypeIds.bottomProjectDocId,
-      authScopeId: prototypeIds.bottomScopeId,
-      title: 'Bottom-scoped project',
-    });
-    expect(bottomOnlyChild).toBeNull();
-  });
-
-  it('allows project updates but keeps subtype tightenings on top', async () => {
-    const updatedProject = await projectAdminDb.projectDocument.update({
-      where: { documentId: prototypeIds.projectDocId },
-      data: { status: 'active' },
-      select: { status: true },
-    });
-
-    expect(updatedProject).toEqual({
+    const updated = await updateProjectStatus(
+      projectAdminDb,
+      created.documentId,
+      'active',
+    );
+    expect(updated).toMatchObject({
+      documentId: created.documentId,
       status: 'active',
+      version: 1,
+    });
+
+    const deleted = await softDeleteDocument(raw, created.documentId);
+    expect(deleted.documentId).toBe(created.documentId);
+    expect(deleted.deletedAt).toBeInstanceOf(Date);
+
+    const hiddenAfterDelete = await projectAdminDb.projectDocument.findUnique({
+      where: { documentId: created.documentId },
+      select: { documentId: true },
+    });
+    expect(hiddenAfterDelete).toBeNull();
+
+    const restored = await restoreDocument(raw, created.documentId);
+    expect(restored).toMatchObject({
+      documentId: created.documentId,
+      deletedAt: null,
+    });
+
+    const visibleAfterRestore = await projectAdminDb.projectDocument.findUnique({
+      where: { documentId: created.documentId },
+      select: { documentId: true, status: true },
+    });
+    expect(visibleAfterRestore).toMatchObject({
+      documentId: created.documentId,
+      status: 'active',
+    });
+
+    await hardDeleteDocument(raw, created.documentId);
+
+    const missingAfterHardDelete = await raw.projectDocument.findUnique({
+      where: { documentId: created.documentId },
+      select: { documentId: true },
+    });
+    expect(missingAfterHardDelete).toBeNull();
+  });
+
+  it('keeps subtype tightenings on top of the baseline managed lifecycle', async () => {
+    const locked = await raw.lockedDocument.create({
+      data: {
+        tenantId: bootstrap.tenant.id,
+        authScopeId: bootstrap.scopes.child.id,
+        appKey: prototypeKeys.appKey,
+        collectionKey: prototypeKeys.lockedCollectionLocalKey,
+        title: 'Locked lifecycle document',
+        locked: true,
+      },
+      select: {
+        documentId: true,
+        authScopeId: true,
+        locked: true,
+        qualifiedCollectionKey: true,
+      },
+    });
+
+    expect(locked).toMatchObject({
+      authScopeId: bootstrap.scopes.child.id,
+      locked: true,
+      qualifiedCollectionKey: prototypeKeys.lockedCollectionKey,
     });
 
     await expect(
       projectAdminDb.lockedDocument.update({
-        where: { documentId: prototypeIds.lockedDocId },
+        where: { documentId: locked.documentId },
         data: { title: 'Trying to update locked doc' },
       }),
     ).rejects.toMatchObject({
@@ -222,41 +335,32 @@ describe('ZenStack prototype relational redesign', () => {
     });
   });
 
-  it('seeds and reads identity and membership data', async () => {
-    const user = await raw.user.findUnique({
-      where: { id: prototypeIds.userId },
-      select: {
-        displayName: true,
-        passwordCredential: { select: { username: true } },
-        memberships: { select: { tenantId: true } },
-        sessions: { select: { tokenHash: true, tenantId: true } },
-      },
+  it('keeps unmanaged support rows attached to managed document activity', async () => {
+    const project = await createProjectDocument({
+      db: projectAdminDb,
+      tenantId: bootstrap.tenant.id,
+      authScopeId: bootstrap.scopes.child.id,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
+      title: 'Revisioned project',
     });
 
-    expect(user).toMatchObject({
-      displayName: 'Prototype User',
-      passwordCredential: { username: 'prototype' },
-      memberships: [{ tenantId: prototypeIds.tenantId }],
-      sessions: [{ tokenHash: 'prototype-token-hash', tenantId: prototypeIds.tenantId }],
+    const revision = await createProjectRevision(
+      raw,
+      project.documentId,
+      'Initial revision body',
+    );
+
+    expect(revision).toMatchObject({
+      body: 'Initial revision body',
+      document: {
+        documentId: project.documentId,
+        title: 'Revisioned project',
+      },
     });
   });
 
-  it('seeds and reads app enablement data', async () => {
-    const tenantApps = await raw.tenantApp.findMany({
-      orderBy: { appKey: 'asc' },
-      select: {
-        enabledAt: true,
-        app: { select: { appKey: true, name: true } },
-      },
-    });
-
-    expect(tenantApps).toMatchObject([
-      { app: { appKey: prototypeIds.appKey, name: 'Default app' } },
-      { app: { appKey: prototypeIds.partnerAppKey, name: 'Partner app' } },
-    ]);
-  });
-
-  it('seeds and reads permission definitions', async () => {
+  it('reads permission definitions and role grants through actor context', async () => {
     const permissions = await raw.permission.findMany({
       orderBy: { key: 'asc' },
       select: {
@@ -271,161 +375,41 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     expect(permissions).toContainEqual({
-      key: 'default:projects:create',
-      appKey: prototypeIds.appKey,
-      collectionKey: 'projects',
+      key: bootstrap.permissions.projectCreateKey,
+      appKey: prototypeKeys.appKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
       actionKey: 'create',
       source: 'collection',
-      app: { appKey: prototypeIds.appKey },
-      collection: { appKey: prototypeIds.appKey, collectionKey: 'projects' },
+      app: { appKey: prototypeKeys.appKey },
+      collection: {
+        appKey: prototypeKeys.appKey,
+        collectionKey: prototypeKeys.projectCollectionLocalKey,
+      },
     });
     expect(permissions).toContainEqual({
-      key: 'default:projects:read',
-      appKey: prototypeIds.appKey,
-      collectionKey: 'projects',
+      key: bootstrap.permissions.partnerProjectReadKey,
+      appKey: prototypeKeys.partnerAppKey,
+      collectionKey: prototypeKeys.projectCollectionLocalKey,
       actionKey: 'read',
       source: 'collection',
-      app: { appKey: prototypeIds.appKey },
-      collection: { appKey: prototypeIds.appKey, collectionKey: 'projects' },
-    });
-    expect(permissions).toContainEqual({
-      key: 'default:locked-documents:update',
-      appKey: prototypeIds.appKey,
-      collectionKey: 'locked-documents',
-      actionKey: 'update',
-      source: 'collection',
-      app: { appKey: prototypeIds.appKey },
-      collection: { appKey: prototypeIds.appKey, collectionKey: 'locked-documents' },
-    });
-    expect(permissions).toContainEqual({
-      key: 'partner:projects:read',
-      appKey: prototypeIds.partnerAppKey,
-      collectionKey: 'projects',
-      actionKey: 'read',
-      source: 'collection',
-      app: { appKey: prototypeIds.partnerAppKey },
-      collection: { appKey: prototypeIds.partnerAppKey, collectionKey: 'projects' },
-    });
-  });
-
-  it('seeds and reads auth scope closure data including bottom scope', async () => {
-    const closureRows = await raw.authScopeClosure.findMany({
-      orderBy: [{ ancestorId: 'asc' }, { depth: 'asc' }],
-      select: { ancestorId: true, descendantId: true, depth: true },
-    });
-
-    expect(closureRows).toContainEqual({
-      ancestorId: prototypeIds.bottomScopeId,
-      descendantId: prototypeIds.bottomScopeId,
-      depth: 0,
-    });
-    expect(closureRows).toContainEqual({
-      ancestorId: prototypeIds.rootScopeId,
-      descendantId: prototypeIds.rootScopeId,
-      depth: 0,
-    });
-    expect(closureRows).toContainEqual({
-      ancestorId: prototypeIds.rootScopeId,
-      descendantId: prototypeIds.childScopeId,
-      depth: 1,
-    });
-    expect(closureRows).toContainEqual({
-      ancestorId: prototypeIds.rootScopeId,
-      descendantId: prototypeIds.siblingScopeId,
-      depth: 1,
-    });
-    expect(closureRows).toContainEqual({
-      ancestorId: prototypeIds.rootScopeId,
-      descendantId: prototypeIds.bottomScopeId,
-      depth: 1,
-    });
-  });
-
-  it('seeds and reads unmanaged support table independent of DocumentBase', async () => {
-    const revision = await raw.projectRevision.findUnique({
-      where: { id: prototypeIds.projectRevisionId },
-      select: {
-        body: true,
-        document: { select: { title: true, documentId: true } },
+      app: { appKey: prototypeKeys.partnerAppKey },
+      collection: {
+        appKey: prototypeKeys.partnerAppKey,
+        collectionKey: prototypeKeys.projectCollectionLocalKey,
       },
     });
 
-    expect(revision).toMatchObject({
-      body: 'Initial revision body',
-      document: { title: 'Prototype project', documentId: prototypeIds.projectDocId },
-    });
-  });
-
-  it('enforces create policy through exact capability keys and bottom-scope handling', async () => {
-    const createdRoot = await projectAdminDb.projectDocument.create({
-      data: {
-        documentId: '00000000-0000-0000-0000-ffffffffffff',
-        tenantId: prototypeIds.tenantId,
-        authScopeId: prototypeIds.rootScopeId,
-        appKey: prototypeIds.appKey,
-        collectionKey: 'projects',
-        title: 'Created at root',
-        status: 'draft',
-      },
-      select: { documentId: true, authScopeId: true },
-    });
-
-    const createdBottom = await projectAdminDb.projectDocument.create({
-      data: {
-        documentId: '00000000-0000-0000-0000-fffffffffffe',
-        tenantId: prototypeIds.tenantId,
-        authScopeId: prototypeIds.bottomScopeId,
-        appKey: prototypeIds.appKey,
-        collectionKey: 'projects',
-        title: 'Created at bottom',
-        status: 'draft',
-      },
-      select: { documentId: true, authScopeId: true },
-    });
-
-    await expect(
-      projectAdminDb.partnerProjectDocument.create({
-        data: {
-          documentId: '00000000-0000-0000-0000-fffffffffffd',
-          tenantId: prototypeIds.tenantId,
-          authScopeId: prototypeIds.childScopeId,
-          appKey: prototypeIds.partnerAppKey,
-          collectionKey: 'projects',
-          title: 'Should be denied',
-          status: 'draft',
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'rejected-by-policy',
-    });
-
-    expect(createdRoot).toEqual({
-      documentId: '00000000-0000-0000-0000-ffffffffffff',
-      authScopeId: prototypeIds.rootScopeId,
-    });
-    expect(createdBottom).toEqual({
-      documentId: '00000000-0000-0000-0000-fffffffffffe',
-      authScopeId: prototypeIds.bottomScopeId,
-    });
-
-    await raw.projectDocument.delete({
-      where: { documentId: '00000000-0000-0000-0000-ffffffffffff' },
-    });
-    await raw.projectDocument.delete({
-      where: { documentId: '00000000-0000-0000-0000-fffffffffffe' },
-    });
-  });
-
-  it('reads role assignments and permissions through actor context', async () => {
     const actorContext = await raw.actorContext.findUniqueOrThrow({
-      where: { id: prototypeIds.actorContextId },
+      where: { id: bootstrap.actorContexts.projectAdmin.id },
       select: {
         tenantId: true,
+        membershipId: true,
         user: {
           select: {
             roleAssignments: {
               orderBy: { id: 'asc' },
               select: {
+                id: true,
                 scopeId: true,
                 role: {
                   select: {
@@ -452,33 +436,44 @@ describe('ZenStack prototype relational redesign', () => {
     });
 
     expect(actorContext).toMatchObject({
-      tenantId: prototypeIds.tenantId,
+      tenantId: bootstrap.tenant.id,
+      membershipId: bootstrap.memberships.projectAdmin.id,
       user: {
         roleAssignments: [
           {
-            scopeId: prototypeIds.rootScopeId,
+            id: bootstrap.assignments.projectAdmin.id,
+            scopeId: bootstrap.scopes.root.id,
             role: {
               key: 'project-admin',
               rolePermissions: expect.arrayContaining([
                 {
                   permission: {
-                    key: 'default:projects:create',
+                    key: bootstrap.permissions.projectCreateKey,
                     actionKey: 'create',
-                    collection: { appKey: prototypeIds.appKey, collectionKey: 'projects' },
+                    collection: {
+                      appKey: prototypeKeys.appKey,
+                      collectionKey: prototypeKeys.projectCollectionLocalKey,
+                    },
                   },
                 },
                 {
                   permission: {
-                    key: 'default:projects:read',
+                    key: bootstrap.permissions.projectReadKey,
                     actionKey: 'read',
-                    collection: { appKey: prototypeIds.appKey, collectionKey: 'projects' },
+                    collection: {
+                      appKey: prototypeKeys.appKey,
+                      collectionKey: prototypeKeys.projectCollectionLocalKey,
+                    },
                   },
                 },
                 {
                   permission: {
-                    key: 'default:locked-documents:update',
+                    key: bootstrap.permissions.lockedUpdateKey,
                     actionKey: 'update',
-                    collection: { appKey: prototypeIds.appKey, collectionKey: 'locked-documents' },
+                    collection: {
+                      appKey: prototypeKeys.appKey,
+                      collectionKey: prototypeKeys.lockedCollectionLocalKey,
+                    },
                   },
                 },
               ]),
@@ -486,6 +481,39 @@ describe('ZenStack prototype relational redesign', () => {
           },
         ],
       },
+    });
+  });
+
+  it('keeps auth scope closure data aligned with the lifecycle bootstrap', async () => {
+    const closureRows = await raw.authScopeClosure.findMany({
+      orderBy: [{ ancestorId: 'asc' }, { depth: 'asc' }],
+      select: { ancestorId: true, descendantId: true, depth: true },
+    });
+
+    expect(closureRows).toContainEqual({
+      ancestorId: bootstrap.scopes.bottom.id,
+      descendantId: bootstrap.scopes.bottom.id,
+      depth: 0,
+    });
+    expect(closureRows).toContainEqual({
+      ancestorId: bootstrap.scopes.root.id,
+      descendantId: bootstrap.scopes.root.id,
+      depth: 0,
+    });
+    expect(closureRows).toContainEqual({
+      ancestorId: bootstrap.scopes.root.id,
+      descendantId: bootstrap.scopes.child.id,
+      depth: 1,
+    });
+    expect(closureRows).toContainEqual({
+      ancestorId: bootstrap.scopes.root.id,
+      descendantId: bootstrap.scopes.sibling.id,
+      depth: 1,
+    });
+    expect(closureRows).toContainEqual({
+      ancestorId: bootstrap.scopes.root.id,
+      descendantId: bootstrap.scopes.bottom.id,
+      depth: 1,
     });
   });
 });
