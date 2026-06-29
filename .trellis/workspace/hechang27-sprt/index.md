@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 51
+- **Total Sessions**: 52
 - **Last Active**: 2026-06-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1693 | Active |
+| `journal-1.md` | ~1725 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 52 | 2026-06-29 | Model ZenStack prototype lifecycle flows | `005013bb` | `-` |
 | 51 | 2026-06-29 | Tighten ZenStack prototype DocumentBase policy | `d79074e7` | `-` |
 | 50 | 2026-06-27 | Apply zenstack #2733 patch, remove AuthScope policies | `6086421b` | `-` |
 | 49 | 2026-06-26 | ZenStack relational redesign prototype | `de8a9ad3` | `-` |

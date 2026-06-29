@@ -1691,3 +1691,35 @@ Tightened the ZenStack prototype DocumentBase CRUD policy, aligned bottom-scope 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 52: Model ZenStack prototype lifecycle flows
+
+**Date**: 2026-06-29
+**Task**: Model ZenStack prototype lifecycle flows
+
+### Summary
+
+Refactored the ZenStack relational-redesign prototype runtime/tests around actor establishment, tenant app enablement, managed document lifecycle transitions, scope-aware reads, and support-table coexistence, while switching ordinary fixture rows to generated ids and keeping larger bootstrap writes batched.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `005013bb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
