@@ -44,6 +44,13 @@ Important prototype findings:
 
 - `@@delegate` on an `@computed` discriminator schema-generates, but real delegate creates still fail in current ZenStack ORM. The create path inserts the discriminator as if it were a writable physical column, so `qualifiedCollectionKey` must remain persisted if delegate writes need to work.
 
+- The current closure-traversal `DocumentBase` CRUD policy in `prototype.zmodel` depends on a patched local ZenStack fork at `devenv/zenstack-fork`.
+  - `9e78de7` — `fix(policy): resolve this.relation.field against @@allow model, cross-db array-in EXISTS`
+  - `29a60bb` — `fix(policy): preserve this-rooted collection predicates in auth bindings`
+  - `9992d72` — `fix(policy): preserve subquery joins in array EXISTS rewrite`
+  - With those fork patches rebuilt into `@zenstackhq/plugin-policy`, `bun run prototype:zenstack-relational-redesign` passes again end to end.
+  - Without the `29a60bb` patch, the focused ZenStack regression added in `tests/e2e/orm/policy/auth-access.test.ts` (`Fix #3`) fails with `Field "authScope" not found in model "RoleAssignment"`, which is the same failure shape the prototype hit when evaluating `this.authScope.ancestors?[ancestor == rs.scope]` inside the `DocumentBase` CRUD rules.
+
 # Enrichment Round (2026-06-26)
 
 Question: can the prototype carry the full framework-owned relational surface (catalog, RBAC, sessions, lifecycle metadata) while using closure-only scope matching in policy?
