@@ -1,0 +1,5 @@
+[submodule "upstream/zenstack"]
+	path = upstream/zenstack
+	url = https://github.com/hechang27-sprt/zenstack.git
+	branch = dogfood
+	ignore = all
