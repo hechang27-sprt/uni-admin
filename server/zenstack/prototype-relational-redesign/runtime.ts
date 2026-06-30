@@ -159,8 +159,8 @@ export interface CreateLockedDocumentInput {
 export async function pushPrototypeSchema(databaseUrl: string) {
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(
-      "bunx",
-      ["zen", "db", "push", "--schema", prototypeSchemaPath],
+      "pnpm",
+      ["exec", "zen", "db", "push", "--schema", prototypeSchemaPath],
       {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: databaseUrl },

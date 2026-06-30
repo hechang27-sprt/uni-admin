@@ -1,0 +1,58 @@
+packages:
+  - .
+  - upstream/zenstack
+  - upstream/zenstack/packages/**
+  - upstream/zenstack/samples/**
+  - upstream/zenstack/tests/**
+
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  better-sqlite3: true
+  prisma: true
+  sharp: true
+  vue-demi: true
+
+catalog:
+  '@tanstack/query-core': 5.90.2
+  '@tanstack/react-query': 5.90.2
+  '@tanstack/vue-query': 5.90.2
+  '@tanstack/svelte-query': 6.0.10
+  '@types/better-sqlite3': ^7.6.13
+  '@types/node': ^20.19.0
+  '@types/react': 19.2.0
+  '@types/react-dom': 19.2.0
+  '@types/tmp': ^0.2.6
+  better-sqlite3: ^12.5.0
+  decimal.js: ^10.4.3
+  kysely: ~0.29.0
+  langium: 4.2.4
+  langium-cli: 4.2.1
+  next: 16.1.6
+  nuxt: 4.3.1
+  '@sveltejs/kit': 2.53.2
+  pg: ^8.13.1
+  mysql2: ^3.16.1
+  prisma: ^6.19.0
+  react: 19.2.0
+  react-dom: 19.2.0
+  sql.js: ^1.13.0
+  svelte: 5.53.5
+  tmp: ^0.2.4
+  ts-pattern: ^5.7.1
+  typescript: ^6.0.3
+  vue: 3.5.22
+  zod: ^4.0.0
+  zod-validation-error: ^4.0.1
+  tsx: ^4.22.0
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - better-sqlite3
+  - esbuild
+  - prisma
+  - sharp
+  - unrs-resolver
+  - vue-demi

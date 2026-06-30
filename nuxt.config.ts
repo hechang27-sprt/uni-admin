@@ -9,14 +9,10 @@ export default defineNuxtConfig({
   modules: ["@pinia/nuxt", "@nuxt/eslint"],
   typescript: {
     nodeTsConfig: {
-      compilerOptions: {
-        types: ["bun"],
-      },
       include: ["../*.config.ts", "../scripts/**/*.ts"],
     },
   },
   nitro: {
-    preset: "bun",
     typescript: {
       tsConfig: {
         compilerOptions: {
